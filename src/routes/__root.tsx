@@ -23,6 +23,7 @@ import {
   BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { Separator } from "~/components/ui/separator";
+import { Toaster } from "~/components/ui/sonner";
 import {
   Sidebar,
   SidebarContent,
@@ -199,6 +200,7 @@ const AppRoot = () => (
         <main className="flex-1 p-4 md:p-6">
           <Outlet />
         </main>
+        <Toaster />
       </div>
     </SidebarInset>
   </SidebarProvider>

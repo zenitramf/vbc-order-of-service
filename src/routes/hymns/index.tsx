@@ -1,8 +1,21 @@
+import { MusicNotesIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { MusicNotesIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { useState } from "react";
+import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "~/components/ui/alert-dialog";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -34,12 +47,30 @@ const HymnsPage = () => {
   const hymns = Route.useLoaderData();
   const router = useRouter();
   const deleteHymnFn = useServerFn(deleteHymn);
+  const [hymnToDelete, setHymnToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async (hymnId: string, hymnName: string) => {
+    try {
+      setIsDeleting(true);
+      await deleteHymnFn({ data: hymnId });
+      await router.invalidate();
+      setHymnToDelete(null);
+      toast.success(`Deleted "${hymnName}".`);
+    } catch {
+      toast.error("Unable to delete hymn. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Hymn Library</h1>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            Hymn Library
+          </h1>
           <p className="text-muted-foreground">
             Manage hymn numbers, lyrics, keys, sources, and recent play history.
           </p>
@@ -56,7 +87,8 @@ const HymnsPage = () => {
         <CardHeader>
           <CardTitle>Hymns</CardTitle>
           <CardDescription>
-            Seed the library from db/song-library-seed.csv and select hymns while editing an order.
+            Seed the library from db/song-library-seed.csv and select hymns
+            while editing an order.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -67,7 +99,9 @@ const HymnsPage = () => {
                   <MusicNotesIcon />
                 </EmptyMedia>
                 <EmptyTitle>No hymns yet</EmptyTitle>
-                <EmptyDescription>Run the D1 seed migration or add a hymn manually.</EmptyDescription>
+                <EmptyDescription>
+                  Run the D1 seed migration or add a hymn manually.
+                </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
                 <Button asChild>
@@ -96,7 +130,11 @@ const HymnsPage = () => {
                   <TableRow key={hymn.id}>
                     <TableCell>{hymn.hymnNumber}</TableCell>
                     <TableCell>
-                      <Link className="font-medium hover:underline" params={{ hymnId: hymn.id }} to="/hymns/$hymnId">
+                      <Link
+                        className="font-medium hover:underline"
+                        params={{ hymnId: hymn.id }}
+                        to="/hymns/$hymnId"
+                      >
                         {hymn.name}
                       </Link>
                     </TableCell>
@@ -109,22 +147,51 @@ const HymnsPage = () => {
                     <TableCell>
                       <div className="flex gap-2">
                         <Button asChild size="sm" variant="outline">
-                          <Link params={{ hymnId: hymn.id }} to="/hymns/$hymnId">
+                          <Link
+                            params={{ hymnId: hymn.id }}
+                            to="/hymns/$hymnId"
+                          >
                             Edit
                           </Link>
                         </Button>
-                        <Button
-                          onClick={async () => {
-                            await deleteHymnFn({ data: hymn.id });
-                            await router.invalidate();
+                        <AlertDialog
+                          onOpenChange={(open) => {
+                            setHymnToDelete(open ? hymn.id : null);
                           }}
-                          size="sm"
-                          type="button"
-                          variant="ghost"
+                          open={hymnToDelete === hymn.id}
                         >
-                          <TrashIcon data-icon="inline-start" />
-                          Delete
-                        </Button>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" type="button" variant="ghost">
+                              <TrashIcon data-icon="inline-start" />
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                Delete this hymn?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently remove "{hymn.name}" from
+                                your hymn library.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel disabled={isDeleting}>
+                                Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                disabled={isDeleting}
+                                onClick={async () => {
+                                  await handleDelete(hymn.id, hymn.name);
+                                }}
+                                variant="destructive"
+                              >
+                                {isDeleting ? "Deleting..." : "Delete"}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </TableCell>
                   </TableRow>
