@@ -47,8 +47,7 @@ export const HymnEditorPage = ({
   const [lastPlayed, setLastPlayed] = React.useState(
     (hymn?.lastPlayed ?? "").slice(0, 10)
   );
-  const [timesPlayedLastSixMonths, setTimesPlayedLastSixMonths] =
-    React.useState(hymn?.timesPlayedLastSixMonths ?? 0);
+  const timesPlayedLastSixMonths = hymn?.timesPlayedLastSixMonths ?? 0;
   const [sourceId, setSourceId] = React.useState(
     hymn?.sourceId ?? referenceData.hymnSources[0]?.id ?? "living-hymns"
   );
@@ -68,7 +67,6 @@ export const HymnEditorPage = ({
           musicKey,
           name,
           sourceId,
-          timesPlayedLastSixMonths,
         },
       });
       await navigate({ params: { hymnId: result.id }, to: "/hymns/$hymnId" });
@@ -155,16 +153,17 @@ export const HymnEditorPage = ({
                   Times played last 6 months
                 </FieldLabel>
                 <Input
+                  disabled
                   id="times-played"
                   min={0}
-                  onChange={(event) =>
-                    setTimesPlayedLastSixMonths(
-                      Number.parseInt(event.target.value, 10) || 0
-                    )
-                  }
+                  readOnly
                   type="number"
                   value={timesPlayedLastSixMonths}
                 />
+                <FieldDescription>
+                  Calculated from published orders of service in the last 6
+                  months.
+                </FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="lyrics">Lyrics markdown</FieldLabel>

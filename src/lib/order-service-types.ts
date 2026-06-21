@@ -128,5 +128,4 @@ export interface SaveHymnInput {
   musicKey: string;
   name: string;
   sourceId: string;
-  timesPlayedLastSixMonths: number;
 }

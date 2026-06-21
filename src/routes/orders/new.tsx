@@ -3,6 +3,7 @@ import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { CalendarPlusIcon, PlusIcon } from "@phosphor-icons/react";
 import * as React from "react";
+import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -22,7 +23,7 @@ import {
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
-import { createOrder, getTemplates } from "~/lib/order-service-data";
+import { createOrder, getOrders, getTemplates } from "~/lib/order-service-data";
 
 const getNextSunday = () => {
   const date = new Date();
@@ -32,14 +33,30 @@ const getNextSunday = () => {
   return date.toISOString().slice(0, 10);
 };
 
+const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
+  error instanceof Error && error.message ? error.message : fallbackMessage;
+
+const getServiceDateConflictMessage = (serviceDate: string) =>
+  `An order of service already exists for ${serviceDate}.`;
+
 const NewOrderPage = () => {
-  const templates = Route.useLoaderData();
+  const { existingOrders, templates } = Route.useLoaderData();
   const navigate = useNavigate();
   const createOrderFn = useServerFn(createOrder);
   const [templateId, setTemplateId] = React.useState(templates[0]?.id ?? "");
   const [serviceDate, setServiceDate] = React.useState(getNextSunday());
   const [title, setTitle] = React.useState("Sunday Order of Service");
   const [isCreating, setIsCreating] = React.useState(false);
+  const [submitError, setSubmitError] = React.useState<string | null>(null);
+
+  const hasServiceDateConflict = React.useMemo(
+    () => existingOrders.some((order) => order.serviceDate === serviceDate),
+    [existingOrders, serviceDate]
+  );
+
+  const serviceDateErrorMessage = hasServiceDateConflict
+    ? getServiceDateConflictMessage(serviceDate)
+    : submitError;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -48,11 +65,24 @@ const NewOrderPage = () => {
       return;
     }
 
+    if (hasServiceDateConflict) {
+      setSubmitError(getServiceDateConflictMessage(serviceDate));
+      return;
+    }
+
     setIsCreating(true);
+    setSubmitError(null);
 
     try {
       const result = await createOrderFn({ data: { serviceDate, templateId, title } });
       await navigate({ params: { orderId: result.id }, to: "/orders/$orderId" });
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to create order of service. Please try again."
+      );
+      setSubmitError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsCreating(false);
     }
@@ -99,10 +129,21 @@ const NewOrderPage = () => {
               <FieldLabel htmlFor="order-date">Order of service date</FieldLabel>
               <Input
                 id="order-date"
-                onChange={(event) => setServiceDate(event.target.value)}
+                onChange={(event) => {
+                  setServiceDate(event.target.value);
+                  setSubmitError(null);
+                }}
                 type="date"
                 value={serviceDate}
               />
+              <FieldDescription>
+                Only one order of service can be scheduled per day.
+              </FieldDescription>
+              {serviceDateErrorMessage ? (
+                <FieldDescription className="text-destructive">
+                  {serviceDateErrorMessage}
+                </FieldDescription>
+              ) : null}
             </Field>
             <Field>
               <FieldLabel htmlFor="order-template">Template</FieldLabel>
@@ -127,7 +168,10 @@ const NewOrderPage = () => {
       </Card>
 
       <div className="flex justify-end">
-        <Button disabled={isCreating || !templateId} type="submit">
+        <Button
+          disabled={hasServiceDateConflict || isCreating || !templateId}
+          type="submit"
+        >
           <CalendarPlusIcon data-icon="inline-start" />
           {isCreating ? "Creating…" : "Create order"}
         </Button>
@@ -138,5 +182,12 @@ const NewOrderPage = () => {
 
 export const Route = createFileRoute("/orders/new")({
   component: NewOrderPage,
-  loader: () => getTemplates(),
+  loader: async () => {
+    const [templates, existingOrders] = await Promise.all([
+      getTemplates(),
+      getOrders(),
+    ]);
+
+    return { existingOrders, templates };
+  },
 });

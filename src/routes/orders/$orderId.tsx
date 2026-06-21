@@ -3,6 +3,7 @@ import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { FloppyDiskIcon, PaperPlaneTiltIcon, PlusIcon } from "@phosphor-icons/react";
 import * as React from "react";
+import { toast } from "sonner";
 
 import { OrderTemplateEditor } from "~/components/order-template-editor";
 import { Badge } from "~/components/ui/badge";
@@ -27,14 +28,21 @@ import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select"
 import {
   getHymnOptions,
   getOrder,
+  getOrders,
   getReferenceData,
   publishOrder,
   saveOrder,
 } from "~/lib/order-service-data";
 import type { OrderServiceTemplateJson, ServiceStatus } from "~/lib/order-service-types";
 
+const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
+  error instanceof Error && error.message ? error.message : fallbackMessage;
+
+const getServiceDateConflictMessage = (serviceDate: string) =>
+  `An order of service already exists for ${serviceDate}.`;
+
 const OrderRoute = () => {
-  const { hymnOptions, order, referenceData } = Route.useLoaderData();
+  const { hymnOptions, order, orders, referenceData } = Route.useLoaderData();
   const router = useRouter();
   const saveOrderFn = useServerFn(saveOrder);
   const publishOrderFn = useServerFn(publishOrder);
@@ -47,6 +55,7 @@ const OrderRoute = () => {
   const [orderJson, setOrderJson] = React.useState<OrderServiceTemplateJson | null>(
     order?.order ?? null
   );
+  const [formError, setFormError] = React.useState<string | null>(null);
 
   if (!order || !orderJson) {
     return (
@@ -67,8 +76,28 @@ const OrderRoute = () => {
     );
   }
 
-  const handleSave = async () => {
+  const hasServiceDateConflict = React.useMemo(
+    () =>
+      orders.some(
+        (existingOrder) =>
+          existingOrder.id !== order.id &&
+          existingOrder.serviceDate === serviceDate
+      ),
+    [order.id, orders, serviceDate]
+  );
+
+  const serviceDateErrorMessage = hasServiceDateConflict
+    ? getServiceDateConflictMessage(serviceDate)
+    : formError;
+
+  const handleSave = async (): Promise<boolean> => {
+    if (hasServiceDateConflict) {
+      setFormError(getServiceDateConflictMessage(serviceDate));
+      return false;
+    }
+
     setIsSaving(true);
+    setFormError(null);
 
     try {
       await saveOrderFn({
@@ -81,19 +110,43 @@ const OrderRoute = () => {
         },
       });
       await router.invalidate();
+
+      return true;
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to save order of service. Please try again."
+      );
+      setFormError(errorMessage);
+      toast.error(errorMessage);
+
+      return false;
     } finally {
       setIsSaving(false);
     }
   };
 
   const handlePublish = async () => {
-    await handleSave();
+    const saveSucceeded = await handleSave();
+
+    if (!saveSucceeded) {
+      return;
+    }
+
     setIsPublishing(true);
+    setFormError(null);
 
     try {
       await publishOrderFn({ data: order.id });
       setStatus("Published");
       await router.invalidate();
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to publish order of service. Please try again."
+      );
+      setFormError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsPublishing(false);
     }
@@ -120,11 +173,20 @@ const OrderRoute = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button disabled={isSaving || isPublishing} onClick={handleSave} type="button" variant="outline">
+          <Button
+            disabled={hasServiceDateConflict || isSaving || isPublishing}
+            onClick={handleSave}
+            type="button"
+            variant="outline"
+          >
             <FloppyDiskIcon data-icon="inline-start" />
             {isSaving ? "Saving…" : "Save"}
           </Button>
-          <Button disabled={isPublishing || status === "Published"} onClick={handlePublish} type="button">
+          <Button
+            disabled={hasServiceDateConflict || isPublishing || status === "Published"}
+            onClick={handlePublish}
+            type="button"
+          >
             <PaperPlaneTiltIcon data-icon="inline-start" />
             {publishButtonLabel}
           </Button>
@@ -148,10 +210,21 @@ const OrderRoute = () => {
               <FieldLabel htmlFor="order-date">Order of service date</FieldLabel>
               <Input
                 id="order-date"
-                onChange={(event) => setServiceDate(event.target.value)}
+                onChange={(event) => {
+                  setFormError(null);
+                  setServiceDate(event.target.value);
+                }}
                 type="date"
                 value={serviceDate}
               />
+              <FieldDescription>
+                Only one order of service can be scheduled per day.
+              </FieldDescription>
+              {serviceDateErrorMessage ? (
+                <FieldDescription className="text-destructive">
+                  {serviceDateErrorMessage}
+                </FieldDescription>
+              ) : null}
             </Field>
             <Field>
               <FieldLabel htmlFor="service-type">Service type</FieldLabel>
@@ -189,12 +262,13 @@ const OrderRoute = () => {
 export const Route = createFileRoute("/orders/$orderId")({
   component: OrderRoute,
   loader: async ({ params }) => {
-    const [order, referenceData, hymnOptions] = await Promise.all([
+    const [order, referenceData, hymnOptions, orders] = await Promise.all([
       getOrder({ data: params.orderId }),
       getReferenceData(),
       getHymnOptions(),
+      getOrders(),
     ]);
 
-    return { hymnOptions, order, referenceData };
+    return { hymnOptions, order, orders, referenceData };
   },
 });

@@ -134,6 +134,8 @@ CREATE TABLE IF NOT EXISTS orders_of_service (
 );
 
 CREATE INDEX IF NOT EXISTS orders_of_service_date_idx ON orders_of_service(service_date);
+CREATE UNIQUE INDEX IF NOT EXISTS orders_of_service_service_date_unique_idx
+  ON orders_of_service(service_date);
 CREATE INDEX IF NOT EXISTS orders_of_service_status_idx ON orders_of_service(status);
 
 CREATE TABLE IF NOT EXISTS hymn_plays (
@@ -296,6 +298,40 @@ const mapOrderRow = (row: Record<string, unknown>): OrderRecord => {
   };
 };
 
+const buildServiceDateConflictMessage = (serviceDate: string) =>
+  `An order of service already exists for ${serviceDate}.`;
+
+const isServiceDateUniqueConstraintError = (error: unknown): boolean =>
+  error instanceof Error &&
+  error.message.includes("UNIQUE constraint failed") &&
+  error.message.includes("orders_of_service.service_date");
+
+const assertServiceDateAvailable = async ({
+  db,
+  excludeOrderId,
+  serviceDate,
+}: {
+  db: D1Database;
+  excludeOrderId?: string;
+  serviceDate: string;
+}): Promise<void> => {
+  const existingOrder = excludeOrderId
+    ? await db
+        .prepare(
+          "SELECT id FROM orders_of_service WHERE service_date = ? AND id != ? LIMIT 1"
+        )
+        .bind(serviceDate, excludeOrderId)
+        .first<{ id: string }>()
+    : await db
+        .prepare("SELECT id FROM orders_of_service WHERE service_date = ? LIMIT 1")
+        .bind(serviceDate)
+        .first<{ id: string }>();
+
+  if (existingOrder) {
+    throw new Error(buildServiceDateConflictMessage(serviceDate));
+  }
+};
+
 const mapHymnRow = (row: Record<string, unknown>): HymnRecord => ({
   hymnNumber: asString(row.hymn_number),
   id: asString(row.id),
@@ -307,6 +343,18 @@ const mapHymnRow = (row: Record<string, unknown>): HymnRecord => ({
   sourceName: asString(row.source_name),
   timesPlayedLastSixMonths: asNumber(row.times_played_last_6_months),
 });
+
+const RECENT_HYMN_PLAY_COUNT_SQL = `
+  COALESCE((
+    SELECT COUNT(DISTINCT hymn_plays.order_id)
+    FROM hymn_plays
+    JOIN orders_of_service
+      ON orders_of_service.id = hymn_plays.order_id
+    WHERE hymn_plays.hymn_id = hymns.id
+      AND orders_of_service.status = 'Published'
+      AND hymn_plays.played_on >= date('now', '-6 months')
+  ), 0) AS times_played_last_6_months
+`;
 
 export const getReferenceData = createServerFn({ method: "GET" }).handler(
   async (): Promise<ReferenceData> => {
@@ -457,6 +505,20 @@ export const getOrders = createServerFn({ method: "GET" }).handler(
   }
 );
 
+export const deleteOrder = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+
+    await db.batch([
+      db.prepare("DELETE FROM hymn_plays WHERE order_id = ?").bind(data),
+      db.prepare("DELETE FROM orders_of_service WHERE id = ?").bind(data),
+    ]);
+
+    return { success: true };
+  });
+
 export const getOrder = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<OrderRecord | null> => {
@@ -481,29 +543,47 @@ export const createOrder = createServerFn({ method: "POST" })
     await ensureDatabase();
     const db = getDatabase();
     const template = await getTemplate({ data: data.templateId });
+    const serviceDate = data.serviceDate.trim();
 
     if (!template) {
       throw new Error("Template not found.");
     }
 
+    if (!serviceDate) {
+      throw new Error("Order of service date is required.");
+    }
+
+    await assertServiceDateAvailable({ db, serviceDate });
+
     const id = uuidv4();
     const order = normalizeTemplate(template.template, template.name);
-    await db
-      .prepare(
-        `INSERT INTO orders_of_service
-          (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
-        VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)`
-      )
-      .bind(
-        id,
-        data.title.trim() || `${template.name} Order of Service`,
-        template.serviceTypeId,
-        data.serviceDate,
-        template.id,
-        JSON.stringify(order),
-        nowIso()
-      )
-      .run();
+
+    try {
+      await db
+        .prepare(
+          `INSERT INTO orders_of_service
+            (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
+          VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)`
+        )
+        .bind(
+          id,
+          data.title.trim() || `${template.name} Order of Service`,
+          template.serviceTypeId,
+          serviceDate,
+          template.id,
+          JSON.stringify(order),
+          nowIso()
+        )
+        .run();
+    } catch (error) {
+      if (isServiceDateUniqueConstraintError(error)) {
+        throw new Error(buildServiceDateConflictMessage(serviceDate), {
+          cause: error,
+        });
+      }
+
+      throw error;
+    }
 
     return { id };
   });
@@ -513,23 +593,46 @@ export const saveOrder = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ id: string }> => {
     await ensureDatabase();
     const db = getDatabase();
+    const serviceDate = data.serviceDate.trim();
+
+    if (!serviceDate) {
+      throw new Error("Order of service date is required.");
+    }
+
+    await assertServiceDateAvailable({
+      db,
+      excludeOrderId: data.id,
+      serviceDate,
+    });
+
     const timestamp = nowIso();
     const order = normalizeTemplate(data.order, data.title);
-    await db
-      .prepare(
-        `UPDATE orders_of_service
-        SET title = ?, service_type_id = ?, service_date = ?, order_json = ?, updated_at = ?
-        WHERE id = ?`
-      )
-      .bind(
-        data.title.trim() || "Untitled Order of Service",
-        data.serviceTypeId,
-        data.serviceDate,
-        JSON.stringify(order),
-        timestamp,
-        data.id
-      )
-      .run();
+
+    try {
+      await db
+        .prepare(
+          `UPDATE orders_of_service
+          SET title = ?, service_type_id = ?, service_date = ?, order_json = ?, updated_at = ?
+          WHERE id = ?`
+        )
+        .bind(
+          data.title.trim() || "Untitled Order of Service",
+          data.serviceTypeId,
+          serviceDate,
+          JSON.stringify(order),
+          timestamp,
+          data.id
+        )
+        .run();
+    } catch (error) {
+      if (isServiceDateUniqueConstraintError(error)) {
+        throw new Error(buildServiceDateConflictMessage(serviceDate), {
+          cause: error,
+        });
+      }
+
+      throw error;
+    }
 
     return { id: data.id };
   });
@@ -549,12 +652,12 @@ export const publishOrder = createServerFn({ method: "POST" })
       return { id: data };
     }
 
-    const hymnIds: string[] = [];
+    const hymnIds = new Set<string>();
 
     for (const segment of order.order.service_type) {
       for (const activity of segment.activities) {
         if (activity.activityType === "hymn" && activity.hymnId) {
-          hymnIds.push(activity.hymnId);
+          hymnIds.add(activity.hymnId);
         }
       }
     }
@@ -577,7 +680,7 @@ export const publishOrder = createServerFn({ method: "POST" })
         db
           .prepare(
             `UPDATE hymns
-            SET last_played = ?, times_played_last_6_months = times_played_last_6_months + 1, updated_at = ?
+            SET last_played = ?, updated_at = ?
             WHERE id = ?`
           )
           .bind(order.serviceDate, timestamp, hymnId)
@@ -595,7 +698,7 @@ export const getHymns = createServerFn({ method: "GET" }).handler(
     const db = getDatabase();
     const { results } = await db
       .prepare(
-        `SELECT hymns.*, hymn_sources.name AS source_name
+        `SELECT hymns.*, hymn_sources.name AS source_name, ${RECENT_HYMN_PLAY_COUNT_SQL}
         FROM hymns
         JOIN hymn_sources ON hymn_sources.id = hymns.source_id
         ORDER BY CAST(NULLIF(hymn_number, '') AS INTEGER), name`
@@ -632,7 +735,7 @@ export const getHymn = createServerFn({ method: "GET" })
     const db = getDatabase();
     const row = await db
       .prepare(
-        `SELECT hymns.*, hymn_sources.name AS source_name
+        `SELECT hymns.*, hymn_sources.name AS source_name, ${RECENT_HYMN_PLAY_COUNT_SQL}
         FROM hymns
         JOIN hymn_sources ON hymn_sources.id = hymns.source_id
         WHERE hymns.id = ?`
@@ -654,15 +757,14 @@ export const saveHymn = createServerFn({ method: "POST" })
       .prepare(
         `INSERT INTO hymns
           (id, hymn_number, name, lyrics_markdown, music_key, last_played,
-            times_played_last_6_months, source_id, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            source_id, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           hymn_number = excluded.hymn_number,
           name = excluded.name,
           lyrics_markdown = excluded.lyrics_markdown,
           music_key = excluded.music_key,
           last_played = excluded.last_played,
-          times_played_last_6_months = excluded.times_played_last_6_months,
           source_id = excluded.source_id,
           updated_at = excluded.updated_at`
       )
@@ -673,7 +775,6 @@ export const saveHymn = createServerFn({ method: "POST" })
         data.lyricsMarkdown,
         data.musicKey.trim(),
         data.lastPlayed.trim(),
-        data.timesPlayedLastSixMonths,
         data.sourceId,
         timestamp
       )
