@@ -5,12 +5,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "vbc-order-of-service",
-  "compatibility_date": "2025-09-24",
+  "compatibility_date": "2026-06-21",
   "compatibility_flags": ["nodejs_compat"],
   "main": "@tanstack/react-start/server-entry",
   "vars": {
     "MY_VAR": "Hello from Cloudflare",
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vbc-order-of-service",
+      "migrations_dir": "./migrations",
+    },
+  ],
   "observability": {
     "enabled": true,
   },

@@ -1,0 +1,692 @@
+import { createServerFn } from "@tanstack/react-start";
+import { env } from "cloudflare:workers";
+
+import type {
+  CreateOrderInput,
+  DashboardData,
+  HymnOption,
+  HymnRecord,
+  OrderRecord,
+  OrderServiceTemplateJson,
+  OrderSummary,
+  ReferenceData,
+  ReferenceOption,
+  SaveHymnInput,
+  SaveOrderInput,
+  SaveTemplateInput,
+  ServiceStatus,
+  TemplateRecord,
+  TemplateSummary,
+} from "~/lib/order-service-types";
+
+const DEFAULT_TEMPLATE: OrderServiceTemplateJson = {
+  name: "Sunday Service",
+  service_type: [
+    {
+      activities: [
+        {
+          activityName: "Sunday School Hymn",
+          activityType: "hymn",
+          id: "sunday-school-hymn",
+        },
+        {
+          activityName: "Bible Study",
+          activityType: "bible_preaching",
+          id: "bible-study",
+        },
+      ],
+      id: "sunday-school",
+      typeName: "Sunday School",
+    },
+    {
+      activities: [
+        { activityName: "Opening Hymn", activityType: "hymn", id: "opening-hymn" },
+        { activityName: "Prayer", activityType: "prayer", id: "prayer" },
+        {
+          activityName: "Scripture Reading",
+          activityType: "scripture_reading",
+          id: "scripture-reading",
+        },
+        { activityName: "Offertory", activityType: "offertory", id: "offertory" },
+        { activityName: "Preaching", activityType: "preaching", id: "preaching" },
+        { activityName: "Invitation", activityType: "invitation", id: "invitation" },
+      ],
+      id: "sunday-main-service",
+      typeName: "Sunday Main Service",
+    },
+    {
+      activities: [
+        { activityName: "Congregational Hymn", activityType: "hymn", id: "evening-hymn" },
+        { activityName: "Special Music", activityType: "special_music", id: "special-music" },
+        { activityName: "Preaching", activityType: "preaching", id: "evening-preaching" },
+      ],
+      id: "sunday-evening-service",
+      typeName: "Sunday Evening Service",
+    },
+  ],
+};
+
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS service_types (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS service_statuses (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS activity_types (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS hymn_sources (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS hymns (
+  id TEXT PRIMARY KEY,
+  hymn_number TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  lyrics_markdown TEXT NOT NULL DEFAULT '',
+  music_key TEXT NOT NULL DEFAULT '',
+  last_played TEXT NOT NULL DEFAULT '',
+  times_played_last_6_months INTEGER NOT NULL DEFAULT 0,
+  source_id TEXT NOT NULL REFERENCES hymn_sources(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS hymns_name_idx ON hymns(name);
+CREATE INDEX IF NOT EXISTS hymns_number_idx ON hymns(hymn_number);
+
+CREATE TABLE IF NOT EXISTS order_service_templates (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  service_type_id TEXT NOT NULL REFERENCES service_types(id),
+  template_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS order_service_templates_service_type_idx
+  ON order_service_templates(service_type_id);
+
+CREATE TABLE IF NOT EXISTS orders_of_service (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  service_type_id TEXT NOT NULL REFERENCES service_types(id),
+  service_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Planning' REFERENCES service_statuses(id),
+  template_id TEXT REFERENCES order_service_templates(id),
+  order_json TEXT NOT NULL,
+  published_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS orders_of_service_date_idx ON orders_of_service(service_date);
+CREATE INDEX IF NOT EXISTS orders_of_service_status_idx ON orders_of_service(status);
+
+CREATE TABLE IF NOT EXISTS hymn_plays (
+  id TEXT PRIMARY KEY,
+  hymn_id TEXT NOT NULL REFERENCES hymns(id),
+  order_id TEXT NOT NULL REFERENCES orders_of_service(id),
+  played_on TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS hymn_plays_hymn_date_idx ON hymn_plays(hymn_id, played_on);
+`;
+
+let databaseInitialized = false;
+
+const getDatabase = (): D1Database => {
+  if (!env.DB) {
+    throw new Error("Cloudflare D1 binding DB is not configured.");
+  }
+
+  return env.DB;
+};
+
+const nowIso = () => new Date().toISOString();
+
+const slugify = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-+|-+$/gu, "") || crypto.randomUUID();
+
+const normalizeTemplate = (
+  template: OrderServiceTemplateJson,
+  fallbackName: string
+): OrderServiceTemplateJson => ({
+  name: template.name?.trim() || fallbackName,
+  service_type: (template.service_type ?? []).map((segment) => ({
+    activities: (segment.activities ?? []).map((activity) => ({
+      activityName: activity.activityName?.trim() || "Activity",
+      activityType: activity.activityType?.trim() || "custom",
+      id: activity.id || crypto.randomUUID(),
+      ...(activity.hymnId ? { hymnId: activity.hymnId } : {}),
+      ...(activity.notes ? { notes: activity.notes } : {}),
+    })),
+    id: segment.id || crypto.randomUUID(),
+    typeName: segment.typeName?.trim() || "Service Segment",
+  })),
+});
+
+const countActivities = (template: OrderServiceTemplateJson) =>
+  template.service_type.reduce(
+    (total, segment) => total + segment.activities.length,
+    0
+  );
+
+const parseTemplateJson = (value: string, fallbackName: string) =>
+  normalizeTemplate(JSON.parse(value) as OrderServiceTemplateJson, fallbackName);
+
+const asString = (value: unknown) => (typeof value === "string" ? value : "");
+
+const asNumber = (value: unknown) =>
+  typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
+
+const ensureDatabase = async () => {
+  if (databaseInitialized) {
+    return;
+  }
+
+  const db = getDatabase();
+  const schemaStatements = SCHEMA_SQL.split(";")
+    .map((statement) => statement.trim())
+    .filter((statement) => statement.length > 0);
+
+  await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
+
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)").bind("Planning", "Planning"),
+    db.prepare("INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)").bind("Published", "Published"),
+    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("living-hymns", "Living Hymns"),
+    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("other-hymn", "Other Hymn"),
+    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("song", "Song"),
+    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("majesty-hymns", "Majesty Hymns"),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("hymn", "Hymn", "Congregational hymn selected from the hymn library."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("prayer", "Prayer", "Prayer led by a selected person."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("scripture_reading", "Scripture Reading", "Bible passage read during service."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("hand_shaking", "Hand Shaking", "Fellowship greeting time."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("offertory", "Offertory", "Offering and offertory music."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("preaching", "Preaching", "Main preaching time."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("invitation", "Invitation", "Invitation following the message."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("special_music", "Special Music", "Special music selection."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("bible_preaching", "Bible Preaching", "Bible study or teaching time."),
+    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("custom", "Custom", "Custom activity."),
+  ]);
+
+  const defaultServiceTypeId = "sunday-service";
+  const templateId = "default-sunday-service";
+  await db.batch([
+    db.prepare("INSERT OR IGNORE INTO service_types (id, name, description) VALUES (?, ?, ?)").bind(
+      defaultServiceTypeId,
+      "Sunday Service",
+      "Default Sunday service type."
+    ),
+    db.prepare(
+      "INSERT OR IGNORE INTO order_service_templates (id, name, service_type_id, template_json) VALUES (?, ?, ?, ?)"
+    ).bind(
+      templateId,
+      DEFAULT_TEMPLATE.name,
+      defaultServiceTypeId,
+      JSON.stringify(DEFAULT_TEMPLATE)
+    ),
+  ]);
+  databaseInitialized = true;
+};
+
+const loadReferenceOptions = async (
+  tableName: "activity_types" | "hymn_sources" | "service_types"
+): Promise<ReferenceOption[]> => {
+  const db = getDatabase();
+  const { results } = await db
+    .prepare(`SELECT id, name FROM ${tableName} ORDER BY name`)
+    .all<{ id: string; name: string }>();
+
+  return results.map((row) => ({ id: row.id, name: row.name }));
+};
+
+const mapTemplateRow = (row: Record<string, unknown>): TemplateRecord => {
+  const name = asString(row.name);
+  const template = parseTemplateJson(asString(row.template_json), name);
+
+  return {
+    activityCount: countActivities(template),
+    id: asString(row.id),
+    name,
+    segmentCount: template.service_type.length,
+    serviceTypeId: asString(row.service_type_id),
+    serviceTypeName: asString(row.service_type_name),
+    template,
+    updatedAt: asString(row.updated_at),
+  };
+};
+
+const mapOrderRow = (row: Record<string, unknown>): OrderRecord => {
+  const title = asString(row.title);
+  const order = parseTemplateJson(asString(row.order_json), title);
+
+  return {
+    activityCount: countActivities(order),
+    id: asString(row.id),
+    order,
+    publishedAt: asString(row.published_at) || undefined,
+    segmentCount: order.service_type.length,
+    serviceDate: asString(row.service_date),
+    serviceTypeId: asString(row.service_type_id),
+    serviceTypeName: asString(row.service_type_name),
+    status: asString(row.status) as ServiceStatus,
+    templateId: asString(row.template_id) || undefined,
+    title,
+    updatedAt: asString(row.updated_at),
+  };
+};
+
+const mapHymnRow = (row: Record<string, unknown>): HymnRecord => ({
+  hymnNumber: asString(row.hymn_number),
+  id: asString(row.id),
+  lastPlayed: asString(row.last_played),
+  lyricsMarkdown: asString(row.lyrics_markdown),
+  musicKey: asString(row.music_key),
+  name: asString(row.name),
+  sourceId: asString(row.source_id),
+  sourceName: asString(row.source_name),
+  timesPlayedLastSixMonths: asNumber(row.times_played_last_6_months),
+});
+
+export const getReferenceData = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ReferenceData> => {
+    await ensureDatabase();
+
+    const [serviceTypes, activityTypes, hymnSources] = await Promise.all([
+      loadReferenceOptions("service_types"),
+      loadReferenceOptions("activity_types"),
+      loadReferenceOptions("hymn_sources"),
+    ]);
+
+    return { activityTypes, hymnSources, serviceTypes };
+  }
+);
+
+export const getDashboardData = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DashboardData> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const today = new Date().toISOString().slice(0, 10);
+    const orderSelect = `
+      SELECT orders_of_service.*, service_types.name AS service_type_name
+      FROM orders_of_service
+      JOIN service_types ON service_types.id = orders_of_service.service_type_id
+    `;
+
+    const [upcoming, previous, counts] = await Promise.all([
+      db
+        .prepare(`${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`)
+        .bind(today)
+        .all<Record<string, unknown>>(),
+      db
+        .prepare(`${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`)
+        .bind(today)
+        .all<Record<string, unknown>>(),
+      db
+        .prepare(
+          `SELECT
+            (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Planning') AS planning_count,
+            (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Published') AS published_count,
+            (SELECT COUNT(*) FROM order_service_templates) AS template_count,
+            (SELECT COUNT(*) FROM hymns) AS hymn_count`
+        )
+        .first<Record<string, unknown>>(),
+    ]);
+
+    return {
+      hymnCount: asNumber(counts?.hymn_count),
+      planningCount: asNumber(counts?.planning_count),
+      previousOrders: previous.results.map(mapOrderRow),
+      publishedCount: asNumber(counts?.published_count),
+      templateCount: asNumber(counts?.template_count),
+      upcomingOrders: upcoming.results.map(mapOrderRow),
+    };
+  }
+);
+
+export const getTemplates = createServerFn({ method: "GET" }).handler(
+  async (): Promise<TemplateSummary[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(
+        `SELECT order_service_templates.*, service_types.name AS service_type_name
+        FROM order_service_templates
+        JOIN service_types ON service_types.id = order_service_templates.service_type_id
+        ORDER BY order_service_templates.updated_at DESC, order_service_templates.name ASC`
+      )
+      .all<Record<string, unknown>>();
+
+    return results.map(mapTemplateRow);
+  }
+);
+
+export const getTemplate = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<TemplateRecord | null> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const row = await db
+      .prepare(
+        `SELECT order_service_templates.*, service_types.name AS service_type_name
+        FROM order_service_templates
+        JOIN service_types ON service_types.id = order_service_templates.service_type_id
+        WHERE order_service_templates.id = ?`
+      )
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    return row ? mapTemplateRow(row) : null;
+  });
+
+export const saveTemplate = createServerFn({ method: "POST" })
+  .validator((data: SaveTemplateInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const name = data.name.trim() || "Untitled Template";
+    const id = data.id || crypto.randomUUID();
+    const serviceTypeId = slugify(name);
+    const template = normalizeTemplate({ ...data.template, name }, name);
+    const timestamp = nowIso();
+
+    await db.batch([
+      db.prepare(
+        `INSERT INTO service_types (id, name, description, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`
+      ).bind(serviceTypeId, name, `${name} order of service template.`, timestamp),
+      db.prepare(
+        `INSERT INTO order_service_templates (id, name, service_type_id, template_json, updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          service_type_id = excluded.service_type_id,
+          template_json = excluded.template_json,
+          updated_at = excluded.updated_at`
+      ).bind(id, name, serviceTypeId, JSON.stringify(template), timestamp),
+    ]);
+
+    return { id };
+  });
+
+export const deleteTemplate = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    await db.prepare("DELETE FROM order_service_templates WHERE id = ?").bind(data).run();
+
+    return { success: true };
+  });
+
+export const getOrders = createServerFn({ method: "GET" }).handler(
+  async (): Promise<OrderSummary[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(
+        `SELECT orders_of_service.*, service_types.name AS service_type_name
+        FROM orders_of_service
+        JOIN service_types ON service_types.id = orders_of_service.service_type_id
+        ORDER BY service_date DESC, updated_at DESC`
+      )
+      .all<Record<string, unknown>>();
+
+    return results.map(mapOrderRow);
+  }
+);
+
+export const getOrder = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<OrderRecord | null> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const row = await db
+      .prepare(
+        `SELECT orders_of_service.*, service_types.name AS service_type_name
+        FROM orders_of_service
+        JOIN service_types ON service_types.id = orders_of_service.service_type_id
+        WHERE orders_of_service.id = ?`
+      )
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    return row ? mapOrderRow(row) : null;
+  });
+
+export const createOrder = createServerFn({ method: "POST" })
+  .validator((data: CreateOrderInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const template = await getTemplate({ data: data.templateId });
+
+    if (!template) {
+      throw new Error("Template not found.");
+    }
+
+    const id = crypto.randomUUID();
+    const order = normalizeTemplate(template.template, template.name);
+    await db
+      .prepare(
+        `INSERT INTO orders_of_service
+          (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
+        VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)`
+      )
+      .bind(
+        id,
+        data.title.trim() || `${template.name} Order of Service`,
+        template.serviceTypeId,
+        data.serviceDate,
+        template.id,
+        JSON.stringify(order),
+        nowIso()
+      )
+      .run();
+
+    return { id };
+  });
+
+export const saveOrder = createServerFn({ method: "POST" })
+  .validator((data: SaveOrderInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const timestamp = nowIso();
+    const order = normalizeTemplate(data.order, data.title);
+    await db
+      .prepare(
+        `UPDATE orders_of_service
+        SET title = ?, service_type_id = ?, service_date = ?, order_json = ?, updated_at = ?
+        WHERE id = ?`
+      )
+      .bind(
+        data.title.trim() || "Untitled Order of Service",
+        data.serviceTypeId,
+        data.serviceDate,
+        JSON.stringify(order),
+        timestamp,
+        data.id
+      )
+      .run();
+
+    return { id: data.id };
+  });
+
+export const publishOrder = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const order = await getOrder({ data });
+
+    if (!order) {
+      throw new Error("Order of service not found.");
+    }
+
+    if (order.status === "Published") {
+      return { id: data };
+    }
+
+    const hymnIds: string[] = [];
+
+    for (const segment of order.order.service_type) {
+      for (const activity of segment.activities) {
+        if (activity.activityType === "hymn" && activity.hymnId) {
+          hymnIds.push(activity.hymnId);
+        }
+      }
+    }
+    const timestamp = nowIso();
+    const statements = [
+      db
+        .prepare(
+          `UPDATE orders_of_service
+          SET status = 'Published', published_at = ?, updated_at = ?
+          WHERE id = ?`
+        )
+        .bind(timestamp, timestamp, data),
+    ];
+
+    for (const hymnId of hymnIds) {
+      statements.push(
+        db
+          .prepare("INSERT INTO hymn_plays (id, hymn_id, order_id, played_on) VALUES (?, ?, ?, ?)")
+          .bind(crypto.randomUUID(), hymnId, data, order.serviceDate),
+        db
+          .prepare(
+            `UPDATE hymns
+            SET last_played = ?, times_played_last_6_months = times_played_last_6_months + 1, updated_at = ?
+            WHERE id = ?`
+          )
+          .bind(order.serviceDate, timestamp, hymnId)
+      );
+    }
+
+    await db.batch(statements);
+
+    return { id: data };
+  });
+
+export const getHymns = createServerFn({ method: "GET" }).handler(
+  async (): Promise<HymnRecord[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(
+        `SELECT hymns.*, hymn_sources.name AS source_name
+        FROM hymns
+        JOIN hymn_sources ON hymn_sources.id = hymns.source_id
+        ORDER BY CAST(NULLIF(hymn_number, '') AS INTEGER), name`
+      )
+      .all<Record<string, unknown>>();
+
+    return results.map(mapHymnRow);
+  }
+);
+
+export const getHymnOptions = createServerFn({ method: "GET" }).handler(
+  async (): Promise<HymnOption[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(
+        `SELECT id, hymn_number, name
+        FROM hymns
+        ORDER BY CAST(NULLIF(hymn_number, '') AS INTEGER), name`
+      )
+      .all<Record<string, unknown>>();
+
+    return results.map((row) => ({
+      id: asString(row.id),
+      label: [asString(row.hymn_number), asString(row.name)].filter(Boolean).join(" — "),
+    }));
+  }
+);
+
+export const getHymn = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<HymnRecord | null> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const row = await db
+      .prepare(
+        `SELECT hymns.*, hymn_sources.name AS source_name
+        FROM hymns
+        JOIN hymn_sources ON hymn_sources.id = hymns.source_id
+        WHERE hymns.id = ?`
+      )
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    return row ? mapHymnRow(row) : null;
+  });
+
+export const saveHymn = createServerFn({ method: "POST" })
+  .validator((data: SaveHymnInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const id = data.id || crypto.randomUUID();
+    const timestamp = nowIso();
+    await db
+      .prepare(
+        `INSERT INTO hymns
+          (id, hymn_number, name, lyrics_markdown, music_key, last_played,
+            times_played_last_6_months, source_id, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          hymn_number = excluded.hymn_number,
+          name = excluded.name,
+          lyrics_markdown = excluded.lyrics_markdown,
+          music_key = excluded.music_key,
+          last_played = excluded.last_played,
+          times_played_last_6_months = excluded.times_played_last_6_months,
+          source_id = excluded.source_id,
+          updated_at = excluded.updated_at`
+      )
+      .bind(
+        id,
+        data.hymnNumber.trim(),
+        data.name.trim() || "Untitled Hymn",
+        data.lyricsMarkdown,
+        data.musicKey.trim(),
+        data.lastPlayed.trim(),
+        data.timesPlayedLastSixMonths,
+        data.sourceId,
+        timestamp
+      )
+      .run();
+
+    return { id };
+  });
+
+export const deleteHymn = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    await db.prepare("DELETE FROM hymns WHERE id = ?").bind(data).run();
+
+    return { success: true };
+  });

@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
+    "db:migrate:local": "wrangler d1 migrations apply vbc-order-of-service --local",
+    "db:migrate:remote": "wrangler d1 migrations apply vbc-order-of-service --remote",
     "postinstall": "npm run cf-typegen",
     "check": "ultracite check",
     "fix": "ultracite fix"

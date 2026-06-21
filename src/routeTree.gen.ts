@@ -10,33 +10,154 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TemplatesIndexRouteImport } from './routes/templates/index'
+import { Route as OrdersIndexRouteImport } from './routes/orders/index'
+import { Route as HymnsIndexRouteImport } from './routes/hymns/index'
+import { Route as TemplatesNewRouteImport } from './routes/templates/new'
+import { Route as TemplatesTemplateIdRouteImport } from './routes/templates/$templateId'
+import { Route as OrdersNewRouteImport } from './routes/orders/new'
+import { Route as OrdersOrderIdRouteImport } from './routes/orders/$orderId'
+import { Route as HymnsNewRouteImport } from './routes/hymns/new'
+import { Route as HymnsHymnIdRouteImport } from './routes/hymns/$hymnId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
+  id: '/templates/',
+  path: '/templates/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersIndexRoute = OrdersIndexRouteImport.update({
+  id: '/orders/',
+  path: '/orders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HymnsIndexRoute = HymnsIndexRouteImport.update({
+  id: '/hymns/',
+  path: '/hymns/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesNewRoute = TemplatesNewRouteImport.update({
+  id: '/templates/new',
+  path: '/templates/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TemplatesTemplateIdRoute = TemplatesTemplateIdRouteImport.update({
+  id: '/templates/$templateId',
+  path: '/templates/$templateId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersNewRoute = OrdersNewRouteImport.update({
+  id: '/orders/new',
+  path: '/orders/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersOrderIdRoute = OrdersOrderIdRouteImport.update({
+  id: '/orders/$orderId',
+  path: '/orders/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HymnsNewRoute = HymnsNewRouteImport.update({
+  id: '/hymns/new',
+  path: '/hymns/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HymnsHymnIdRoute = HymnsHymnIdRouteImport.update({
+  id: '/hymns/$hymnId',
+  path: '/hymns/$hymnId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/hymns/$hymnId': typeof HymnsHymnIdRoute
+  '/hymns/new': typeof HymnsNewRoute
+  '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/new': typeof OrdersNewRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
+  '/templates/new': typeof TemplatesNewRoute
+  '/hymns/': typeof HymnsIndexRoute
+  '/orders/': typeof OrdersIndexRoute
+  '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/hymns/$hymnId': typeof HymnsHymnIdRoute
+  '/hymns/new': typeof HymnsNewRoute
+  '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/new': typeof OrdersNewRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
+  '/templates/new': typeof TemplatesNewRoute
+  '/hymns': typeof HymnsIndexRoute
+  '/orders': typeof OrdersIndexRoute
+  '/templates': typeof TemplatesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/hymns/$hymnId': typeof HymnsHymnIdRoute
+  '/hymns/new': typeof HymnsNewRoute
+  '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/new': typeof OrdersNewRoute
+  '/templates/$templateId': typeof TemplatesTemplateIdRoute
+  '/templates/new': typeof TemplatesNewRoute
+  '/hymns/': typeof HymnsIndexRoute
+  '/orders/': typeof OrdersIndexRoute
+  '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/hymns/$hymnId'
+    | '/hymns/new'
+    | '/orders/$orderId'
+    | '/orders/new'
+    | '/templates/$templateId'
+    | '/templates/new'
+    | '/hymns/'
+    | '/orders/'
+    | '/templates/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/hymns/$hymnId'
+    | '/hymns/new'
+    | '/orders/$orderId'
+    | '/orders/new'
+    | '/templates/$templateId'
+    | '/templates/new'
+    | '/hymns'
+    | '/orders'
+    | '/templates'
+  id:
+    | '__root__'
+    | '/'
+    | '/hymns/$hymnId'
+    | '/hymns/new'
+    | '/orders/$orderId'
+    | '/orders/new'
+    | '/templates/$templateId'
+    | '/templates/new'
+    | '/hymns/'
+    | '/orders/'
+    | '/templates/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HymnsHymnIdRoute: typeof HymnsHymnIdRoute
+  HymnsNewRoute: typeof HymnsNewRoute
+  OrdersOrderIdRoute: typeof OrdersOrderIdRoute
+  OrdersNewRoute: typeof OrdersNewRoute
+  TemplatesTemplateIdRoute: typeof TemplatesTemplateIdRoute
+  TemplatesNewRoute: typeof TemplatesNewRoute
+  HymnsIndexRoute: typeof HymnsIndexRoute
+  OrdersIndexRoute: typeof OrdersIndexRoute
+  TemplatesIndexRoute: typeof TemplatesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +169,83 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/templates/': {
+      id: '/templates/'
+      path: '/templates'
+      fullPath: '/templates/'
+      preLoaderRoute: typeof TemplatesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders/': {
+      id: '/orders/'
+      path: '/orders'
+      fullPath: '/orders/'
+      preLoaderRoute: typeof OrdersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hymns/': {
+      id: '/hymns/'
+      path: '/hymns'
+      fullPath: '/hymns/'
+      preLoaderRoute: typeof HymnsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates/new': {
+      id: '/templates/new'
+      path: '/templates/new'
+      fullPath: '/templates/new'
+      preLoaderRoute: typeof TemplatesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/templates/$templateId': {
+      id: '/templates/$templateId'
+      path: '/templates/$templateId'
+      fullPath: '/templates/$templateId'
+      preLoaderRoute: typeof TemplatesTemplateIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders/new': {
+      id: '/orders/new'
+      path: '/orders/new'
+      fullPath: '/orders/new'
+      preLoaderRoute: typeof OrdersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders/$orderId': {
+      id: '/orders/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/orders/$orderId'
+      preLoaderRoute: typeof OrdersOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hymns/new': {
+      id: '/hymns/new'
+      path: '/hymns/new'
+      fullPath: '/hymns/new'
+      preLoaderRoute: typeof HymnsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hymns/$hymnId': {
+      id: '/hymns/$hymnId'
+      path: '/hymns/$hymnId'
+      fullPath: '/hymns/$hymnId'
+      preLoaderRoute: typeof HymnsHymnIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HymnsHymnIdRoute: HymnsHymnIdRoute,
+  HymnsNewRoute: HymnsNewRoute,
+  OrdersOrderIdRoute: OrdersOrderIdRoute,
+  OrdersNewRoute: OrdersNewRoute,
+  TemplatesTemplateIdRoute: TemplatesTemplateIdRoute,
+  TemplatesNewRoute: TemplatesNewRoute,
+  HymnsIndexRoute: HymnsIndexRoute,
+  OrdersIndexRoute: OrdersIndexRoute,
+  TemplatesIndexRoute: TemplatesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

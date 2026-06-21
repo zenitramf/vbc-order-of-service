@@ -1,0 +1,6106 @@
+-- Seeded from db/song-library-seed.csv
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-343-springs-of-living-water', '343', 'Springs of Living Water', 'Verse 1
+I thirsted in the barren land
+Of sin and shame
+And nothing satisfying there I found
+But to the blessed cross of Christ
+One day I came
+Where springs of living water did abound
+
+Chorus
+Drinking at the springs of living water
+Happy now am I my soul they satisfy
+Drinking at the springs of living water
+O wonderful and bountiful supply
+
+Verse 2
+How sweet the living water
+From the hills of God
+It makes me glad and happy all the way
+Now glory grace and blessing
+Mark the path I''ve trod
+I''m shouting hallelujah every day
+
+Verse 3
+O sinner won''t you come today to Calvary
+A fountain there is flowing deep and wide
+The Savior now invites you to the water free
+Where thirsting spirits can be satisfied', '#', 'Sun, Jun 14', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-361-the-lily-of-the-valley', '361', 'The Lily of the Valley', 'Verse 1
+I have found a friend in Jesus, He''s ev''rything to me,
+He''s the fairest of ten thousand to my soul;
+The Lily of the Valley in Him alone I see
+All I need to cleanse and make me fully whole.
+In sorrow He''s my comfort, in trouble He''s my stay,
+He tells me ev''ry care on Him to roll;
+He''s the Lily of the Valley, The Bright and Morning Star,
+He''s the greatest of ten thousand to my soul.
+
+
+Verse 2
+He all my grief has taken And all my sorrows borne,
+In temptation He''s my strong and mighty tow''r;
+I have all for Him forsaken And all my idols torn
+From my heart, and now He keeps me by His pow''r.
+Though all the world forsake me, And Satan tempt me sore,
+Through Jesus I shall safely reach the goal;
+He''s the Lily of the Valley, The Bright and Morning Star,
+He''s the greatest of ten thousand to my soul.
+
+
+Verse 3
+He will never, never leave me Nor yet forsake me here,
+While I live by faith and do His blessed will;
+A wall of fire about me, I''ve nothing now to fear-
+With His manna He my hungry soul shall fill.
+Then sweeping up to glory, I''ll see His blessed face,
+Where rivers of delight shall ever roll;
+He''s the Lily of the Valley, The Bright and Morning Star,
+He''s the greatest of ten thousand to my soul.', 'b', 'Sun, Jun 14', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-372-once-for-all', '372', 'Once for All!', 'Verse 1
+Free from the law—O happy condition!
+Jesus hath bled, and there is remission;
+Cursed by the law and bruised by the fall,
+Grace hath redeemed us once for all.
+
+Chorus
+Once for all—O sinner, receive it!
+Once for all—O brother, believe it!
+Cling to the cross, the burden will fall—
+Christ hath redeemed us once for all!
+
+Verse 2
+Now are we free—there’s no condemnation!
+Jesus provides a perfect salvation;
+“Come unto Me”—O hear His sweet call!
+Come—and He saves us once for all.
+
+Verse 3
+Children of God—O glorious calling!
+Surely His grace will keep us from falling;
+Passing from death to life at His call,
+Blessed salvation—once for all.', '##', 'Sun, Jun 14', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-814-wonderful-grace-of-jesus', '814', 'Wonderful Grace of Jesus', 'Verse 1
+Wonderful grace of Jesus, greater than all my sin;
+how shall my tongue describe it, where shall its praise begin?
+
+Taking away my burden, setting my spirit free,
+for the wonderful grace of Jesus reaches me.
+
+Chorus
+Wonderful the matchless grace of Jesus,
+deeper than the mighty rolling sea,
+
+higher than the mountain, sparkling like a fountain,
+all sufficient grace for even me;
+
+broader than the scope of my transgressions
+greater far than all my sin and shame.
+
+O magnify the precious name of Jesus, 
+praise His name!
+
+Verse 2
+Wonderful grace of Jesus, reaching to all the lost,
+by it I have been pardoned, saved to the uttermost.
+
+Chains have been torn asunder, giving me liberty,
+for the wonderful grace of Jesus reaches me.
+
+Verse 3
+Wonderful grace of Jesus, reaching the most defiled,
+by its transforming power making him God’s dear child,
+
+purchasing peace and heaven for all eternity,
+And the wonderful grace of Jesus reaches me.', 'C', 'Sun, Jun 14', 8, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-858-redeemed', '858', 'Redeemed', 'Verse 1
+Redeemed, how I love to proclaim it!
+Redeemed by the blood of the Lamb;
+Redeemed through His infinite mercy,
+His child, and forever, I am.
+
+Chorus
+Redeemed, redeemed,
+Redeemed by the blood of the Lamb;
+Redeemed, how I love to proclaim it!
+His child, and forever, I am.
+
+Verse 2
+Redeemed, and so happy in Jesus,
+No language my rapture can tell;
+I know that the light of His presence
+With me doth continually dwell.
+
+Verse 3
+I think of my blessed Redeemer,
+I think of Him all the day long;
+I sing, for I cannot be silent;
+His love is the theme of my song.', 'bbb', 'Sun, Jun 14', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-821-grace-greater-than-our-sin', '821', 'Grace Greater than Our Sin', 'Verse 1
+Marvelous grace of our loving Lord,
+Grace that exceeds our sin and our guilt!
+
+Yonder on Calvary''s mount out-poured–
+There where the blood of the Lamb was spilt
+
+Chorus
+Grace, grace, God''s grace,
+Grace that will pardon and cleanse within;
+
+Grace, grace, God''s grace,
+Grace that is greater than all our sin!
+
+Verse 2
+Sin and despair, like the sea-waves cold,
+Threaten the soul with infinite loss;
+
+Grace that is greater– yes, grace untold–
+Points to the Refuge, the mighty Cross. 
+
+Verse 3
+Dark is the stain that we cannot hide,
+What can avail to wash it away?
+
+Look! There is flowing a crimson tide,
+Whiter than snow you may be today
+
+Verse 4
+Marvelous, infinite, matchless grace,
+Freely bestowed on all who believe!
+
+You that are longing to see His face,
+Will you this moment His grace receive?', '#', 'Sun, Jun 14', 6, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-333-it-s-just-like-his-great-love', '333', 'It''s Just Like His Great Love', 'A friend I have called Jesus,
+Whose love is strong and true,
+And never fails howe’er ’tis tried,
+No matter what I do;
+I’ve sinned against this love of His,
+But when I knelt to pray,
+Confessing all my guilt to Him,
+The sin-clouds rolled away.
+
+
+Chorus:
+It’s just like Jesus to roll the clouds away,
+It’s just like Jesus to keep me day by day.
+It’s just like Jesus all along the way,
+It’s just like His great love.
+
+
+Verse 2
+Sometimes the clouds of trouble
+Bedim the sky above,
+I cannot see my Savior’s face,
+I doubt His wondrous love;
+But He, from Heaven’s mercy seat,
+Beholding my despair,
+In pity bursts the clouds between,
+And shows me He is there.
+
+
+3 When sorrow’s clouds o’ertake me,
+And break upon my head,
+When life seems worse than useless,
+And I were better dead;
+I take my grief to Jesus then,
+Nor do I go in vain,
+For heav’nly hope He gives that cheers
+Like sunshine after rain.
+
+
+4 Oh, I could sing forever
+Of Jesus’ love divine,
+Of all His care and tenderness
+For this poor life of mine;
+His love is in and over all,
+And wind and waves obey
+When Jesus whispers, “Peace, be still!”
+And rolls the clouds away.
+', 'bb', 'Sun, Jun 7', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-392-stepping-in-the-light', '392', 'Stepping in the Light', 'Verse 1
+Trying to walk in the steps of the Saviour,
+Trying to follow our Saviors and King;
+
+Shaping our lives by His blessed example,
+Happy, how happy, the songs that we bring.
+
+
+Chorus
+How beautiful to walk in the steps of the Saviour,
+Stepping in the light, stepping in the light;
+
+How beautiful to walk in the steps of the Saviour,
+Led in paths of light!
+
+
+Verse 2
+Pressing more closely to Him who is leading,
+When we are tempted to turn from the way;
+
+Trusting the arm that is strong to defend us,
+Happy, how happy, our praises each day. (Refrain)
+
+
+Verse 3
+Walking in footsteps of gentle forbearance,
+Footsteps of faithfulness, mercy and love;
+
+Looking to Him for the grace freely promised,
+Happy, how happy, our journey above!
+
+
+Verse 4
+Trying to walk in the steps of the Saviour,
+Upward, still upward, we''ll follow our Guide;
+
+When we shall see Him, “the King in His beauty,”
+Happy, how happy, our place at His side!', 'bbbbb', 'Sun, Jun 7', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-448-my-saviour-s-love-v1-v2-v5', '448', 'My Saviour''s Love (v1, v2, v5)', 'Verse 1
+I stand amazed in the presence
+Of Jesus, the Nazarene,
+
+And wonder how He could love me,
+A sinner, condemned, unclean.
+
+
+Chorus
+How marvelous, how wonderful!
+And my song shall ever be:
+
+How marvelous, how wonderful
+Is my Savior’s love for me!
+
+
+Verse 2
+For me it was in the Garden
+He Prayed: “Not My Will, but Thine”
+
+He had no tears for His own Griefs,
+But sweat-drops of blood for mine. 
+
+Verse 3
+In Pitty Angels Beheld Him
+And Came from a World of Light
+
+To comfort Him in the sorrows
+He bore for my soul that night
+
+Verse 4
+He took my sins and my sorrows;
+He made them His very own;
+
+He bore the burden to Calv''ry,
+And suffered and died alone.
+
+
+Verse 5
+When with the ransomed in glory
+His face I at last shall see,
+
+‘Twill be my joy through the ages
+To sing of His love for me.
+', 'bbbb', 'Sun, Jun 7', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-736-i-will-sing-of-the-mercies-of-the-lord', '736', 'I Will Sing of the Mercies of the Lord', 'Chorus
+I will sing of the mercies of the Lord forever,
+I will sing, I will sing,
+
+I will sing of the mercies of the Lord forever,
+I will sing of the mercies of the Lord.
+
+With my mouth will I make known
+Thy faithfulness, Thy faithfulness,
+
+With my mouth will I make known
+Thy faithfulness to all generations,
+
+I will sing of the mercies of the Lord forever,
+I will sing of the mercies of the Lord.
+
+', '##', 'Sun, Jun 7', 5, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-854-joy-unspeakable', '854', 'Joy Unspeakable', 'Verse 1
+I have found His grace is all complete;
+He supplieth every need.
+While I sit and learn at Jesus’ feet,
+I am free, yes, free indeed.
+
+Chorus
+It is joy unspeakable and full of glory,
+Full of glory, full of glory.
+It is joy unspeakable and full of glory;
+O the half has never yet been told!
+
+Verse 2
+I have found the pleasure I once craved;
+It is joy and peace within.
+What a wondrous blessing! I am saved
+From the awful gulf of sin.
+
+Verse 3
+I have found that hope so bright and clear,
+Living in the realm of grace.
+Oh, the Savior’s presence is so near;
+I can see His smiling face.
+
+Verse 4
+I have found the joy no tongue can tell,
+How its waves of glory roll!
+It is like a great o’erflowing well,
+Springing up within my soul.', '', 'Sun, Jun 7', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-546-turn-your-eyes-upon-jesus', '546', 'Turn Your Eyes Upon Jesus', 'Verse 1
+O soul, are you weary and troubled?
+No light in the darkness you see?
+There''s light for a look at the Saviour,
+And life more abundant and free!
+
+Chorus
+Turn your eyes upon Jesus,
+Look full in His wonderful face;
+And the things of earth, will grow strangely dim
+In the light of His glory and grace
+
+Verse 2
+Thro'' death into life everlasting
+He passed, and we follow Him there;
+O''ver us sin no more hath dominion
+For more than conqu’rors we are!
+
+Verse 3
+His word shall not fail you He promised;
+Believe Him, and all will be well!
+Then go to a world that is dying
+His perfect salvation to tell!
+
+', 'b', 'Sun, Jun 7', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-18-all-hail-the-power', '18', 'All Hail the Power', 'Verse 1
+All hail the pow’r of Jesus’ name!
+Let angels prostrate fall;
+Bring forth the royal diadem,
+and crown Him Lord of all!
+Bring forth the royal diadem, 
+and crown Him Lord of all!
+
+Verse 2
+Ya chosen seed of Israel’s race,
+Ye ransomed from the fall
+hail Him who saves you by His Grace
+and crown Him Lord of all!
+hail Him who saves you by His Grace
+and crown Him Lord of all!
+
+Verse 3
+Let every kindred, every tribe
+On this terrestrial ball
+To him all majesty ascribe
+and crown Him Lord of all!
+To him all majesty ascribe
+and crown Him Lord of all!
+
+Verse 4
+O that with yonder sacred throng
+We at His feet may fall
+We’ll join the everlasting song
+and crown Him Lord of all!
+We’ll join the everlasting song
+and crown Him Lord of all!', '', 'Sun, May 31', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-51-blessed-assurance', '51', 'Blessed Assurance', 'Verse 1
+Blessed assurance, Jesus is mine!
+Oh, what a foretaste of glory divine!
+
+Heir of salvation, purchase of God,
+Born of his Spirit, washed in his blood.
+
+
+Chorus
+This is my story, this is my song,
+praising my Savior all the day long.
+
+This is my story, this is my song,
+praising my Savior all the day long.
+
+
+Verse 2
+Perfect submission, perfect delight,
+Visions of rapture now burst on my sight.
+
+Angels descending bring from above
+Echoes of mercy, whispers of love.
+
+
+Verse 3
+Perfect submission, all is at rest.
+I in my Savior am happy and blest,
+
+Watching and waiting, looking above,
+Filled with his goodness, lost in his love.', '##', 'Sun, May 31', 11, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-90-come-christians-join-to-sing', '90', 'Come, Christians, Join to Sing', 'Verse 1
+Come, Christians, join to sing
+Alleluia, Amen!
+
+
+Loud praise to Christ our King,
+Alleluia, Amen!
+
+
+Let all, with heart and voice,
+before His throne rejoice;
+
+
+Praise is His gracious choice,
+Alleluia, Amen!
+
+
+Verse 2
+Come, lift your hearts on high,
+Alleluia, Amen!
+
+
+Let praises fill the sky,
+Alleluia, Amen!
+
+
+He is our Guide and Friend,
+To us He''ll condescend;
+
+
+His love shall never end,
+Alleluia, Amen!
+
+
+Verse 3
+Praise yet our Christ again,
+Alleluia, Amen!
+
+
+Life shall not end the strain,
+Alleluia, Amen!
+
+
+On heaven''s blissful shore
+His goodness we''ll adore,
+
+
+singing forevermore,
+"Alleluia, Amen!"', '###', 'Sun, May 31', 17, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-237-tell-it-to-jesus', '237', 'Tell It to Jesus', 'Verse 1
+
+
+
+Are you weary, are you heavyhearted?
+Tell it to Jesus, Tell it to Jesus;
+
+
+Are you grieving over joys departed?
+Tell it to Jesus alone.
+
+
+
+
+Chorus
+
+
+
+Tell it to Jesus, tell it to Jesus,
+He is a friend that''s well known;
+
+
+You''ve no other such a friend or brother,
+Tell it to Jesus alone.
+
+
+
+
+Verse 2
+
+
+
+Do the tears flow down your cheeks unbidden?
+Tell it to Jesus, Tell it to Jesus;
+
+
+Have you sins that to men''s eyes are hidden?
+Tell it to Jesus alone.
+
+
+
+
+Verse 3
+
+
+
+Do you fear the gath''ring clouds of sorrow?
+Tell it to Jesus, Tell it to Jesus;
+
+
+Are you anxious what shall be tomorrow?
+Tell it to Jesus alone.
+
+
+
+
+Verse 4
+
+
+
+Are you troubled at the thought of dying?
+Tell it to Jesus, Tell it to Jesus;
+
+
+For Christ''s coming kingdom are you sighing?
+Tell it to Jesus alone.
+', '#', 'Sun, May 31', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-614-in-the-service-of-the-king', '614', 'In the Service of the King', 'Verse 1
+I am happy in the service of the King,
+I am happy, O so happy;
+I have peace and joy that nothing else can bring,
+In the service of the King.
+
+Chorus
+In the service of the King
+Ev''ry talent I will bring;
+I have peace and joy and blessing
+In the service of the King.
+
+Verse 2
+I am happy in the service of the King,
+I am happy, O so happy;
+Through the sunshine and the shadow I can sing,
+In the service of the King.
+
+Verse 3
+I am happy in the service of the King,
+I am happy, O so happy;
+To His guiding hand forever I will cling,
+In the service of the King.
+
+Verse 4
+I am happy in the service of the King,
+I am happy, O so happy;
+All that I possess to Him I gladly bring,
+In the service of the King.', 'bb', 'Sun, May 31', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-615-joy-in-serving-jesus', '615', 'Joy in Serving Jesus', 'Verse 1
+There is joy in serving Jesus,
+As I journey on my way,
+Joy that fills the heart with praises,
+Ev''ry hour and ev''ry day.
+
+
+Chorus
+There is joy, joy,
+Joy in serving Jesus,
+Joy that throbs within my heart;
+Ev''ry moment, ev''ry hour,
+As I draw upon His power,
+There is joy, joy,
+Joy that never shall depart.
+
+
+Verse 2
+There is joy in serving Jesus,
+Joy that triumphs over pain,
+Fills my soul with heaven''s music,
+Till I join the glad refrain. 
+
+
+Verse 3
+There is joy in serving Jesus,
+As I walk alone with God.
+''Tis the joy of Christ, my Savior,
+Who the path of suffering trod.
+
+
+Verse 4
+There is joy in serving Jesus,
+Joy amid the darkest night.
+For I''ve learned the wondrous secret,
+And I''m walking in the light.
+', 'bbbb', 'Sun, May 31', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-9-holy-holy-holy', '9', 'Holy, Holy, Holy', 'Verse 1
+Holy Holy Holy!
+Lord God Almighty!
+
+Early In the Morning,
+our song shall rise to thee; 
+
+Holy Holy Holy!
+Merciful and Mighty!
+
+God in Three Persons,
+Blessed Trinity!
+
+
+Verse 2
+Holy Holy Holy!
+All the saints adore Thee
+
+Casting down their golden crowns
+Around the glassy sea;
+
+Cherubim and seraphim,
+falling down before Thee,
+
+Which wert and art and
+Evermore shalt be
+
+
+Verse 3
+Holy Holy Holy!
+Though the darkness hide Thee,
+
+Tho’ the eye of sinful man
+Thy glory may not see
+
+Only Thou art holy,
+there is none beside Thee
+
+Perfect in power in,
+Love and purity
+
+
+Verse 4
+Holy Holy Holy!
+Lord God Almighty!
+
+All Thy works shall praise thy name
+in earth and sky and sea
+
+Holy Holy Holy!
+Merciful and Mighty!
+
+God in Three Persons,
+Blessed Trinity!
+', 'bbb', 'Sun, May 24', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-13-crown-him-with-many-crowns', '13', 'Crown Him With Many Crowns', 'Verse 1
+Crown him with many crowns,
+the Lamb upon his throne.
+Hark! how the heavenly anthem drowns
+all music but its own.
+Awake, my soul, and sing
+of him who died for thee,
+and hail him as thy matchless king
+through all eternity.
+
+Verse 2
+Crown Him the Son of God
+before the worlds began,
+And ye, who tread where He hath trod,
+Crown Him the Son of Man,
+Who every grief hath known
+That wrings the human breast,
+And takes and bears them for His own,
+That all in him may rest.
+
+Verse 3
+Crown him the Lord of life,
+who triumphed o''er the grave,
+Who rose victorious to the strife
+for those He came to save;
+his glories now we sing
+who died and rose on high,
+who died eternal life to bring,
+and lives that death may die.
+
+Verse 4
+Crown Him the Lord of peace,
+Whose power a scepter sways
+From pole to pole, that wars may cease,
+And all be prayer and praise!
+His reign shall know no end,
+And round His pierced feet
+Fair flowers of Paradise extend
+Their fragrance ever sweet. 
+
+Verse 5
+Crown him the Lord of love;
+behold his hands and side,
+rich wounds, yet visible above,
+in beauty glorified;
+All hail, Redeemer, hail!
+for Thou hast died for me:
+Thy praise shall never, never fail
+Throughout eternity.
+
+Verse 6
+Crown Him the Lord of Heaven:
+One with the Father known,
+One with the Spirit thru Him given
+From yonder glorious throne.
+To Thee be endless praise, 
+For Thou for us hast died;
+Be Thou, O Lord, thru endless days
+Adored and magnified.', '', 'Sun, May 24', 11, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-29-this-is-my-father-s-world', '29', 'This Is My Father''s World', 'Verse 1
+This is my Father''s world,
+And to my list’ning ears
+
+
+All nature sings, and round me rings
+The music of the spheres.
+
+
+This is my Father''s world:
+I rest me in the thought
+
+
+Of rocks and trees, of skies and seas
+His hand the wonders wrought.
+
+
+Verse 2
+This is my Father''s world:
+The birds their carols raise,
+
+
+The morning light, the lily white,
+Declare their Maker''s praise.
+
+
+This is my Father''s world:
+He shines in all that''s fair;
+
+
+In the rustling grass I hear Him pass,
+He speaks to me everywhere.
+
+
+Verse 3
+This is my Father''s world:
+O let me ne''er forget
+
+
+That though the wrong seems oft so strong,
+God is the Ruler yet.
+
+
+This is my Father''s world:
+The Battle is not done
+
+Jesus who died shall be satisfied
+And Earth and Heaven be one', 'bbb', 'Sun, May 24', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-52-to-god-be-the-glory', '52', 'To God Be the Glory', 'Verse 1
+To God be the glory, Great things he has done!
+So loved he the world That he gave us his Son,
+
+Who yielded his life an atonement for sin,
+And opened the life-gate that all may go in.
+
+
+Chorus
+Praise the Lord! Praise the Lord,
+Let the earth hear his voice!
+
+Praise the Lord! Praise the Lord!
+Let the people rejoice!
+
+O come to the Father
+Through Jesus the Son
+
+And give him the glory,
+Great things he has done!
+
+
+
+Verse 2
+O perfect redemption The purchase of blood
+To ev’ry believer The promise of God
+
+The vilest offender Who truly believes
+That moment from Jesus A pardon receives
+
+
+Verse3
+Great things he has taught us, Great things he has done,
+And great our rejoicing Through Jesus the Son,
+
+But purer and higher And greater will be
+Our wonder our transport, When Jesus we see.
+', 'bbbb', 'Sun, May 24', 16, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-811-his-name-is-wonderful', '811', 'His Name is Wonderful', 'Verse 1
+His name is Wonderful
+His name is Wonderful
+His name is Wonderful
+Jesus, my Lord
+
+Chorus
+He''s the Great Shepherd
+The Rock of All Ages
+The Almighty God is he
+Bow down before him
+Love and adore him
+His name is Wonderful
+Jesus, my Lord
+
+Verse 2
+He is the Mighty King
+Master of everything
+His name is Wonderful
+Jesus, my Lord
+', 'b', 'Sun, May 24', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-61-jesus-is-the-sweetest-name-i-know', '61', 'Jesus is the Sweetest Name I Know', 'Verse 1
+There have been names that I have loved to hear,
+But never has there been a name so dear
+To this heart of mine, as the name divine,
+The precious, precious name of Jesus.
+
+Chorus
+Jesus is the sweetest name I know,
+And He’s just the same as His lovely name,
+And that’s the reason why I love Him so;
+Oh, Jesus is the sweetest name I know.
+
+Verse 2
+There is no name in earth or heav’n above,
+That we should give such honor and such love,
+As the blessed name, let us all acclaim,
+That wondrous, glorious name of Jesus.
+
+Verse 3
+And some day I shall see Him face to face
+To thank and praise Him for His wondrous grace,
+Which He gave to me, when He made me free,
+The blessèd Son of God called Jesus.', '##', 'Sun, May 24', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-129-at-the-cross', '129', 'At the Cross', 'Verse 1
+Alas! And did my Savior bleed
+And did my Sovereign die?
+Would He devote that sacred head
+For such a worm as I?
+
+Chorus
+At the cross, at the cross
+Where I first saw the light,
+And the burden of my heart rolled away,
+It was there by faith I received my sight,
+And now I am happy all the day!
+
+Verse 2
+Was it for crimes that I had done
+He groaned upon the tree?
+Amazing pity! Grace unknown!
+And love beyond degree!
+
+Verse 3
+Well might the sun in darkness hide
+And shut his glories in,
+When Christ, the mighty Maker died,
+For man the creature’s sin.
+
+Verse 4
+But drops of grief can never repay
+The debt of love I owe:
+Here, Lord, I give my self away
+’Tis all that I can do.
+
+', '####', 'Sun, May 17', 9, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-169-power-in-the-blood', '169', 'Power In The Blood', 'Verse 1
+Would you be free from the burden of sin?
+There''s power in the blood, power in the blood;
+Would you over evil a victory win?
+There''s wonderful power in the blood.
+
+Chorus
+There is power, power, wonder-working power
+In the blood of the Lamb;
+There is power, power, wonder-working power
+In the precious blood of the Lamb.
+
+Verse 2
+Would you be free from your passion and pride?
+There''s power in the blood, power in the blood;
+Come for a cleansing to Calvary''s tide-
+There''s wonderful power in the blood.
+
+Verse 3
+Would you be whiter, much whiter than snow?
+There''s power in the blood, power in the blood;
+Sin-stains are lost in its life-giving flow–
+There''s wonderful power in the blood
+
+Verse 4
+Would you do service for Jesus, your King?
+There''s power in the blood, power in the blood;
+Would you live daily His praises to sing?
+There''s wonderful power in the blood.', '', 'Sun, May 17', 12, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-598-standing-on-the-promises', '598', 'Standing on the Promises', 'Verse 1
+Standing on the promises of Christ, my King,
+Through eternal ages let his praises ring;
+Glory in the highest, I will shout and sing,
+Standing on the promises of God.
+
+Chorus
+Standing, standing,
+Standing on the promises of God, my Savior;
+Standing, standing,
+I''m standing on the promises of God.
+
+Verse 2
+Standing on the promises that cannot fail.
+When the howling storms of doubt and fear assail,
+By the living Word of God I shall prevail,
+Standing on the promises of God.
+
+Verse 3
+Standing on the promises of Christ, the Lord,
+Bound to him eternally by love''s strong cord,
+Overcoming daily with the Spirit''s sword,
+Standing on the promises of God.
+
+Verse 4
+Standing on the promises I cannot fall,
+List''ning ev''ry moment to the Spirit''s call,
+Resting in my Savior as my all in all,
+Standing on the promises of God.', 'bb', 'Sun, May 17', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-673-when-we-all-get-to-heaven', '673', 'When We All Get to Heaven', 'Verse 1
+Sing the wondrous love of Jesus,
+Sing His mercy and His grace;
+In the mansions bright and blessed
+He''ll prepare for us a place.
+
+Chorus
+When we all get to heaven,
+what a day of rejoicing that will be!
+When we all see Jesus,
+we''ll sing and shout the victory!
+
+Verse 2
+While we walk the pilgrim pathway
+Clouds will overspread the sky;
+But when traveling days are over
+Not a shadow, not a sigh.
+
+Verse 3
+Let us then be true and faithful,
+Trusting, serving every day;
+Just one glimpse of Him in glory
+Will the toils of life repay.
+
+Verse 4
+Onward to the prize before us!
+Soon His beauty we''ll behold;
+Soon the pearly gates will open–
+We shall tread the streets of gold.', '', 'Sun, May 17', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-801-how-great-thou-art', '801', 'How Great Thou Art', 'Verse 1
+O Lord, my God, when I in awesome wonder
+consider all the worlds thy hands hath made,
+I see the stars, I hear the rolling thunder,
+thy pow''r throughout the universe displayed;
+
+
+Chorus
+Then sings my soul, my Savior-God, to thee:
+How great thou art! How great thou art!
+Then sings my soul, my Savior-God, to thee:
+How great thou art! How great thou art!
+
+
+Verse 2
+When through the woods and forest glades I wander,
+and hear the birds sing sweetly in the trees;
+when I look down from lofty mountain grandeur
+and hear the brook and feel the gentle breeze;
+
+
+Verse 3
+And when I think that God, his Son not sparing,
+sent him to die, I scarce can take it in,
+that on the cross my burden gladly bearing
+he bled and died to take away my sin;
+
+
+Verse 4
+When Christ shall come with shout of acclamation
+and take me home, what joy shall fill my heart!
+Then I shall bow in humble adoration
+and there proclaim: "My God, how great thou art!" ', 'bb', 'Sun, May 17', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-380-jesus-saves', '380', 'Jesus Saves', 'Verse 1
+We have heard the joyful sound:
+Jesus saves! Jesus saves!
+Spread the tidings all around:
+Jesus saves! Jesus saves!
+Bear the news to ev''ry land,
+Climb the steeps and cross the waves;
+Onward! ''tis our Lord''s command;
+Jesus saves! Jesus saves!
+
+Verse 2
+Waft it on the rolling tide:
+Jesus saves! Jesus saves!
+Tell to sinners far and wide:
+Jesus saves! Jesus saves!
+Sing, ye islands of the sea;
+Echo back, ye ocean caves;
+Earth shall keep her jubilee:
+Jesus saves! Jesus saves!
+
+Verse 3
+Sing above the battle strife:
+Jesus saves! Jesus saves!
+By His death and endless life:
+Jesus saves! Jesus saves!
+Sing it softly through the gloom,
+When the heart for mercy craves;
+Sing in triumph o''er the tomb:
+Jesus saves! Jesus saves!
+
+Verse 4
+Give the winds a mighty voice:
+Jesus saves! Jesus saves!
+Let the nations now rejoice:
+Jesus saves! Jesus saves!
+Shout salvation full and free,
+Highest hills and deepest caves;
+This our song of victory:
+Jesus saves! Jesus saves!', '', 'Sun, May 10', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-386-revive-us-again', '386', 'Revive Us Again', 'Verse 1
+We praise thee, O God, for the Son of thy love,
+for Jesus who died, and is now gone above.
+
+Chorus
+Hallelujah! Thine the glory, hallelujah! Amen!
+Hallelujah! Thine the glory, revive us again.
+
+Verse 2
+We praise thee, O God, for thy Spirit of light
+who has shown us our Savior and scattered our night.
+
+Verse 3
+All glory and praise to the Lamb that was slain
+Who has borne all our sins and has cleansed every stain
+
+Verse 4
+Revive us again, fill each heart with thy love.
+May each soul be rekindled with fire from above.', '#', 'Sun, May 10', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-390-love-lifted-me', '390', 'Love Lifted Me', 'Verse 1
+I was sinking deep in sin,
+Far from the peaceful shore,
+Very deeply stained within,
+Sinking to rise no more;
+But the Master of the sea
+Heard my despairing cry,
+From the waters lifted me–
+Now safe am I.
+
+
+Chorus
+Love lifted me,
+Love lifted me,
+When nothing else could help,
+Love lifted me;
+Love lifted me,
+Love lifted me,
+When nothing else could help,
+Love lifted me.
+
+
+Verse 2
+All my heart to Him I give,
+Ever to Him I''ll cling,
+In His blessed presence live,
+Ever His praises sing.
+Love so mighty and so true
+Merits my soul''s best songs;
+Faithful, loving service, too,
+To Him belongs. 
+
+
+Verse 3
+ Souls in danger, look above,
+Jesus completely saves;
+He will lift you by His love
+Out of the angry waves.
+He''s the Master of the sea,
+Billows His will obey;
+He your Savior wants to be–
+Be saved today.
+', 'bb', 'Sun, May 10', 14, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-620-onward-christian-soldiers', '620', 'Onward, Christian Soldiers', 'Verse 1
+Onward, Christian soldiers, marching as to war,
+With the cross of Jesus going on before!
+
+Christ, the royal Master, leads against the foe;
+Forward into battle, see his banner go!
+
+Chorus
+Onward, Christian Soldiers,
+Marching as to war,
+
+With the cross of Jesus
+Going on before
+
+Verse 2
+At the sign of triumph Satan''s host doth flee;
+On, then, Christian soldiers, on to victory!
+
+Hell''s foundations quiver at the shout of praise;
+Brothers, lift your voices, loud your anthems raise!
+
+Verse 3
+Like a mighty army moves the church of God;
+Brothers, we are treading where the saints have trod;
+
+We are not divided; all one body we,
+One in hope and doctrine, one in charity.
+
+Verse 4
+Onward, then, ye people, join our happy throng,
+Blend with ours your voices in the triumph song;
+
+Glory, laud, and honor, unto Christ the King;
+This through countless ages men and angels sing.', 'bbb', 'Sun, May 10', 8, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-628-the-fight-is-on', '628', 'The Fight Is On', 'Verse 1
+The fight is on, the trumpet sound is ringing out,
+The cry "To arms!" is heard afar and near;
+The Lord of hosts is marching on to victory,
+The triumph of the Christ will soon appear.
+
+
+Chorus:
+The fight is on, O Christian soldier,
+And face to face in stern array,
+With armor gleaming, and colors streaming,
+The right and wrong engage today!
+The fight is on, but be not weary;
+Be strong and in His might hold fast;
+If God be for us, His banner o''er us,
+We''ll sing the victor''s song at last!
+
+
+Verse 2 
+The fight is on, arouse, ye soldiers brave and true!
+Jehovah leads, and vict''ry will assure;
+Go, buckle on the armor God has given you,
+And in His strength unto the end endure
+
+
+Verse 3
+The Lord is leading on to certain victory;
+The bow of promise spans the eastern sky;
+His glorious name in ev''ry land shall honored be;
+The morn will break, the dawn of peace is nigh.', 'bb', 'Sun, May 10', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-132-the-old-rugged-cross', '132', 'The Old Rugged Cross', 'Verse 1
+On a hill far away stood an old rugged cross,
+the emblem of suffering and shame;
+and I love that old cross where the dearest and best
+for a world of lost sinners was slain.
+
+Chorus
+So I''ll cherish the old rugged cross,
+till my trophies at last I lay down;
+I will cling to the old rugged cross,
+and exchange it some day for a crown.
+
+Verse 2
+O that old rugged cross, so despised by the world,
+has a wondrous attraction for me;
+for the dear Lamb of God left his glory above
+to bear it to dark Calvary. 
+
+Verse 3
+In that old rugged cross, stained with blood so divine,
+a wondrous beauty I see,
+for ''twas on that old cross Jesus suffered and died,
+to pardon and sanctify me.
+
+Verse 4
+To that old rugged cross I will ever be true,
+its shame and reproach gladly bear;
+then he''ll call me some day to my home far away,
+where his glory forever I''ll share.', 'bb', 'Sun, May 3', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-216-when-we-see-christ', '216', 'When We See Christ', 'Verse 1
+Oft times the day seems long,
+Our trials hard to bear,
+
+We’re tempted to complain,
+To murmur and despair;
+
+But Christ will soon appear
+To catch His Bride away,
+
+All tears forever over
+In God’s eternal day.
+
+Chorus
+It will be worth it all when we see Jesus,
+Life’s trials will seem so small when we see Christ;
+
+One glimpse of His dear face 
+all sorrow will erase,
+So bravely run the race till we see Christ.
+
+Verse 2
+Sometimes the sky looks dark
+With not a ray of light,
+
+We’re tossed and driven on, 
+No human help in sight;
+
+But there is one in heav’n
+Who knows our deepest care,
+
+Let Jesus solve your problem
+Just go to Him in pray’r.
+
+Verse 3
+Life’s day will soon be o’er,
+All storms forever past,
+
+We’ll cross the great divide,
+To glory, safe at last;
+
+We’ll share the joys of heav’n
+a harp, a home, a crown,
+
+The tempter will be banished,
+We’ll lay our burden down.', 'bbbbb', 'Sun, May 3', 9, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-663-make-me-a-blessing', '663', 'Make Me a Blessing', 'Verse 1
+1 Out in the highways and byways of life,
+Many are weary and sad;
+Carry the sunshine where darkness is rife,
+Making the sorrowing glad.
+
+Chorus
+Make me a blessing, Make me a blessing.
+Out of my life may Jesus shine;
+Make me a blessing, O Savior, I pray.
+Make me a blessing to someone today.
+
+Verse 2
+Tell the sweet story of Christ and his love,
+Tell of his pow''r to forgive;
+Others will trust him if only you prove
+True, ev''ry moment you live.
+
+Verse 3
+Give as ''twas given to you in your need,
+Love as the Master loved you;
+Be to the helpless a helper indeed,
+Unto your mission be true.', '', 'Sun, May 3', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-worthy-of-worship-english-and-spanish', '', 'Worthy of Worship (English and Spanish)', 'Worthy of worship, worthy of praise,
+Worthy of honor and glory;
+Worthy of all the glad songs we can sing,
+Worthy of all the offerings we bring.
+
+Worthy of reverence, worthy of fear,
+Worthy of love and devotion;
+Worthy of bowing and bending of knees,
+Worthy of all this and added to these.
+
+You are worthy, Father, Creator.
+You are worthy, Savior, Sustainer.
+You are worthy, worthy and wonderful;
+Worthy of worship and praise.
+
+Almighty Father, Master and Lord,
+King of all kings and Redeemer,
+Wonderful Counselor, Comforter, Friend,
+Savior and Source of our life without end.
+
+Digno de honra, digno de honor,
+Digno de gloria y de loor
+Digno de cantos, y de adorar
+Digno de ofrenda, traida al altar
+
+De reverencia y santo temor,
+Digno de toda la devoción,
+Digno eres tú de todo el honor,
+Digno de gloria y toda oración.
+
+Tu eres digno, Dios padre nuestro
+Tu eres, digno, Cristo Divino
+Tu eres digno, maravilloso
+y digno do todo honor
+
+¡Oh! poderoso Padre y Señor,
+Rey de los reyes y Redentor,
+Príncipe eterno de toda la paz,
+Fuente de vida que no acabará.', '', 'Sun, May 3', 7, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-579-god-will-take-care-of-you', '579', 'God Will Take Care of You', 'Verse 1 
+Be not dismayed whate’er betide;
+God will take care of you.
+Beneath His wings of love abide;
+God will take care of you.
+
+
+Chorus
+God will take care of you,
+through ev''ry day, o’er all the way.
+He will take care of you;
+God will take care of you.
+
+
+Verse 2
+Through days of toil when heart doth fail,
+God will take care of you.
+When dangers fierce your path assail,
+God will take care of you. [Refrain]
+
+
+Verse 3
+All you may need He will provide;
+God will take care of you.
+All strength you need will be supplies;
+God will take care of you. [Refrain]
+
+
+Verse 4
+No matter what may be the test,
+God will take care of you.
+Lean, weary one, upon His breast;
+God will take care of you.', 'bb', 'Sun, May 3', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-529-day-by-day', '529', 'Day by Day', 'Verse 1
+Day by day and with each passing moment,
+Strength I find, to meet my trials here;
+
+Trusting in my Father''s wise bestowment,
+I''ve no cause for worry or for fear.
+
+He Whose heart is kind beyond all measure
+Gives unto each day what He deems best-
+
+Lovingly, its part of pain and pleasure,
+Mingling toil with peace and rest.
+
+
+
+Verse 2
+Every day, the Lord Himself is near me
+With a special mercy for each hour;
+
+All my cares He fain would bear, and cheer me,
+He Whose Name is Counselor and Power;
+
+The protection of His child and treasure
+Is a charge that on Himself He laid;
+
+"As thy days, thy strength shall be in measure,"
+This the pledge to me He made.
+
+
+
+Verse 3
+Help me then in every tribulation
+So to trust Thy promises, O Lord,
+
+That I lose not faith''s sweet consolation
+Offered me within Thy Holy Word.
+
+Help me, Lord, when toil and trouble meeting,
+Ever to take, as from a father''s hand,
+
+One by one, the days, the moments fleeting,
+Till I reach the promised land.
+
+', 'bbb', 'Sun, May 3', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-320-in-the-garden', '320', 'In the Garden', 'Verse 1
+I come to the garden alone,
+While the dew is still on the roses;
+And the voice I hear, falling on my ear,
+The Son of God discloses.
+
+Chorus
+And He walks with me, and He talks with me,
+And He tells me I am His own,
+And the joy we share as we tarry there,
+None other has ever known.
+
+Verse 2
+He speaks, and the sound of His voice
+Is so sweet the birds hush their singing;
+And the melody that He gave to me
+Within my heart is ringing.
+
+Verse 3
+I''d stay in the garden with Him
+Tho'' the night around me be falling;
+But He bids me go; thro'' the voice of woe,
+His voice to me is calling.', '', 'Sun, Apr 26', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-375-since-jesus-came-into-my-heart', '375', 'Since Jesus Came into My Heart', 'Verse 1
+What a wonderful change in my life has been wrought
+since Jesus came into my heart!
+I have light in my soul for which long I had sought,
+since Jesus came into my heart.
+What a wonderful change in my life has been wrought
+since Jesus came into my heart!
+
+Chorus
+Since Jesus came into my heart,
+since Jesus came into my heart,
+floods of joy o''er my soul like sea billows roll,
+since Jesus came into my heart.
+
+Verse 2
+I have ceased from my wand''ring and going astray
+since Jesus came into my heart!
+And my sins which were many are all washed away,
+since Jesus came into my heart
+
+Verse 3
+There''s a light in the valley of death now for me,
+since Jesus came into my heart;
+And the gates of the city beyond I can see,
+since Jesus came into my heart. 
+
+Verse 4
+I shall go there to dwell in that city I know,
+since Jesus came into my heart;
+And I''m happy, so happy, as onward I go,
+since Jesus came into my heart.', '', 'Sun, Apr 26', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-667-bringing-in-the-sheaves', '667', 'Bringing in the Sheaves', 'Verse 1
+Sowing in the morning, sowing seeds of kindness,
+sowing in the noontide and the dewy eve;
+waiting for the harvest and the time of reaping—
+we shall come rejoicing, bringing in the sheaves.
+
+
+Chorus
+Bringing in the sheaves, bringing in the sheaves,
+We shall come rejoicing, bringing in the sheaves.
+Bringing in the sheaves, bringing in the sheaves,
+We shall come rejoicing, bringing in the sheaves.
+
+
+Verse 2
+Sowing in the sunshine, sowing in the shadows,
+fearing neither clouds nor winter''s chilling breeze;
+by and by the harvest and the labor ended
+we shall come rejoicing, bringing in the sheaves.
+
+
+Verse 3
+Going forth with weeping, sowing for the Master,
+though the loss sustained our spirit often grieves;
+when our weeping''s over He will bid us welcome
+we shall come rejoicing, bringing in the sheaves', 'C', 'Sun, Apr 26', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-720-jesus-loves-even-me', '720', 'Jesus Loves Even Me', 'Verse 1
+I am so glad that our Father in heaven
+Tells of His love in the Book He has given;
+Wonderful things in the Bible I see,
+This is the dearest, that Jesus loves me.
+
+Chorus
+I am so glad that Jesus loves me,
+Jesus loves me, Jesus loves me;
+I am so glad that Jesus loves me,
+Jesus loves even me
+
+Verse 2
+Though I forget Him and wander away,
+Still He doth love me wherever I stray;
+Back to His dear loving arms would I flee,
+When I remember that Jesus loves me!
+
+Verse 3
+O, if there''s only one song I can sing,
+When in His beauty I see the great King,
+This shall my song in eternity be:
+O, what a wonder that Jesus loves me!', '#', 'Sun, Apr 26', 11, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-760-sweeter-than-the-day-before', '760', 'Sweeter Than the Day Before', 'Verse 1
+Ev''ryday with Jesus is sweeter than the day before;
+Ev''ryday with Jesus, I love Him more and more;
+Jesus saves and keeps me,
+And He''s the One I’m waiting for;
+Ev''ryday with Jesus is sweeter than the day before.', 'b', 'Sun, Apr 26', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-871-in-my-heart-there-rings-a-melody', '871', 'In My Heart There Rings a Melody', 'Verse 1
+I have a song that Jesus gave me;
+it was sent from heav''n above.
+There never was a sweeter melody;
+''tis a melody of love.
+
+Chorus
+In my heart there rings a melody;
+there rings a melody heaven''s harmony.
+In my heart there rings a melody;
+there rings a melody of love
+
+Verse 2
+I love the Christ who died on Calv''ry,
+for He washed my sins away.
+He put within my heart a melody,
+and I know it''s there to stay. 
+
+Verse 3
+Twill be my endless theme in glory;
+with the angels I will sing.
+''Twill be a song with glorious harmony
+when the courts of heaven ring', 'bbbb', 'Sun, Apr 26', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-339-i-will-sing-the-wondrous-story', '339', 'I Will Sing the Wondrous Story', 'Verse 1
+I will sing the wondrous story
+Of the Christ who died for me.
+How He left His home in glory
+For the cross of Calvary.
+
+Chorus
+Yes, I''ll sing the wondrous story
+Of the Christ who died for me,
+Sing it with the saints in glory,
+Gathered by the crystal sea.
+
+Verse 2
+I was lost, but Jesus found me,
+Found the sheep that went astray,
+Threw His loving arms around me,
+Drew me back into His way.
+
+
+Verse 3
+I was bruised, but Jesus healed me;
+Faint was I from many a fall;
+Sight was gone, and fears possessed me,
+But He freed me from them all.
+
+
+Verse 4
+Days of darkness still come o''er me,
+Sorrow''s paths I often tread,
+But the Savior still is with me;
+By His hand I''m safely led.
+
+
+Verse 5
+He will keep me till the river
+Rolls its waters at my feet;
+Then He''ll bear me safely over,
+Where the loved ones I shall meet.
+
+', 'bbbbb', 'Sun, Apr 19', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-349-a-new-name-in-glory', '349', 'A New Name in Glory', 'Verse 1
+I was once a sinner, but I came
+Pardon to receive from my Lord.
+This was freely given, and I found
+That He always kept His word
+
+Chorus
+There''s a new name Written down in glory,
+And it''s mine, (And it''s mine,)
+oh yes, it''s mine! (yes, it''s mine!)
+And the white-robed Angels sing the story,
+"A sinner has come home.”
+For there''s a new name written down in glory,
+And it''s mine, (And it''s mine,)
+oh yes, it''s mine! (yes, it''s mine!)
+With my sins forgiven I am bound for heaven,
+Nevermore to roam
+
+Verse 2
+I was humbly kneeling at the cross,
+Fearing naught but God''s angry frown,
+When the heavens opened and I saw
+That my name was written down
+
+Verse 3
+In the Book ''tis written, "Saved by grace."
+Oh, the joy that came to my soul!
+Now I am forgiven, and I know
+By the blood I am made whole', '', 'Sun, Apr 19', 8, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-393-there-shall-be-showers-of-blessing', '393', 'There Shall Be Showers of Blessing', 'Verse 1
+There shall be showers of blessing:
+This is the promise of love;
+There shall be seasons refreshing,
+Sent from the Savior above.
+
+Chorus
+Showers of blessing,
+Showers of blessing we need:
+Mercy-drops round us are falling,
+But for the showers we plead.
+
+Verse 2
+There shall be showers of blessing,
+Precious reviving again;
+Over the hills and the valleys,
+Sound of abundance of rain
+
+Verse 3
+There shall be showers of blessing:
+Send them upon us, O Lord;
+Grant to us now a refreshing,
+Come and now honor Thy Word
+
+Verse 4
+There shall be showers of blessing:
+Oh, that today they might fall,
+Now as to God we''re confessing,
+Now as on Jesus we call! 
+
+Verse 5
+There shall be showers of blessing,
+If we but trust and obey;
+There shall be seasons refreshing. 
+If we let God have His way.', '', 'Sun, Apr 19', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-415-leaning-on-the-everlasting-arms', '415', 'Leaning on the Everlasting Arms', 'Verse 1
+What a fellowship, what a joy divine,
+leaning on the everlasting arms;
+what a blessedness, what a peace is mine,
+leaning on the everlasting arms.
+
+Chorus
+Leaning, leaning,
+safe and secure from all alarms;
+leaning, leaning,
+leaning on the everlasting arms.
+
+Verse 2
+O how sweet to walk in this pilgrim way,
+leaning on the everlasting arms;
+O how bright the path grows from day to day,
+leaning on the everlasting arms.
+
+Verse 3
+What have I to dread, what have I to fear,
+leaning on the everlasting arms?
+I have blessed peace with my Lord so near,
+leaning on the everlasting arms.', 'bbbb', 'Sun, Apr 19', 11, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-100-jesus-is-all-the-all-the-world-to-me', '100', 'Jesus Is All the All the World to Me', 'Verse 1
+Jesus is all the world to me,
+My life, my joy, my all;
+He is my strength from day to day,
+Without him I would fall:
+When I am sad, to him I go,
+No other one can cheer me so;
+When I am sad, he makes me glad,
+He''s my friend.
+
+Verse 2
+Jesus is all the world to me,
+My friend in trials sore;
+I go to him for blessings, and
+He gives them o''er and o''er:
+He sends the sunshine and the rain,
+He sends the harvest''s golden grain;
+Sunshine and rain, harvest of grain,
+He''s my friend.
+
+Verse 3
+Jesus is all the world to me,
+And true to him I''ll be;
+Oh, how could I this friend deny,
+When he''s so true to me?
+Following him I know I''m right,
+He watches o''er me day and night;
+Following him by day and night,
+He''s my friend.
+
+Verse 4
+Jesus is all the world to me,
+I want no better friend;
+I trust him now, I''ll trust him when
+Life''s fleeting days shall end:
+Beautiful life with such a friend,
+Beautiful life that has no end;
+Eternal life, eternal joy,
+He''s my friend.', '#', 'Sun, Apr 12', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-324-it-is-glory-just-to-walk-with-him', '324', 'It Is Glory Just to Walk with Him', 'Verse 1
+It is glory just to walk with Him whose blood has ransomed me;
+It is rapture for my soul each day.
+
+It is joy divine to feel Him near where''er my path may be.
+Bless the Lord, it''s glory all the way!
+
+Chorus
+It is glory just to walk with Him.
+It is glory just to walk with Him.
+
+He will guide my steps aright,
+Thro'' the vale and o''er the height.
+It is glory just to walk with Him.
+
+Verse 2
+It is glory when the shadows fall, to know that He is near.
+Oh, what joy to simply trust and pray!
+
+It is glory to abide in Him when skies above are clear.
+Yes, with Him, it''s glory all the way!
+
+Verse 3
+''Twill be glory when I walk with Him on heaven''s golden shore,
+Never from His side again to stray.
+
+Twill be glory, wondrous glory with the Saviour evermore,
+Everlasting glory all the way!', 'C', 'Sun, Apr 12', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-592-i-love-to-tell-the-story', '592', 'I Love to Tell the Story', 'Verse 1
+I love to tell the story of unseen things above,
+of Jesus and his glory, of Jesus and his love.
+I love to tell the story because I know it''s true; 
+it satisfies my longings as nothing else can do.
+
+
+Chorus
+I love to tell the story;
+''twill be my theme in glory
+to tell the old, old story
+of Jesus and his love.
+
+Verse 2
+I love to tell the story, more wonderful it seems
+than all the golden fancies of all our golden dreams. 
+I love to tell the story, It did so much for me:
+and that is just the reason I tell it now to thee.
+
+Verse 3
+I love to tell the story, ‘tis pleasant to repeat
+What seems, each time I tell it, more wonderfully sweet.
+I love to tell the story, For some have never heard 
+The message of salvation From God’s own holy word.
+
+Verse 4
+I love to tell the story, for those who know it best
+seem hungering and thirsting to hear it like the rest.
+And when in scenes of glory. I sing the new, new song,
+''twill be the old, old story that I have loved so long.', 'bbbb', 'Sun, Apr 12', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-45-guide-me-o-thou-great-jehovah', '45', 'Guide Me, O Thou Great Jehovah', 'Verse 1
+Guide me, O Thou great Jehovah,
+pilgrim through this barren land;
+I am weak, but Thou are mighty;
+hold me with Thy powerful hand.
+Bread of heaven, bread of heaven,
+feed me till I want no more,
+feed me till I want no more.
+
+Verse 2
+Open now the crystal fountain,
+whence the healing streams doth flow.
+Let the fire and cloudy pillar
+lead me all my journey through.
+Strong Deliverer, strong Deliverer,
+be thou still my strength and shield,
+be thou still my strength and shield.
+
+Verse 3
+When I tread the verge of Jordan,
+bid my anxious fears subside.
+Death of death, and hell''s Destruction,
+land me safe on Canaan''s side.
+Songs of praises, songs of praises
+I will ever give to thee,
+I will ever give to thee.', '', 'Sun, Apr 12', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-176-christ-arose', '176', 'Christ Arose', 'Verse 1
+Low in the grave he lay, Jesus my Savior,
+waiting the coming day, Jesus my Lord!
+
+Chorus
+Up from the grave he arose;
+with a mighty triumph o''er his foes;
+he arose a victor from the dark domain,
+and he lives forever, with his saints to reign.
+He arose! He arose! Hallelujah! Christ arose!
+
+Verse 2
+Vainly they watch his bed, Jesus my Savior,
+vainly they seal the dead, Jesus my Lord!
+
+Verse 3
+Death cannot keep its prey, Jesus my Savior;
+he tore the bars away, Jesus my Lord!', '', 'Sun, Apr 5', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-377-he-lives', '377', 'He Lives', 'Verse 1
+I serve a risen Saviour, He’s in the world today,
+I know that He is living whatever men may say
+I see His hand of mercy. I hear His voice of cheer,
+and just the time I need Him, He’s always near
+
+Chorus
+He lives, He lives, Christ Jesus lives today!
+He walks with me and talks with me along life’s narrow way
+He lives, He lives, salvation to impart!
+You ask me how I know He lives? He lives within my heart
+
+Verse 2
+In all the world around me I see His living care,
+and though my heart grows weary I never will despair;
+I know that He is leading thro all the stormy blast,
+The day of His appearing will come at last
+
+Verse 3
+Rejoice, rejoice, O Christian, lift up your voice and sing,
+eternal hallelujahs to Jesus Christ the King!
+The Hope of all who seek Him the Help of all who find,
+None other is so loving, so good and kind', 'bbbb', 'Sun, Apr 5', 9, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-851-i-m-on-the-winning-side', '851', 'I''m on the Winning Side', 'Verse 1
+
+Once I drifted out in sin, had no hope nor joy within
+and my soul was burdened down with pride
+Then my Savior came along, and he showed me I was wrong
+Now I know, I’m on the winning side
+
+Chorus
+
+Well, I am on the winning side,
+Yes I’m on the winning side,
+Out in sin no more will I abide
+I’ve enlisted in the fight
+for the cause of truth and right
+praise the Lord, I’m on the winning side!
+
+Verse 2
+
+From the straight and narrow way, I was drifting every day
+out upon the waters deep and wide
+But it all is over now, glory light is on my brow
+and my soul, is on the winning side
+
+Verse 3
+
+I will never have a fear, for my Lord is ever near
+and in Him so often I confide
+He’s the keeper of my soul, since I gave Him full control
+and He placed me on the winning side', 'bbbb', 'Sun, Apr 5', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-805-because-he-lives', '805', 'Because He Lives', 'God sent His Son they called Him Jesus 
+He came to love heal and forgive 
+
+He lived and died to buy my pardon 
+An empty grave is there to prove My Savior lives 
+
+Chorus
+Because He lives I can face tomorrow 
+Because He lives all fear is gone 
+
+Because I know He holds the future 
+And life is worth the living Just because He lives
+
+Verse 2
+How sweet to hold our newborn baby And feel the pride and joy he gives But greater still the calm assurance This child can face uncertain days Because Christ lives Verse 3 And then one day I''ll cross that river I''ll fight life''s final war with pain And then as death gives way to vict''ry I''ll see the lights of glory And I''ll know He reigns', 'bbbb', 'Sun, Apr 5', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-179-christ-the-lord-is-risen-today', '179', 'Christ the Lord Is Risen Today!', 'Verse 1
+Christ the Lord is risen today, Alleluia!
+Sons of men and angels say, Alleluia!
+Raise your joys and triumphs high, Alleluia!
+Sing, ye heav’ns, and earth reply, Alleluia!
+
+
+Verse 2
+Lives again our glorious King, Alleluia!
+Where, O death, is now thy sting? Alleluia!
+Dying once He all doth save, Alleluia!
+Where thy victory, O grave? Alleluia!
+
+
+Verse 3
+Love’s redeeming work is done, Alleluia!
+Fought the fight, the battle won, Alleluia!
+Death in vain forbids Him rise, Alleluia!
+Christ hath opened Paradise, Alleluia!
+
+
+Verse 4
+Sour we now where Christ has led, Alleluia!
+Foll’wing our exalted Head, Alleluia!
+Made like Him like Him we rise, Alleluia!
+Ours the cross, the grave, the skies, Alleluia!
+
+', 'C major', 'Sun, Apr 5', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-175-there-is-a-fountain', '175', 'There Is a Fountain', 'Verse 1
+There is a fountain filled with blood
+Drawn from Immanuel’s veins,
+And sinners plunged beneath that flood
+Lose all their guilty stains
+Lose all their guilty stains, Lose all their guilty stains
+And sinners plunged beneath that flood lose all their guilty stains
+
+Verse 2
+The dying theif rejoiced to see
+That fountain in his day
+And there may I, though vile as he,
+wash all my sins away
+Wash all my sins away, wash all my sins away
+and there may I though vile as he wash all my sins away
+
+Verse 3
+Dear dying Lamb Thy precious blood
+Shall never lose it’s pow’r
+Till all the ransomed Church of God
+Be saved to sin no more
+Be saved to sin no more, Be saved to sin no more
+Till all the ransomed Church of God Be saved to sin no more
+
+Verse 4
+E’er since by faith I saw the stream
+Thy flowing wounds supply
+Redeeming love has been my theme
+And shall be till I die
+And shall be till I die, And shall be till I die
+Redeeming love has been my theme And shall be till I die
+
+Verse 5
+When this poor lisping stammering tongue
+Lies silent in the grave
+Then in a nobler, sweeter song
+I’ll sing they pow’r to save
+I’ll sing they pow’r to save, I’ll sing they pow’r to save
+Then in a nobler, sweeter song I’ll sing they pow’r to save
+', 'bb', 'Sun, Mar 29', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-414-trust-and-obey', '414', 'Trust and Obey', 'Verse 1
+When we walk with the Lord
+in the light of his word,
+what a glory he sheds on our way!
+While we do his good will,
+he abides with us still,
+and with all who will trust and obey
+
+Chorus
+Trust and obey, for there''s no other way
+to be happy in Jesus, but to trust and obey.
+
+Verse 2
+Not a shadow can rise, 
+Not a cloud in the skies,
+But His smile quickly drives it away,
+Not a doubt nor a fear,
+Not a sigh nor a tear, 
+Can abide while we trust and obey
+ 
+
+Verse 3
+Not a burden we bear,
+not a sorrow we share,
+but our toil he doth richly repay;
+not a grief or a loss,
+not a frown or a cross,
+but is blest if we trust and obey
+
+Verse 4
+But we never can prove
+the delights of his love
+until all on the altar we lay;
+for the favor he shows,
+for the joy He bestows,
+are for them who will trust and obey
+
+Verse 5
+Then in fellowship sweet,
+We will sit at His feet,
+Or we’ll walk by his side in the way,
+What He says we will do,
+Where He sends we will go,
+Never fear only trust and obey
+
+
+
+', '', 'Sun, Mar 29', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-426-dwelling-in-beulah-land', '426', 'Dwelling In Beulah Land', 'Verse 1
+Far away the noise of strife upon my ear is falling,
+Then I know the sins of earth beset on every hand;
+Doubt and fear and things of earth in vain to me are calling,
+None of these shall move me from Beulah Land.
+
+Chorus
+I’m living on the mountain, underneath a cloudless sky;
+I’m drinking at the fountain that never shall run dry;
+O yes! I’m feasting on the manna from a bountiful supply,
+For I am dwelling in Beulah Land
+
+Verse 2
+Far below the storm of doubt upon the world is beating,
+Sons of men in battle long the enemy withstand;
+Safe am I within the castle of God’s word retreating,
+Nothing there can reach me, ’tis Beulah Land.
+
+Verse 3
+Let the stormy breezes blow, their cry cannot alarm me,
+I am safely sheltered here, protected by God’s hand;
+Here the sun is always shining, Here there’s naught can harm me,
+I am safe forever in Beulah Land
+
+Verse 4
+Viewing here the works of God, I sink in contemplation;
+Hearing now His blessed voice, I see the way He planned;
+Dwelling in the Spirit, here I learn of full salvation,
+Gladly I will tarry in Beulah Land', '', 'Sun, Mar 29', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-827-i-m-standing-on-the-solid-rock', '827', 'I''m Standing on the Solid Rock', 'Verse 1
+Thru my disappointments
+Strife and discontentment
+I cast my every care upon the Lord
+
+No matter what obsession
+Pain or deep depression
+I''m standing on the solid rock
+
+Chorus
+I''m standing on the rock of ages
+Safe from all the storm that rages
+
+I''m rich but not from Satan''s wages
+I''m standing on the solid rock
+
+Verse 2
+Even though He''s gone now
+I don''t feel alone now
+With comfort came the Spirit of the Lord
+
+Now with His word to guide me
+From temptations hide me
+I''m standing on the solid rock
+
+Verse 3
+Now I''m pressing onward
+Each step leads me homeward
+I''m trusting in my Savior day by day
+
+
+And close is our relation
+Firm is its foundation
+So on this solid rock I''ll stay', 'b', 'Sun, Mar 29', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-840-what-a-day-that-will-be', '840', 'What a Day That Will Be', 'Verse 1
+There is coming a day When no heartaches shall come 
+No more clouds in the sky No more tears to dim the eye 
+All is peace forevermore On that happy golden shore 
+What a day, glorious day that will be
+
+Chorus
+What a day that will be When my Jesus I shall see 
+When I look upon His face The One who saved me by His grace 
+Then He’ll take me by the hand And lead me through the Promise Land 
+Oh what a day, glorious day that will be
+
+Verse 2
+They’ll be no sorrow there No more burdens to bear 
+No more sickness and no more pain No more parting over there 
+And forever I will be With the One who died for me 
+Oh what a day, glorious day that will be', '', 'Sun, Mar 29', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-194-jesus-is-coming-again', '194', 'Jesus Is Coming Again', 'Verse 1
+Marvelous message we bring,
+Glorious carol we sing,
+
+Wonderful word of the King:
+Jesus is coming again!
+
+Chorus 1
+Coming again, coming again;
+Maybe morning, maybe noon,
+
+Maybe evening, and maybe soon!
+Coming again, coming again;
+Oh what a wonderful day it will be,
+Jesus is coming again!
+
+Verse 2
+Forest and flower exclaim,
+Mountain and meadow the same,
+
+All earth and heaven proclaim:
+Jesus is coming again!
+
+Verse 3
+Standing before Him at last,
+Trial and trouble all past,
+
+Crowns at His feet we will cast,
+Jesus is coming again!', 'bb', 'Sun, Mar 29', 10, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-157-the-way-of-the-cross-leads-home', '157', 'The Way of the Cross Leads Home', 'Verse 1
+I must needs go home by the way of the cross,
+There''s no other way but this;
+I shall ne''er get sight of the gates of light,
+If the way of the cross I miss
+
+Chorus
+The way of the cross leads home,
+The way of the cross leads home;
+It is sweet to know as I onward go,
+The way of cross leads home
+
+Verse 2
+I must needs go on in the blood sprinkled way,
+The path that the Savior trod,
+If I ever climb to the heights sublime,
+Where the soul is at home with God
+
+Verse 3
+Then I bid farewell to the way of the world,
+To walk in it nevermore;
+For the Lord says, "Come," and I seek my home
+Where He waits at the open door
+
+', '#', 'Sun, Mar 22', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-186-and-can-it-be', '186', 'And Can It Be', 'Verse 1
+And can it be that I should gain
+An int''rest in the Savior''s blood?
+Died He for me, who caused His pain?
+For me, who Him to death pursued?
+Amazing love! how can it be
+That Thou, my God, should die for me?
+
+Chorus
+Amazing love! how can it be
+That Thou, my God, should die for me!
+
+
+Verse 2
+''Tis mystery all! The Immortal dies!
+Who can explore His strange design?
+In vain the firstborn seraph tries
+To sound the depths of love divine!
+''Tis mercy all! let earth adore,
+Let angel minds inquire no more
+
+Verse 3
+He left His Father''s throne above,
+So free, so infinite His grace;
+Emptied Himself of all but love,
+And bled for Adam''s helpless race;
+''Tis mercy all, immense and free;
+For, O my God, it found out me
+
+Verse 4
+Long my imprisoned spirit lay
+Fast bound in sin and nature''s night;
+Thine eye diffused a quick''ning ray,
+I woke, the dungeon flamed with light;
+My chains fell off, my heart was free;
+I rose, went forth and followed Thee
+
+Verse 5
+No condemnation now I dread;
+Jesus, and all in Him is mine!
+Alive in Him, my living Head,
+And clothed in righteousness divine,
+Bold I approach th''eternal throne,
+And claim the crown, through Christ my own', '#', 'Sun, Mar 22', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-417-it-is-well-with-my-soul', '417', 'It Is Well with My Soul', 'Verse 1
+When peace like a river attendeth my way,
+when sorrows like sea billows roll;
+whatever my lot, thou hast taught me to say,
+"It is well, it is well with my soul."
+
+Chorus
+It is well with my soul;
+it is well, it is well with my soul.
+
+Verse 2
+Though Satan should buffet, though trials should come,
+let this blest assurance control:
+that Christ has regarded my helpless estate,
+and has shed his own blood for my soul.
+
+Verse 3
+My sin oh, the bliss of this glorious thought!
+my sin, not in part, but the whole,
+is nailed to the cross, and I bear it no more;
+praise the Lord, praise the Lord, O my soul!
+
+Verse 4
+O Lord, haste the day when my faith shall be sight,
+the clouds be rolled back as a scroll;
+the trump shall resound and the Lord shall descend;
+even so, it is well with my soul.', 'bbbbb', 'Sun, Mar 22', 7, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-192-one-day', '192', 'One Day!', ' Verse 1
+One day when heaven was filled with His praises,
+One day when sin was as black as could be,
+
+Jesus came forth to be born of a virgin,
+Dwelt among men, my example is He!
+
+
+Chorus
+Living, He loved me; dying, He saved me;
+Buried, He carried my sins far away;
+
+Rising, He justified freely, forever:
+One day He’s coming: O glorious day!
+
+
+Verse 2
+One day they led Him up Calvary’s mountain,
+One day they nailed Him to die on the tree;
+
+Suffering anguish, despised and rejected,
+Bearing our sins, my Redeemer is He!
+
+
+Verse 3
+One day they left Him alone in the garden,
+One day He rested, from suffering free;
+
+Angels came down o’er His tomb to keep vigil;
+Hope of the hopeless, my Savior is He!
+
+Verse 4
+One day the grave could conceal Him no longer,
+One day the stone rolled away from the door;
+
+Then He arose, over death He had conquered,
+Now is ascended, my Lord ever more!
+
+
+Verse 5
+One day the trumpet will sound for His coming,
+One day the skies with His glory will shine;
+
+Wonderful day, my beloved ones bringing;
+Glorious Savior, this Jesus is mine!', 'bbbbb', 'Sun, Mar 22', 8, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-458-draw-me-nearer', '458', 'Draw Me Nearer', 'Verse 1
+I am Thine, O Lord, I have heard Thy voice,
+And it told Thy love to me;
+But I long to rise in the arms of faith,
+And be closer drawn to Thee.
+
+Chorus
+Draw me nearer, nearer, nearer, blessed Lord,
+To the cross where Thou hast died;
+Draw me nearer, nearer, nearer, blessed Lord,
+To Thy precious, bleeding side.
+
+Verse 2
+Consecrate me now to Thy service, Lord,
+By the pow’r of grace divine;
+Let my soul look up with a steadfast hope,
+And my will be lost in Thine.
+
+Verse 3
+Oh, the pure delight of a single hour
+That before Thy throne I spend,
+When I kneel in prayer, and with Thee, my God,
+I commune as friend with friend!
+
+Verse 4
+There are depths of love that I cannot know
+Till I cross the narrow sea;
+There are heights of joy that I may not reach
+Till I rest in peace with Thee.
+
+', '', 'Thu, Mar 19', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-273-fill-my-cup-lord', '273', 'FILL MY CUP LORD', '', '', 'Thu, Mar 19', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-536-whosoever-will-may-come', '536', 'Whosoever Will May Come', 'Verse 1 
+“Whosoever heareth,” shout, shout the sound!
+Spread the blessed tidings all the world around.
+Tell the joyful news wherever man is found:
+“Whosoever will may come.”
+
+
+Chorus
+"Whosoever will, “whosoever will!”
+Send the proclamation over vale and hill;
+’Tis a loving Father calls the wand''rer home;
+“Whosoever will may come.”
+
+
+Verse 2
+Whosoever cometh need not delay.
+Now the door is open; enter while you may;
+Jesus is the true, the only Living Way.
+“Whosoever will may come.”
+
+
+Verse 3
+“Whosoever will” the promise is secure;
+“Whosoever will” forever must endure.
+“Whosoever will” ’tis life forevermore.
+“Whosoever will may come.”', '##', 'Thu, Mar 19', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-273-fill-my-cup-lord-2', '273', 'Fill My Cup Lord', 'Verse 1
+Like the woman at the well I was seeking
+For things that could not satisfy
+And then I heard my Savior speaking
+“Draw from My well that never shall run dry”
+
+Chorus
+Fill my cup Lord, I lift it up Lord
+Come and quench 
+this thirsting of my soul
+Bread of Heaven, feed me till I want more
+
+Verse 2
+There are millions in this world who are craving
+the pleasure earthly things afford
+But none can match the wondrous treasure
+that I find in Jesus Christ my Lord
+
+Verse 3
+So, my brother if the things this world gave you
+Leave hungers that won’t pass away
+My blessed Lord will come and save you
+If you kneel to Him and Humbly pray
+
+', '', 'Sun, Mar 15', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-170-saved-by-the-blood', '170', 'Saved By the Blood', 'Verse 1
+Saved by the blood of the Crucified One!
+Now ransomed from sin and a new work begun,
+Sing praise to the Father and praise to the Son,
+Saved by the blood of the Crucified One!
+
+Chorus
+Glory, I’m saved! glory, I’m saved!
+My sins are all pardoned, my guilt is all gone!
+Glory, I’m saved! Glory, I’m saved!
+I’m saved by the blood of the Crucified One!
+
+Verse 2
+Saved by the blood of the Crucified One!
+The angels rejoicing because it is done;
+A child of the Father, joint-heir with the Son,
+Saved by the blood of the Crucified One!
+
+Verse 3
+Saved by the blood of the Crucified One!
+The Father He spake, and His will it was done;
+Great price of my pardon, His own precious Son;
+Saved by the blood of the Crucified One!
+
+Verse 4
+Saved by the blood of the Crucified One!
+All hail to the Father, all hail to the Son,
+All hail to the Spirit, the great Three in One!
+Saved by the blood of the Crucified One! ', 'bbb', 'Sun, Mar 8', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-624-count-your-blessings', '624', 'Count Your Blessings', 'Verse 1
+When upon life''s billows you are tempest tossed,
+When you are discouraged, thinking all is lost,
+Count your many blessings, name them one by one,
+And it will surprise you what the Lord hath done.
+
+Chorus
+Count your blessings, name them one by one;
+Count your blessings, see what God hath done;
+Count your blessings, name them one by one;
+Count your many blessings, see what God hath done.
+
+Verse 2
+Are you ever burdened with a load of care?
+Does the cross seem heavy you are called to bear?
+Count your many blessings, ev''ry doubt will fly,
+And you will be singing as the days go by.
+
+Verse 3
+When you look at others with their lands and gold,
+Think that Christ has promised you His wealth untold;
+Count your many blessings, money cannot buy
+Your reward in heaven, nor your home on high.
+
+Verse 4
+So, amid the conflict, whether great or small,
+Do not be discouraged, God is over all;
+Count your many blessings, angels will attend,
+Help and comfort give you to your journey''s end.
+
+', '##', 'Sun, Mar 8', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-391-the-light-of-the-world', '391', 'The Light of the World', 'Verse 1
+The whole world was lost in the darkness of sin,
+The Light of the world is Jesus!
+Like sunshine at noonday, His glory shone in;
+The Light of the world is Jesus!
+
+Chorus
+Come to the light, ’tis shining for thee;
+Sweetly the light has dawned upon me;
+Once I was blind, but now I can see:
+The Light of the world is Jesus!
+
+Verse 2
+No darkness have we who in Jesus abide;
+The Light of the world is Jesus!
+We walk in the light when we follow our Guide!
+The Light of the world is Jesus!
+
+Verse 3
+Ye dwellers in darkness with sin-blinded eyes,
+The Light of the world is Jesus!
+Go, wash at His bidding, and light will arise;
+The Light of the world is Jesus!
+
+Verse 4
+No need of the sunlight in Heaven we’re told;
+The Light of the world is Jesus!
+The Lamb is the Light in the city of gold,
+The Light of the world is Jesus!', '', 'Sun, Mar 1', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-423-the-solid-rock', '423', 'The Solid Rock', 'Verse 1
+My hope is built on nothing less
+than Jesus'' blood and righteousness;
+I dare not trust the sweetest frame,
+but wholly lean on Jesus'' name
+
+Chorus
+On Christ, the solid Rock, I stand:
+all other ground is sinking sand;
+all other ground is sinking sand
+
+Verse 2
+When darkness veils his lovely face,
+I rest on his unchanging grace;
+in every high and stormy gale,
+my anchor holds within the veil
+
+Verse 3
+His oath, his covenant, his blood,
+support me in the whelming flood;
+when all around my soul gives way,
+he then is all my hope and stay
+
+Verse 4
+When he shall come with trumpet sound,
+O may I then in him be found:
+dressed in his righteousness alone,
+faultless to stand before the throne', 'b', 'Sun, Mar 1', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-812-victory-in-jesus', '812', 'Victory in Jesus', 'Verse 1
+I heard an old, old story,
+How a Savior came from glory,
+
+How He gave His life on Calvary
+To save a wretch like me;
+
+I heard about His groaning,
+Of His precious blood''s atoning,
+
+Then I repented of my sins
+And won the victory.
+
+
+
+Chorus
+O victory in Jesus, 
+my Savior forever!
+
+He sought me and bought me 
+With His redeeming blood;
+
+He loved me ere I knew Him,
+And all my love is due Him—
+
+He plunged me to victory 
+Beneath the cleansing flood.
+
+
+Verse 2
+I heard about His healing,
+Of His cleansing pow’r revealing,
+
+How He made the lame to walk again
+And caused the blind to see;
+
+And then I cried, "Dear Jesus, 
+Come and heal my broken spirit,"
+
+And somehow Jesus came 
+And brought to me the victory.
+
+
+
+Verse 3
+I heard about a mansion
+He has built for me in glory,
+
+And I heard about the streets of gold
+beyond the crystal sea;
+
+About the angels singing 
+And the old redemption story,
+
+And some sweet day I’ll sing up there
+The song of victory! 
+
+', '#', 'Sun, Mar 1', 11, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-794-his-eye-is-on-the-sparrow', '794', 'His Eye Is on the Sparrow', 'Verse 1
+Why should I feel discouraged,
+Why should the shadows come,
+Why should my heart be lonely,
+And long for Heav’n and home,
+When Jesus is my portion?
+My constant Friend is He;
+His eye is on the sparrow,
+And I know He watches me;
+His eye is on the sparrow,
+And I know He watches me.
+
+Chorus
+I sing because I’m happy,
+I sing because I’m free,
+For His eye is on the sparrow,
+And I know He watches me.
+
+Verse 2
+Let not your heart be troubled,
+His tender word I hear,
+And resting on His goodness,
+I lose my doubts and fears;
+Though by the path He leadeth
+But one step I may see;
+His eye is on the sparrow,
+And I know He watches me;
+His eye is on the sparrow,
+And I know He watches me.
+
+Verse 3
+Whenever I am tempted,
+Whenever clouds arise,
+When songs give place to sighing,
+When hope within me dies,
+I draw the closer to Him,
+From care He sets me free;
+His eye is on the sparrow,
+And I know He cares for me;
+His eye is on the sparrow,
+And I know He cares for me.
+
+', 'bbbbb', 'Sun, Feb 22', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-873-living-by-faith', '873', 'Living By Faith', 'Verse 1
+I care not today what the morrow may bring,
+If shadow or sunshine or rain,
+
+The Lord I know ruleth o’er everything,
+And all of my worries are vain.
+
+
+Chorus
+Living by faith in Jesus above,
+Trusting, confiding in His great love;
+
+From all harm safe in His sheltering arm,
+I’m living by faith and feel no alarm.
+
+
+Verse 2
+Though tempests may blow and the storm clouds arise,
+Obscuring the brightness of life,
+
+I’m never alarmed at the overcast skies—
+The Master looks on at the strife. [Refrain]
+
+
+Verse 3
+I know that He safely will carry me through,
+No matter what evils betide;
+
+Why should I then care though the tempest may blow,
+If Jesus walks close to my side. [Refrain]
+
+
+Verse 4
+Our Lord will return for His loved ones some day,
+Our troubles will then all be o’er;
+
+The Master so gently will lead us away,
+Beyond that blest heavenly shore.', '', 'Sun, Feb 22', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-44-be-thou-exalted', '44', 'Be Thou Exalted', 'Verse 1
+Be Thou exalted, forever and ever,
+God of eternity, the Ancient of Days!
+Wondrous in majesty, so mighty in wisdom,
+Perfect in holiness, and worthy of praise.
+
+
+Chorus
+Be Thou exalted by seraphs and angels,
+Be Thou exalted with harp and with song;
+Saints in their anthems of rapture adore Thee,
+Thine be the Glory forever amen.
+
+
+Verse 2
+Be Thou exalted, O Son of the Highest!
+Gracious Redeemer, our Savior and King!
+One with the Father, co-equal in glory,
+Here at Thy footstool our homage we bring.
+
+
+Verse 3
+Be Thou exalted, O Spirit eternal!
+Dwell in our hearts, keep us holy within;
+Feed us each day with thy heavenly mana,
+“Healer of wounded hearts” thy praises we sing.', 'bbb', 'Sun, Feb 22', 5, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-575-where-he-leads-i-ll-follow', '575', 'Where He Leads I''ll Follow', 'Verse 1
+Sweet are the promises,
+Kind is the word,
+Dearer far than any message man ever heard;
+Pure was the mind of Christ,
+Sinless I see;
+He the great example is, and pattern for me.
+
+
+Chorus:
+Where He leads I’ll follow,
+Follow all the way.
+Where He leads I’ll follow,
+Follow Jesus ev’ry day.
+
+
+Verse 2
+Sweet is the tender love
+Jesus hath shown,
+Sweeter far than any love that mortals have known;
+Kind to the erring one,
+Faithful is He;
+He the great example is, and pattern for me. (Chorus)
+
+
+Verse 3
+List'' to His loving words,
+“Come unto Me;”
+Weary, heavy-laden, there is sweet rest for thee;
+Trust in His promises,
+Faithful and sure;
+Lean upon the Savior, and thy soul is secure. ', '', 'Sun, Feb 15', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-656-send-the-light', '656', 'Send The Light', 'Verse 1
+There''s a call comes ringing o''er the restless wave, 
+"Send the light! Send the light"
+There are souls to rescue, there are souls to save,
+Send the light! Send the light!
+
+Chorus
+Send the light, the blessed gospel light;
+Let it shine from shore to shore!
+Send the light the blessed gospel light;
+Let it shine forevermore!
+
+Verse 2
+We have heard the Macedonian call today,
+"Send the light! Send the light!"
+And a golden off''ring at the cross we lay,
+Send the light! Send the light
+
+Verse 3
+Let us pray that grace may ev''rywhere abound, 
+"Send the light! Send the light!"
+And a Christ-like spirit ev''rywhere be found,
+Send the light! Send the light!
+
+Verse 4
+Let us not grow weary in the work of love, 
+"Send the light! Send the light!"
+Let us gather jewels for a crown above,
+Send the light! Send the light!', '#', 'Sun, Feb 15', 7, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-399-he-took-my-sins-away', '399', 'He Took My Sins Away', 'Verse 1
+I came to Jesus, weary, worn, and sad,
+He took my sins away, He took my sins away;
+And now His love has made my heart so glad,
+He took my sins away.
+
+Chorus
+He took my sins away, He took my sins away,
+And keeps me singing every day!
+I''m so glad He took my sins away,
+He took my sins away.
+
+Verse 2
+The load of sin was more than I could bear,
+He took them all away, He took them all away;
+And now on Him I roll my every care,
+He took my sins away.
+
+Verse 3
+No condemnation have I in my heart,
+He took my sins away, He took my sins away;
+His perfect peace He did to me impart,
+He took my sins away.
+
+Verse 4
+If you will come to Jesus Christ today,
+He''ll take your sins away, He''ll take your sins away;
+And keep you happy in His love each day,
+He''ll take your sins away.', '', 'Sun, Feb 15', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-580-he-leadeth-me', '580', 'He Leadeth Me', 'Verse 1
+He leadeth me, O blessed thought!
+O words with heav''nly comfort fraught!
+Whate''er I do, where''er I be
+Still ''tis God''s hand that leadeth me.
+
+
+Chorus
+He leadeth me, He leadeth me,
+By His own hand He leadeth me;
+His faithful foll''wer I would be,
+For by His hand He leadeth me.
+
+
+Verse 2
+Sometimes ''mid scenes of deepest gloom,
+Sometimes where Eden''s bowers bloom,
+By waters calm, o''er troubled sea,
+Still ''tis His hand that leadeth me.
+
+
+Verse 3
+Lord, I would clasp thy hand in mine,
+Nor ever murmur nor repine;
+Content, whatever lot I see,
+Since ''tis my God that leadeth me.
+
+
+Verse 4
+And when my task on earth is done,
+When by Thy grace the vict''ry''s won,
+E''en death''s cold wave I will not flee,
+Since God through Jordan leadeth me.', '##', 'Sun, Feb 15', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-407-all-the-way-my-saviour-leads-me', '407', 'All the Way My Saviour Leads Me', 'Verse 1
+All the way my Savior leads me.
+What have I to ask beside?
+Can I doubt his tender mercy,
+Who thru'' life has been my Guide?
+Heav''nly peace, divinest comfort,
+Here by faith in him to dwell!
+For I know, whate’er befall me,
+Jesus fashions all things well.
+
+Verse 2
+All the way my Savior leads me,
+Cheers each winding path I tread;
+Gives me grace for ev’ry trial,
+Feeds me with the living Bread.
+Tho'' my weary steps may falter,
+And my soul athirst may be,
+Gushing from the Rock before me,
+Lo! A spring of joy I see.
+
+Verse 3
+All the way my Savior leads me;
+Oh, the fullness of His love!
+Perfect rest to me is promised
+In my Father’s house above.
+When my spirit, cloth''d immortal,
+Wings its flight to realms of day
+This my song thru'' endless ages:
+Jesus led me all the way.', '#', 'Sun, Feb 15', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-434-he-keeps-me-singing', '434', 'He Keeps Me Singing', 'Verse 1
+There''s within my heart a melody;
+Jesus whispers sweet and low,
+"Fear not, I am with thee, peace, be still,"
+in all of life''s ebb and flow
+
+Chorus
+Jesus, Jesus, Jesus,
+sweetest name I know,
+fills my every longing,
+keeps me singing as I go
+
+Verse 2
+All my life was wrecked by sin and strife,
+discord filled my heart with pain,
+Jesus swept across the broken strings,
+stirred the slumbering chords again
+
+Verse 3
+Feasting on the riches of His grace,
+resting ''neath His sheltering wing,
+always looking on His smiling face,
+that is why I shout and sing
+
+Verse 4
+Though sometimes He leads through waters deep,
+trials fall across the way;
+though sometimes the path seems rough and steep,
+see His footprints all the way
+
+Verse 5
+Soon He''s coming back to welcome me
+far beyond the starry sky;
+I shall wing my flight to worlds unknown,
+I shall reign with Him on high', '', 'Sun, Feb 8', 11, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-155-at-calvary', '155', 'At Calvary', 'Verse 1
+Years I spent in vanity and pride,
+Caring not my Lord was crucified,
+Knowing not it was for me He died on Calvary
+
+Chorus
+Mercy there was great and grace was free,
+Pardon there was multiplied to me,
+There my burdened soul found liberty–At Calvary.
+
+Verse 2
+By God''s Word at last my sin I learned–
+Then I trembled at the Law I''d spurned,
+Till my guilty soul imploring turned to Calvary
+
+Verse 3
+Now I''ve giv''n to Jesus ev''rything,
+Now I gladly own Him as my King,
+Now my raptured soul can only sing of Calvary
+
+Verse 4
+O the love that drew salvation''s plan!
+O the grace that brought it down to man!
+O the mighty gulf that God did span at Calvary', 'C', 'Sun, Feb 8', 14, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-355-o-happy-day', '355', 'O Happy Day', 'Verse 1
+
+
+
+O happy day that fixed my choice
+On Thee, my Savior and my God!
+
+
+Well may this glowing heart rejoice,
+And tell its raptures all abroad.
+
+
+
+Chorus
+
+
+
+Happy day, happy day,
+When Jesus washed my sins away!
+
+
+He taught me how to watch and pray,
+And live rejoicing every day;
+
+
+Happy day, happy day,
+When Jesus washed my sins away!
+
+
+
+Verse 2
+
+
+
+O happy bond, that seals my vows
+To Him who merits all my love
+
+
+Let cheerful anthems fill His house,
+While to that sacred shrine I move.
+
+
+
+Verse 3
+
+
+
+Tis done, the great transaction''s done;
+I am my Lord''s and He is mine;
+
+
+He drew me and I followed on,
+Charmed to confess the voice divine.
+
+
+
+Verse 4
+
+
+
+Now rest, my long-divided heart,
+Fixed on this blissful center, rest;
+
+
+Nor ever from my Lord depart.
+with Him of ev’ry good possessed
+
+
+', 'b', 'Sun, Feb 8', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-364-sunshine-in-my-soul', '364', 'Sunshine in My Soul', 'Verse 1
+
+
+
+There is sunshine in my soul today,
+More glorious and bright
+
+
+Than glows in any earthly sky,
+For Jesus is my light.
+
+
+Chorus
+
+
+
+O there’s sunshine, blessed sunshine,
+While the peaceful, happy moments roll;
+
+
+When Jesus shows His smiling face
+There is sunshine in my soul.
+
+
+
+Verse 2
+
+
+
+
+There is music in my soul today,
+A carol to my King;
+
+
+And Jesus, listening, can hear
+The song I cannot sing.
+
+
+
+Verse 3
+
+
+
+There is springtime in my soul today,
+For when the Lord is near
+
+
+The dove of peace sings in my heart,
+The flowers of grace appear.
+
+
+Verse 4
+
+
+
+There is gladness in my soul today,
+And hope, and praise, and love,
+
+
+For blessings which He gives me now,
+For joys laid up above.
+', 'bbbb', 'Sun, Feb 8', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-619-stand-up-for-jesus', '619', 'Stand Up for Jesus', 'Verse 1
+Stand up, stand up for Jesus
+ye soldiers of the cross;
+lift high his royal banner,
+it must not suffer loss.
+From vict''ry unto vict''ry
+his army he shall lead
+till ev''ry foe is vanquished
+and Christ is Lord indeed.
+
+Verse 2
+Stand up, stand up for Jesus,
+the trumpet call obey;
+forth to the mighty conflict
+in this his glorious day.
+Ye that are men now serve him
+against unnumbered foes;
+let courage rise with danger
+and strength to strength oppose.
+
+Verse 3
+Stand up, stand up for Jesus,
+stand in his strength alone;
+the arm of flesh will fail you,
+ye dare not trust your own.
+Put on the gospel armor,
+each piece put on with prayer;
+where duty calls or danger,
+be never wanting there.
+
+Verse 4
+Stand up, stand up for Jesus,
+the strife will not be long;
+this day the noise of battle,
+the next, the victor''s song.
+To him that overcometh
+a crown of life shall be;
+he with the King of glory
+shall reign eternally.', '', 'Sun, Feb 8', 9, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-685-i-ve-got-a-mansion', '685', 'I’ve Got a Mansion', 'Verse 1
+I''m satisfied with just a cottage below,
+A little silver and a little gold;
+
+But in that city where the ransomed will shine,
+I want a gold one that''s silver lined
+
+Chorus
+I''ve got a mansion just over the hilltop,
+In that bright land where we''ll never grow old;
+
+And some day yonder we will never more wander
+But walk on streets that are purest gold.
+
+Verse 2
+Thou’ often tempted, tormented and tested
+And like the prophet my pillow a stone;
+
+And thou’ I find here no permanent dwelling,
+I know He’ll give me a mansion my own.
+
+Verse 3
+Don''t think me poor or deserted or lonely,
+I''m not discouraged, I''m heaven bound;
+
+I''m just a pilgrim in search of a city,
+I want a mansion, a harp and a crown.', 'C', 'Sun, Feb 8', 5, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-341-saved-saved', '341', 'Saved, Saved', 'Verse 1
+I''ve found a friend who is all to me,
+His love is ever true;
+I love to tell how He lifted me,
+And what His grace can do for you.
+
+Chorus
+Saved by His pow''r, by His pow''r divine,
+Saved to new life, to new life sublime!
+Life now is sweet and my joy is complete,
+For I''m saved, saved, saved.
+
+Verse 2
+He saves me from ev''ry sin and harm,
+Secures my soul each day;
+I''m leaning strong on His mighty arm
+I know He''ll guide me all the way.
+
+Verse 3
+When poor and needy and all alone,
+In love He said to me,
+"Come unto Me and I''ll lead you home
+To live with Me eternally."', 'bbbb', 'Sun, Feb 1', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-825-rejoice-in-the-lord', '825', 'Rejoice in the Lord', 'Verse 1
+
+
+
+God never moves without purpose or plan
+When trying His servant and molding a man.
+
+
+Give thanks to the Lord though your testing seems long;
+In darkness He giveth a song.
+
+
+Chorus
+
+
+
+O rejoice in the Lord, He makes no mistake,
+He knoweth the end of each path that I take,
+
+
+For when I am tried and purified,
+I shall come forth as gold.
+
+
+Verse 2
+
+
+
+I could not see through the shadows ahead;
+So I looked at the cross of my Savior instead.
+
+
+I bowed to the will of the Master that day;
+Then peace came and tears fled away.
+
+
+Verse 3
+
+
+
+Now I can see testing comes from above;
+God strengthens His children and purges in love.
+
+
+My Father knows best, and I trust in His care;
+Through purging more fruit I will bear.
+', 'bbb', 'Sun, Feb 1', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-534-tis-so-sweet-to-trust-in-jesus', '534', '‘Tis So Sweet to Trust in Jesus', 'Verse 1
+''Tis so sweet to trust in Jesus,
+and to take him at his word;
+just to rest upon his promise,
+and to know, "Thus saith the Lord."
+
+Chorus
+Jesus, Jesus, how I trust him!
+How I''ve proved him o''er and o''er!
+Jesus, Jesus, precious Jesus!
+O for grace to trust him more!
+
+Verse 2
+O how sweet to trust in Jesus,
+just to trust his cleansing blood;
+and in simple faith to plunge me
+‘neath the healing, cleansing flood! 
+
+Verse 3
+Yes, ''tis sweet to trust in Jesus,
+just from sin and self to cease;
+just from Jesus simply taking
+life and rest, and joy and peace.
+
+Verse 4
+I’m so glad I learned to trust Him,
+Precious Jesus, Saviour, friend;
+And I know that He is with me,
+Will be with me to the end', '#', 'Sun, Feb 1', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-26-come-thou-fount', '26', 'Come Thou Fount', 'Verse 1
+Come, thou Fount of every blessing;
+tune my heart to sing thy grace;
+streams of mercy, never ceasing,
+call for songs of loudest praise.
+Teach me some melodious sonnet,
+sung by flaming tongues above;
+praise the mount! I’m fixed upon it,
+mount of Thy redeeming love!
+
+Verse 2
+Here I raise my Ebenezer;
+hither by thy help I’m come;
+and I haope, baay thy good pleasure,
+safely to arrive at home.
+Jesus sought me when a stranger,
+wandering from the fold of God;
+He, to rescue me from danger,
+interposed His precious blood.
+
+Verse 3
+O to grace how great a debtor
+daily I’m constrained to be!
+Let Thy goodness, like a fetter,
+bind my wandering heart to thee.
+Prone to wander, Lord, I feel it,
+prone to leave the God I love;
+here’s my heart; O take and seal it;
+seal it for thy courts above.', 'bbb', 'Sun, Jan 25', 11, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-144-calvary-covers-it-all', '144', 'Calvary Covers It All', 'Verse 1
+Far dearer than all
+That the world can impart
+Was the message that came to my heart
+How that Jesus alone
+For my sin did atone
+And Calvary covers it all
+
+Chorus
+Calvary covers it all
+My past with its sin and stain
+My guilt and despair
+Jesus took on Him there
+And Calvary covers it all
+
+Verse 2
+The stripes that He bore
+And the thorns that He wore
+Told His mercy and love evermore
+And my heart bowed in shame
+As I called on His name
+And Calvary covers it all
+
+Verse 3
+How matchless the grace
+When I looked on the face
+Of this Jesus my crucified Lord
+My redemption complete
+I then found at His feet
+And Calvary covers it all
+
+Verse 4
+How blessed the thought
+That my soul by Him bought
+Shall be His in the glory on high
+Where with gladness and song
+I''ll be one of the throng
+And Calvary covers it all', 'bbbb', 'Sun, Jan 25', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-revive-us-again', '', 'Revive Us Again', 'Verse 1
+Awaken our hearts, Lord Jesus, 
+Fill us again with Your fire
+Stir up our zeal for You, Lord, 
+we need another revival
+Give us a hunger to know You, a passion to seek Your face
+Pour out a spirit of worship on Your church again
+
+
+Chorus
+Revive us again, revive us again
+Come renew Your works of power, let Your kingdom come
+Revive us again, revive us again
+Come and rule our hearts, Lord Jesus, bring Your reign
+Revive us again
+
+
+Verse 2
+Give us one heart, one vision,
+To finish the work You''ve begun
+Move us with Your compassion 
+To reach out in mercy and love
+Raise up Your church as an army, Your passionate holy bride
+That with pure, undivided devotion we would lay down our lives
+
+Chorus 2
+Revive us again, revive us again
+Come renew Your works of power, let Your kingdom come
+Revive us again, revive us again
+Come and rule our hearts, Lord Jesus, bring Your reign
+
+
+Revive us again, revive us again
+Come renew Your works of power, let Your kingdom come
+Revive us again, revive us again
+Come and rule our hearts, Lord Jesus, bring Your reign
+
+Revive us again
+
+', '##', 'Sun, Jan 25', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-65-he-s-a-wonderful-saviour-to-me', '65', 'He’s a Wonderful Saviour to Me', 'Verse 1
+I was lost in sin, but Jesus rescued me,
+He''s a wonderful Savior to me;
+I was bound by fear, but Jesus set me free,
+He''s a wonderful Savior to me.
+
+Chorus
+For He''s a wonderful Savior to me,
+He''s a wonderful Savior to me;
+I was lost in sin, but Jesus took me in:
+He''s a wonderful Savior to me.
+
+Verse 2
+He''s a Friend so true, so patient and so kind,
+He''s a wonderful Savior to me;
+Ev''rything I need in Him I always find,
+He''s a wonderful Savior to me.
+
+Verse 3
+He is always near to comfort and to cheer,
+He''s a wonderful Savior to me;
+He forgives my sins, He dries my ev''ry tear,
+He''s a wonderful Savior to me.
+
+Verse 4
+Dearer grows the love of Jesus day by day,
+He''s a wonderful Savior to me;
+Sweeter is His grace while pressing on my way,
+He''s a wonderful Savior to me.', 'bbb', 'Sun, Jan 25', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-68-praise-him-praise-him', '68', 'Praise Him! Praise Him!', 'Verse 1
+Praise Him! Praise Him! Jesus, our blessed Redeemer!
+Sing, O earth– His wonderful love proclaim!
+Hail Him! Hail Him! highest archangels in glory;
+strength and honor give to His holy name!
+Like a shepherd, Jesus will guard His children;
+in His arms He carries them all day long.
+
+Chorus
+Praise Him! Praise Him! Tell of His excellent greatness.
+Praise Him! Praise Him ever in joyful song!
+
+Verse 2
+Praise Him, praise Him! Jesus, our blessed Redeemer!
+For our sins He suffered, and bled, and died.
+He, our Rock, our Hope of eternal salvation—
+Hail Him! Hail Him! Jesus, the Crucified!
+Sound His praises! Jesus, who bore our sorrows!
+Love unbounded, wonderful, deep, and strong.
+
+Verse 3
+Praise Him! Praise Him! Jesus, our blessed Redeemer!
+Heav’nly portals loud with hosannas ring!
+Jesus, Savior, reigneth forever and ever.
+Crown Him! Crown Him! Prophet, and Priest, and King!
+Christ is coming, over the world victorious;
+pow’r and glory unto the Lord belong!
+', '#', 'Sun, Jan 25', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-830-what-sins-are-you-talking-about', '830', 'What Sins Are You Talking About', 'Verse 1
+I remember the days when I was bent low,
+With the burden of sin and strife;
+Then Jesus came in and rescued me,
+And he gave me a brand new life.
+And now as I thank Him day after day,
+For washing my sins away;
+It seems I can almost hear the voice
+Of the Blessed Savior say.
+
+Chorus
+"What sins are you talking about?
+I don''t remember them anymore;
+From the Book of Life they''ve all been torn out,
+I don''t remember them anymore."
+
+Verse 2
+When my flesh becomes weak it''s then I can speak,
+To the Savior who''s with me each day;
+"Oh, Father, forgive me. Hear my plea."
+And He washes my sin away.
+Each time that I bow to give reverence to Him,
+For removing my guilt and shame;
+He cannot recall what I''m talking'' about,
+For His answer is always the same.
+
+', 'bbbb', 'Sun, Jan 18', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-behold-our-god', '', 'Behold Our God', 'Verse 1
+Who has held the oceans in his hands?
+Who has numbered every grain of sand?
+Kings and nations tremble at his voice
+All creation rises to rejoice
+
+Chorus
+Behold our God, seated on his throne
+Come, let us adore him
+Behold our king, nothing can compare
+Come, let us adore him
+
+Verse 2
+Who has given counsel to the Lord?
+Who can question any of his words?
+Who can teach, the one who knows all things?
+Who can fathom all his wondrous deeds?
+
+Verse 3
+Who has felt the nails upon his hands?
+Bearing all the guilt of sinful man
+God eternal, humbled to the grave
+Jesus, Savior, risen now to reign', '##', 'Sun, Jan 18', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-220-sweet-hour-of-prayer', '220', 'Sweet Hour Of Prayer', 'Verse 1
+Sweet hour of prayer! sweet hour of prayer!
+that calls me from a world of care,
+and bids me at my Father''s throne
+make all my wants and wishes known.
+In seasons of distress and grief,
+my soul has often found relief,
+and oft escaped the tempter''s snare
+by thy return, sweet hour of prayer!
+
+
+Verse 2
+Sweet hour of prayer! sweet hour of prayer!
+Thy Wings shall my petition bare
+to him whose truth and faithfulness
+engaged the waiting soul to bless.
+and since he bids me seek his face
+believe his word and trust his grace
+I’ll cast on him my every care
+and wait for thee sweet hour of prayer!
+
+
+Verse 3
+Sweet hour of prayer! sweet hour of prayer!
+may I thy consolation share
+till from mount pisgah’s lofty height
+I view my home and take my flight
+this robe of flesh I’ll drop and rise
+to seize the everlasting prize
+and shout while passing thru the air
+farewell farewell sweet hour of prayer!', '', 'Sun, Jan 18', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-185-jesus-paid-it-all', '185', 'Jesus Paid It All', 'Verse 1
+I hear the Savior say,
+"Thy strength indeed is small,
+Child of weakness, watch and pray,
+Find in Me thine all in all."
+
+Chorus
+Jesus paid it all,
+All to Him I owe;
+Sin had left a crimson stain,
+He washed it white as snow.
+
+Verse 2
+Lord, now indeed I find
+Thy power and Thine alone,
+Can change the leper''s spots
+And melt the heart of stone
+
+Verse 3
+For nothing good have I
+Where-by Thy grace to claim;
+I''ll wash my garments white
+In the blood of Calvary''s Lamb
+
+Verse 4
+And when, before the throne,
+I stand in Him complete,
+"Jesus died my soul to save,"
+My lips shall still repeat.', '', 'Sun, Jan 11', 8, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-366-i-belong-to-the-king', '366', 'I Belong to the King', 'Verse 1
+I belong to the King, I’m a child of His love,
+I shall dwell in His palace so fair;
+For He tells of its bliss in yon heaven above,
+And His children in splendor shall share
+
+Chorus
+I belong to the King, I’m a child of His love,
+And he never forsaketh His own;
+He will call me some day to His palace above,
+I shall dwell by His glorified throne
+
+Verse 2
+I belong to the King, and He loves me I know,
+For His mercy and kindness, so free,
+Are unceasingly mine wheresoever I go,
+And my refuge unfailing is He
+
+Verse 3
+I belong to the King, and His promise is sure,
+That we all shall be gathered at last
+In His kingdom above, by life’s waters so pure,
+When this life with its trials is past', 'bbbb', 'Sun, Jan 11', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-800-all-hail-the-power-of-jesus-name-diadem', '800', 'All Hail the Power of Jesus'' Name (DIADEM)', 'Verse 1
+All hail the power of Jesus'' name!
+Let angels prostrate fall, Let angels prostrate fall;
+
+Bring forth the royal diadem, 
+And Crown _____________ Him
+
+Crown Him, Crown Him
+Crown Him, And Crown Him Lord of All!
+
+Verse 2
+Ye chosed seed of Israel’s race, 
+Ye ransomed from the fall, Ye ransomed from the fall;
+
+Hail Him who saves you by His grace
+And Crown _____________ Him
+
+Crown Him, Crown Him
+Crown Him, And Crown Him Lord of All!
+
+Verse 3
+Let every kindred, every tribe
+On this terrestrial ball, On this terrestrial ball;
+
+To Him all Majesty ascribe,
+And Crown _____________ Him
+
+Crown Him, Crown Him
+Crown Him, And Crown Him Lord of All!
+
+Verse 4
+Oh that with yonder sacred throng
+We at His feet may fall, We at His feet may fall;
+
+We’ll join the everlasting song
+And Crown _____________ Him
+
+Crown Him, Crown Him
+Crown Him, And Crown Him Lord of All!', 'bb', 'Sun, Jan 11', 5, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-363-since-i-have-been-redeemed', '363', 'Since I Have Been Redeemed', 'Verse 1
+I have a song I love to sing,
+Since I have been redeemed,
+Of my Redeemer, Savior, King,
+Since I have been redeemed.
+
+
+Chorus
+Since I have been redeemed,
+Since I have been redeemed,
+I will glory in His name;
+Since I have been redeemed,
+I will glory in my Savior''s name.
+
+
+
+Verse 2
+I have a Christ who satisfies,
+Since I have been redeemed,
+To do His will-- my highest prize,
+Since I have been redeemed.
+
+
+Verse 3
+I have a witness bright and clear,
+Since I have been redeemed,
+Dispelling ev''ry doubt and fear,
+Since I have been redeemed.
+
+
+Verse 4
+I have a Joy I can’t express,
+since I have been redeemed
+All through His blood and righteousness
+Since I have been redeemed.
+
+
+Verse 5
+I have a home prepared for me,
+Since I have been redeemed,
+Where I shall dwell eternally,
+Since I have been redeemed.[Chorus]', 'b', 'Sun, Jan 11', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-798-surely-goodness-and-mercy', '798', 'Surely Goodness and Mercy', 'Verse 1
+A pilgrim was I, and a wandering
+In the cold night of sin I did roam
+When Jesus the kind Shepherd found me
+And now I am on my way home
+
+Chorus
+Surely goodness and mercy shall follow me
+All the days, all the days of my life
+Surely goodness and mercy shall follow me
+All the days, all the days of my life
+
+Verse 2
+He restoreth my soul when I’m weary
+He giveth me stength day by day
+He leads me beside the still waters
+He guards me each step of the way
+
+Verse 3
+When I walk thru the dark lonesome valley
+My Saviour will walk with me there
+And safely His great hand will lead me
+to the mansions He’s gone to prepare
+
+Chorus 1
+And I shall dwell in the house of the Lord forever
+And I shall feast at the table set for me
+Surely goodness and mercy shall follow me
+All the days, all the days of my life', 'bbb', 'Sun, Dec 28', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-688-oh-that-will-be-glory', '688', 'Oh, That Will Be Glory', 'Verse 1 
+When all my labors and trials are o’er,
+And I am safe on that beautiful shore,
+Just to be near the dear Lord I adore
+Will through the ages be glory for me.
+
+
+Chorus
+O that will be glory for me,
+Glory for me, glory for me;
+When by His grace I shall look at His face,
+That will be glory, be glory for me.
+
+
+Verse 2
+When by the gift of His infinite grace,
+I am accorded in heaven a place,
+Just to be there and to look on His face
+Will through the ages be glory for me. [Refrain]
+
+
+Verse 3
+Friends will be there I have loved long ago;
+Joy like a river around me will flow;
+Yet just a smile from my Savior, I know,
+Will through the ages be glory for me. [Refrain]', 'bbbb', 'Sun, Dec 28', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-865-tell-me-the-old-old-story', '865', 'Tell Me The Old, Old Story', 'Verse 1
+Tell me the old, old story, Of unseen things above, 
+Of Jesus and His glory,   Of Jesus and His love;
+Tell me the story simply,  As to a little child, 
+For I am weak and weary,  And helpless and defiled. 
+
+Chorus
+Tell me the old, old story, Tell me the old, old story,
+Tell me the old, old story, Of Jesus and His love.
+
+Verse 2
+Tell me the story slowly, That I may take it in
+That wonderful redemption, God’s remedy for sin;
+Tell me the story often, For I forget so soon,
+The “early dew” of morning, Has passed away at noon.
+
+Verse 3
+Tell me the story softly, With earnest tones and grave;
+Remember I’m the sinner  Whom Jesus came to save;
+Tell me the story always, If you would really be,
+In any time of trouble, A comforter to me.
+
+Verse 4
+Tell me the same old story, When you have cause to fear
+That this world’s empty glory, Is costing me too dear;
+And when the Lord’s bright glory, Is dawning on my soul,
+Tell me the old, old story: “Christ Jesus makes thee whole.”', 'bb', 'Sun, Dec 28', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-105-o-come-all-ye-faithful', '105', 'O Come, All Ye Faithful', 'Verse 1
+O come, all ye faithful, joyful and triumphant,
+O come ye, O come ye to Bethlehem!
+Come, and behold Him, born the King of angels!
+
+Chorus
+O come, let us adore Him;
+O come, let us adore Him;
+O come, let us adore Him, Christ, the Lord!
+
+Verse 2
+Sing, choirs of angels; sing in exultation;
+O sing, all ye bright hosts of heav''n above!
+Glory to God, all glory in the highest!
+
+Verse 3
+Yea, Lord, we greet Thee, born this happy morning;
+Jesus, to Thee be all glory giv''n!
+Word of the Father, now in flesh appearing!', '###', 'Sun, Dec 21', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn', '', '', '', '', 'Sun, Dec 21', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-113-god-rest-ye-merry-gentlemen', '113', 'God Rest Ye Merry, Gentlemen', 'Verse 1
+God rest you merry, gentlemen,
+let nothing you dismay,
+remember Christ our Savior
+was born on Christmas Day
+to save us all from Satan''s pow''r
+when we were gone astray.
+
+
+Chorus
+O tidings of comfort and joy,
+comfort and joy;
+O tidings of comfort and joy.
+
+
+Verse 2
+From God our heav''nly Father
+a blessed angel came
+and unto certain shepherds
+brought tidings of the same;
+how that in Bethlehem was born
+the Son of God by name.
+
+
+Verse 3
+"Fear not," then said the angel,
+"Let nothing you affright;
+this day is born a Savior
+of a pure virgin bright,
+to free all those who trust in Him
+from Satan''s pow''r and might."
+
+
+Verse 4
+Now to the Lord sing praises
+all you within this place,
+and with true love and brotherhood
+each other now embrace;
+this holy tide of Christmas
+all other doth deface.', '#', 'Sun, Dec 21', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-christmas-carol', '', 'Christmas Carol', '', '', 'Sun, Dec 21', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-118-what-child-is-this', '118', 'What Child Is This', 'Verse 1
+What Child is this, who, laid to rest,
+On Mary''s lap is sleeping?
+Whom angels greet with anthems sweet,
+While shepherds watch are keeping?
+
+Chorus
+This, this is Christ, the King,
+Whom shepherds guard and angels sing:
+This, this is Christ the King,
+The Babe, the Son of Mary.
+
+Verse 2
+Why lies He in such mean estate,
+Where ox and ass are feeding?
+Good Christian, fear: for sinners here
+The silent Word is pleading.
+
+Verse 3
+So bring Him incense, gold, and myrrh,
+Come, peasant, king to own Him.
+The King of kings salvation brings;
+Let loving hearts enthrone Him.
+
+', '', 'Sun, Dec 21', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-106-hark-the-herald-angels-sing', '106', 'Hark, the Herald Angels Sing', 'Verse 1
+Hark! the herald angels sing,
+"Glory to the newborn King:
+peace on earth, and mercy mild,
+God and sinners reconciled!"
+Joyful, all ye nations, rise,
+join the triumph of the skies;Verse
+with th''angelic hosts proclaim,
+"Christ is born in Bethlehem!"
+
+
+Chorus
+Hark! the herald angels sing,
+"Glory to the newborn King"
+
+
+Verse 2
+Christ, by highest heav’n adored,
+Christ, the everlasting Lord,
+late in time behold him come,
+offspring of a Virgin''s womb:
+veiled in flesh the Godhead see;
+hail th''incarnate Deity,
+pleased as man with men to dwell
+Jesus, our Emmanuel.
+
+
+Verse 3
+Hail the heav’n-born Prince of Peace!
+Hail the Son of Righteousness!
+Light and life to all he brings,
+ris’n with healing in his wings.
+Mild he lays his glory by,
+born that man no more may die,
+born to raise the sons of earth,
+born to give them second birth.', 'b', 'Sun, Dec 14', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-108-angels-from-the-realms-of-glory', '108', 'Angels from the Realms of Glory', 'Verse 1
+Angels from the realms of glory,
+wing your flight o''er all the earth;
+ye who sang creation''s story
+now proclaim Messiah''s birth:
+
+
+Chorus:
+Come and worship, come and worship,
+worship Christ, the newborn king.
+
+
+Verse 2
+Shepherds, in the field abiding,
+watching o''er your flocks by night,
+God with man is now residing;
+yonder shines the infant light:
+
+
+Verse 3
+Sages, leave your contemplations,
+brighter visions beam afar;
+seek the great Desire of nations;
+ye have seen his natal star:
+
+
+
+Verse 4
+Saints before the altar bending
+watching long in hope and fear
+suddenly the Lord descending
+in His temple shall appear.', 'bb', 'Sun, Dec 14', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-107-angels-we-have-heard-on-high', '107', 'Angels We Have Heard on High', 'Verse 1
+Angels we have heard on high,
+Sweetly singing o''er the plains,
+And the mountains in reply
+Echoing their joyous strains.
+
+
+Chorus
+Glo........ria 
+in excelsis Deo.
+Glo........ria 
+in excelsis Deo.
+
+
+Verse 2
+Shepherds, why this jubilee?
+Why your joyous strains prolong?
+Say what may the tidings be
+Which inspire your heavn''ly song?
+
+
+Verse 3
+Come to Bethlehem and see
+Him whose birth the angels sing.
+Come, adore on bended knee
+Christ the Lord, the newborn King.
+
+
+Verse 4
+See within a manger laid,
+Jesus Lord of Heav’n and Earth.
+Mary, Joseph, lend your aid
+While us sing our Saviour’s Birth.', 'b', 'Sun, Dec 14', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-444-my-sins-are-blotted-out-i-know', '444', 'My Sins are Blotted Out I Know', 'Verse 1
+What a wondrous message in God''s Word!
+My sins are blotted out, I know!
+If I trust in His redeeming blood,
+My sins are blotted out, I know!
+
+Chorus
+My sins are blotted out, I know!
+My sins are blotted out, I know!
+They are buried in the depths of the deepest sea:
+My sins are blotted out, I know!
+
+Verse 2
+Once my heart was black but now what joy,
+My sins are blotted out, I know!
+I have peace that nothing can destroy,
+My sins are blotted out, I know!
+
+Verse 3
+I shall stand someday before my King,
+My sins are blotted out, I know!
+With the ransomed host I then shall sing:
+"My sins are blotted out, I know! ', '', 'Sun, Dec 7', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-856-oh-it-is-wonderful-to-be-a-christian', '856', 'Oh It Is Wonderful to Be a Christian', 'Verse 1
+Life has purpose now it never had before
+There is meaning to each day and even more
+For a joy and peace I can''t explain is mine
+Since I found new life in Christ my Lord divine
+
+Chorus
+Oh it is wonderful to be a Christian
+Oh it is wonderful to be God''s child
+Oh it is wonderful to have your sins forgiven
+Oh it is wonderful to be redeemed
+Justified forever reconciled
+
+Verse 2
+I can go directly to the Lord in prayer
+He has told me I may boldly enter there
+And He listens as His promises I plead
+I find mercy there and grace for every need
+
+Verse 3
+And the hope of heaven''s glories thrills me so
+Where I''ll live with Christ forevermore I know
+That is why the things of earth I loosely hold
+I''ve eternal riches better far than gold
+
+', '#', 'Sun, Dec 7', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-104-joy-to-the-world', '104', 'Joy to the World', 'Verse 1
+Joy to the world; the Lord is come;
+Let Earth receive her King;
+Let ev''ry heart prepare him room,
+And heav''n and nature sing.
+And heav''n and nature sing
+And heav''n and nature sing
+
+
+
+Verse 2
+Joy to the Earth, the Savior reigns;
+Let men their songs employ,
+While fields and floods, rocks, hills, and plains,
+Repeat the sounding joy
+Repeat the sounding joy
+Repeat the sounding joy
+
+
+Verse 3
+No more let sins and sorrows grow,
+Nor thorns infest the ground;
+He comes to make his blessings flow
+Far as the curse is found.
+Far as the curse is found.
+Far as the curse is found.
+
+
+
+Verse 4
+He rules the world with truth and grace,
+And makes the nations prove
+The glories of his righteousness,
+And wonders of his love.
+And wonders of his love.
+And wonders of his love.
+', '##', 'Sun, Dec 7', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-11-o-worship-the-king', '11', 'O Worship The King', 'Verse 1
+O worship the King all-glorious above,
+O gratefully sing his power and his love:
+our shield and defender, the Ancient of Days,
+pavilioned in splendor and girded with praise.
+
+
+Verse 2
+O tell of his might and sing of his grace,
+whose robe is the light, whose canopy space.
+His chariots of wrath the deep thunderclouds form,
+and dark is his path on the wings of the storm.
+
+
+Verse 3
+our bountiful care, what tongue can recite?
+It breathes in the air, it shines in the light;
+it streams from the hills, it descends to the plain,
+and sweetly distills in the dew and the rain.
+
+
+Verse 4
+Frail children of dust, and feeble as frail,
+in you do we trust, nor find you to fail.
+Your mercies, how tender, how firm to the end,
+our Maker, Defender, Redeemer, and Friend!
+
+
+Verse 5
+O measureless Might, unchangeable Love,
+whom angels delight to worship above!
+Your ransomed creation, with glory ablaze,
+in true adoration shall sing to your praise!', '', 'Sun, Nov 16', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-378-now-i-belong-to-jesus', '378', 'Now I Belong to Jesus', 'Verse 1
+Jesus, my Lord will love me forever,
+From Him no pow''r of evil can sever,
+
+He gave His life to ransom my soul;
+Now I belong to Him;
+
+Chorus
+Now I belong to Jesus,
+Jesus belongs to me,
+
+Not for the years of time alone,
+But for eternity.
+
+Verse 2
+Once I was lost in sin''s degradation,
+Jesus came down to bring me salvation,
+
+Lifted me up from sorrow and shame,
+Now I belong to Him;
+
+Verse 3
+Joy floods my soul for Jesus has saved me,
+Freed me from sin that long had enslaved me
+
+His precious blood, He came to redeem,
+Now I belong to Him;', 'bbbb', 'Sun, Nov 9', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-838-just-over-in-the-gloryland', '838', 'Just Over in the Gloryland', 'Verse 1
+I’ve a home prepared where the saints abide,
+Just over in the gloryland;
+And I long to be by my Savior’s side,
+Just over in the gloryland.
+
+
+Chorus
+Just over in the gloryland,
+I’ll join the happy angel band,
+Just over in the gloryland;
+Just over in the gloryland,
+There with the mighty host I’ll stand,
+Just over in the gloryland.
+
+
+Verse 2
+I am on my way to those mansions fair,
+Just over in the gloryland;
+There to sing God’s praise, and His glory share,
+Just over in the gloryland. [Refrain]
+
+
+Verse 3
+What a joyful thought that my Lord I’ll see,
+Just over in the gloryland;
+And with kindred saved, there forever be,
+Just over in the gloryland.
+
+
+Verse 4
+With the blood-washed throng I will shout and sing,
+Just over in the gloryland;
+Glad hosannas to Christ, the Lord and King,
+Just over in the gloryland.', 'bbbb', 'Sun, Nov 2', 5, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-866-around-the-corner-around-the-world', '866', 'Around the Corner, Around the World', 'Chorus
+Around the corner, around the world,
+A soul needs Jesus; A soul who’s never heard.
+Let’s take the good news; Let’s take God’s living Word;
+Around the corner, around the world.', 'bbb', 'Sun, Oct 26', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-869-brethren-we-have-met-to-worship', '869', 'Brethren, We Have Met to Worship', 'Verse 1
+Brethren, we have met to worship
+And adore the Lord our God;
+
+Will you pray with all your power,
+While we try to preach the Word?
+
+All is vain unless the Spirit
+Of the Holy One comes down;
+
+Brethren, pray, and holy manna
+Will be showered all around
+
+Verse 2
+Brethren, see poor sinners round you
+Slumb''ring on the brink of woe;
+
+Death is coming, hell is moving,
+Can you bear to let them go?
+
+See our fathers and our mothers,
+And our children sinking down;
+
+Brethren, pray and holy manna
+Will be showered all around.
+
+Verse 3
+Sisters, will you join and help us?
+Moses'' sister aided him;
+
+Will you help the trembling mourners
+Who are struggling hard with sin?
+
+Tell them all about the Savior,
+Tell them that He will be found;
+
+Sisters, pray, and holy manna
+Will be showered all around.
+
+Verse 4
+Let us love our God supremely,
+Let us love each other, too;
+
+Let us love and pray for sinners,
+Till our God makes all things new.
+
+Then He''ll call us home to heaven,
+At His table we''ll sit down;
+
+Christ will gird Himself, and serve us
+With sweet manna all around.', '#', 'Sun, Oct 26', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-lord-send-me-anywhere', '', 'Lord, Send me Anywhere', 'Verse 1
+O Lord, since thou has died 
+to give thyself for me, 
+No sacrifice could be to great
+for me to make for Thee
+
+Chorus
+Lord, send me anywhere only go with me, 
+lay any burden on me only sustain me,
+Sever any tie save the tie that binds me to thy heart, 
+Lord Jesus my King, I consecrate my life Lord to Thee
+
+Verse 2
+I only have one life 
+and that will soon be past; 
+I want my life to count for Christ, 
+what''s done for Him will last
+
+Verse 3
+I follow Thee, my Lord 
+and glory in the cross, 
+I gladly leave the world behind 
+and count all gain as loss
+
+', '', 'Sun, Oct 26', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-here-am-i-lord-send-me', '', 'Here Am I Lord Send Me', 'Verse 1
+Lord I give my life to you.
+Take control each day
+I will follow anywhere.
+Near or far away!
+
+Chorus
+Here am I Lord send me
+Here am I Lord send me
+I will serve you faithfully
+Here am I Lord send me
+
+Verse 2
+Lord I want Your perfect will
+Be my faithful guide
+I will never be afraid.
+You are close beside
+
+', '', 'Sun, Oct 26', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-servant-s-heart', '', 'SERVANT''S HEART', 'Verse 1
+Make me a servant like you, dear Lord,
+Living for others each day
+Humble and meek,
+Helping the weak,
+Loving in all that I say.
+
+Chorus:
+Give me, Lord, a servant''s heart
+Here''s my life, take every part.
+Give me, Lord, a servant''s heart.
+Help me draw so close to You
+That Your love comes shining through
+Give me, Lord, a servant''s heart,
+Give me, Lord, a servant''s heart.
+
+
+Verse 2
+Make me a witness like You, dear Lord,
+Showing the love of the cross,
+Sharing Your Word till all have heard,
+Serving whatever the cost.', '', 'Sun, Oct 26', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-826-i-have-decided-to-follow-jesus', '826', 'I Have Decided to Follow Jesus', 'Verse 1
+I have decided to follow Jesus;
+I have decided to follow Jesus;
+I have decided to follow Jesus;
+no turning back, no turning back.
+
+Verse 2
+Though no one join me, still will I follow;
+though no one join me, still will I follow;
+though no one join me, still will I follow;
+no turning back, no turning back.
+
+Verse 3
+The world behind me, the cross before me;
+the world behind me, the cross before me,
+the world behind me, the cross before me;
+no turning back, no turning back.
+', 'C', 'Sun, Oct 19', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-846-little-is-much-when-god-is-in-it', '846', 'Little Is Much When God Is In It', 'Verse 1
+In the harvest field now ripened
+There''s a work for all to do;
+Hark! the voice of God is calling
+To the harvest calling you.
+
+Chorus
+Little is much when God is in it!
+Labor not for wealth or fame.
+There''s a crown and you can win it,
+If you go in Jesus'' Name.
+
+Verse 2
+Does the place you''re called to labor
+Seem too small and little known?
+It is great if God is in it,
+And He''ll not forget His own.
+
+Verse 3
+Are you laid aside from service,
+Body worn from toil and care?
+You can still be in the battle,
+In the sacred place of prayer.
+
+Verse 4
+When the conflict here is ended
+And our race on earth is run,
+He will say, to all the faithful,
+"Welcome home, My child-well done!"', 'bbbbb', 'Sun, Oct 12', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-822-our-great-saviour', '822', 'Our Great Saviour', 'Verse 1
+Jesus! what a Friend for sinners!
+Jesus! Lover of my soul;
+Friends may fail me, foes assail me,
+He, my Savior, makes me whole.
+
+Chorus
+Hallelujah! what a Savior!
+Hallelujah! what a Friend!
+Saving, helping, keeping, loving,
+He is with me to the end.
+
+Verse 2
+Jesus! what a Strength in weakness!
+Let me hide myself in him;
+Tempted, tried, and sometimes failing,
+He, my strength, my victory wins.
+
+Verse 3
+Jesus! what a Help in sorrow!
+While the billows o''er me roll,
+Even when my heart is breaking,
+He, my Comfort, helps my soul.
+
+Verse 4
+Jesus! what a Guide and Keeper!
+While the tempest still is high,
+Storms about me, night o''retakes me,
+He, my Pilot, hears my cry.
+
+Verse 5
+Jesus! I do now receive him,
+More than all in him I find,
+He hath granted me forgiveness,
+I am His, and He is mine.', 'b', 'Sun, Oct 5', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-i-don-t-know-about-tomorrow', '', 'I Don''t Know About tomorrow', 'Verse 1
+I don''t know about tomorrow, I just live from day to day.
+I don''t borrow from its sunshine, For its skies may turn to gray.
+I don''t worry o''er the future, For I know what Jesus said,
+And today I''ll walk beside Him, For He knows what is ahead.
+
+
+Chorus
+Many things about tomorrow, I don''t seem to understand;
+But I know who holds tomorrow, And I know who holds my hand.
+
+
+Verse 2
+Every step is getting brighter, As the golden stairs I climb;
+Every burden''s getting lighter; Every cloud is silver lined.
+There the sun is always shining, There no tear will dim the eye,
+At the ending of the rainbow, Where the mountains touch the sky. [Refrain]
+
+
+Verse 3
+I don''t know about tomorrow. It may bring me poverty;
+But the one who feeds the sparrow, Is the one who stands by me. 
+And the path that be my portion, May be through the flame or flood,
+But His presence goes before me, And I''m covered with His blood.', 'bb', 'Sun, Sep 28', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-697-my-saviour-first-of-all', '697', 'My Saviour First of All', 'Verse 1
+When my lifework is ended and I cross the swelling tide,
+When the bright and glorious morning I shall see;
+I shall know my Redeemer when I reach the other side,
+And His smile will be the first to welcome me.
+
+Chorus
+I shall know Him, I shall know Him,
+And redeemed by His side I shall stand;
+I shall know Him, I shall know Him
+By the print of the nails in His hand.
+
+Verse 2
+Oh, the soul thrilling rapture when I view His blessed face,
+And the luster of His kindly beaming eye;
+How my full heart will praise Him for the mercy, love and grace
+That prepared for me a mansion in the sky
+
+Verse 3
+Oh, the dear ones in glory, how they beckon me to come,
+And our parting at the river I recall;
+To the sweet vales of Eden they will sing my welcome home,
+But I long to meet my Savior first of all.
+
+Verse 4
+Thro'' the gates to the city in a robe of spotless white,
+He will lead me where no tears will ever fall;
+In the glad song of ages I shall mingle with delight,
+But I long to meet my Savior first of all
+', '', 'Sun, Sep 21', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-877-this-world-is-not-my-home', '877', 'This World Is Not My Home', 'Verse 1
+This world is not my home,
+I''m just a-passing through,
+
+My treasures are laid up
+Somewhere beyond the blue;
+
+The angels beckon me
+From heaven''s open door,
+
+And I can''t feel at home
+In this world anymore
+
+Chorus
+Oh Lord, You know I have no friend like You,
+If heaven''s not my home, Then Lord, what will I do?
+
+The angels beckon me from heaven''s open door,
+And I can''t feel at home In this world anymore
+
+Verse 2
+They’re all expecting me,
+and that’s one thing I know,
+
+My Savior pardon me
+and now I onward go;
+
+I know He’ll take me thru tho’
+I am week and poor,
+
+And I can''t feel at home
+In this world anymore
+
+Verse 3
+I have a loving Savior
+Up in gloryland,
+
+I don''t expect to stop
+Until I with Him stand,
+
+He’s waiting now for me
+In heaven''s open door,
+
+And I can''t feel at home
+In this world anymore.
+
+Verse 4
+Just up in gloryland
+we’ll live eternally,
+
+The saints on ev’ry hand
+are shouting Victory,
+
+Their songs of sweetest praise
+Drift back from heaven’s shore,
+
+And I can’t feel at home
+in this world anymore.', '', 'Sun, Sep 21', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-63-glory-to-his-name', '63', 'Glory to His Name', 'Verse 1
+Down at the cross where my Savior died,
+Down where for cleansing from sin I cried,
+There to my heart was the blood applied;
+Glory to his name!
+
+Chorus
+Glory to his name,
+Glory to his name;
+There to my heart was the blood applied;
+Glory to his name!
+
+Verse 2
+I am so wondrously saved from sin,
+Jesus so sweetly abides within;
+There at the cross where he took me in;
+Glory to his name!
+
+Verse 3
+Oh, precious fountain that saves from sin,
+I am so glad I have entered in;
+There Jesus saves me and keeps me clean;
+Glory to his name! 
+
+Verse 4
+Come to this fountain so rich and sweet,
+Cast thy poor soul at the Savior’s feet;
+Plunge in today, and be made complete;
+Glory to his name
+', 'bbbb', 'Sun, Sep 14', 13, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-160-are-you-washed-in-the-blood', '160', 'Are You Washed in the Blood?', 'Verse 1
+Have you been to Jesus for the cleansing power?
+Are you washed in the blood of the Lamb?
+Are you fully trusting in His grace this hour?
+Are you washed in the blood of the Lamb
+
+Chorus
+Are you washed in the blood,
+In the soul cleansing blood of the Lamb?
+Are your garments spotless?
+Are they white as snow?
+Are you washed in the blood of the Lamb?
+
+Verse 2
+Are you walking daily by the Savior''s side?
+Are you washed in the blood of the Lamb?
+Do you rest each moment in the Crucified?
+Are you washed in the blood of the Lamb?
+
+Verse 3
+When the Bridegroom cometh will your robes be white?
+Are you washed in the blood of the Lamb?
+Will your souls be ready for the mansions bright,
+And be washed in the blood of the Lamb?
+
+Verse 4
+Lay aside the garments that are stained with sin,
+And be washed in the blood of the Lamb;
+There''s a fountain flowing for the soul unclean,
+O be washed in the blood of the Lamb!', '###', 'Sun, Sep 14', 10, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-183-rock-of-ages', '183', 'Rock of Ages', 'Verse 1
+Rock of Ages, cleft for me,
+let me hide myself in thee;
+let the water and the blood,
+from thy wounded side which flowed,
+be of sin the double cure;
+save from wrath and make me pure.
+
+Verse 2
+Could my tears forever flow,
+Could my zeal no langour know.
+These for sin could not atone
+Thou must save and Thou alone
+In my hand no price I bring, 
+Simply to Thy cross I cling
+
+Verse 3
+While I draw this fleeting breath,
+when mine eyes shall close in death,
+when I rise to worlds unknown,
+and behold Thee on Thy throne,
+Rock of Ages, cleft for me,
+let me hide myself in thee.', 'bb', 'Sun, Sep 14', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-809-until-then', '809', 'Until Then', 'Verse 1
+My heart can sing when I pause to remember
+A heartache here is but a stepping stone
+Along a trail that’s winding always upward,
+This troubled world is not my final home.
+
+Chorus
+But until then my heart will go on singing
+Until then with joy I’ll carry on
+Until the day my eyes behold the city
+Until the day God calls me home
+
+Verse 2
+The things of earth will dim and lose their value
+If we recall they’re borrowed for a while;
+And things of earth that cause the heart to tremble,
+Remembered there will only bring a smile.
+
+Verse 3
+This weary world with all its toil and struggle
+May take its toll of misery and strife
+The soul of man is like a waiting falcon
+When it’s released, it’s destined for the skies
+
+', 'bb', 'Sun, Sep 14', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-864-isn-t-the-love-of-jesus-something-wonderful', '864', 'Isn''t the Love of Jesus Something Wonderful!', 'Verse 1
+There will never be a sweeter story
+Story of the Savior''s Love Divine
+Love that brought Him from the realms of glory
+Just to save a sinful soul like mine
+
+Chorus
+Isn''t the love of Jesus something wonderful?
+Wonderful, wonderful
+Oh, isn''t the love of Jesus something wonderful?
+Wonderful it is to me
+
+Verse 2
+Boundless as the universe around me
+Reaching to the farthest soul away
+Saving keeping love it was that found me
+That is why my heart can truly say
+
+Verse 3
+Love beyond our human comprehending
+Love of God in Christ, how can it be?
+This will be my theme and never ending
+Great redeeming love of Calvary
+
+', '', 'Sun, Sep 7', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-2', '', '', '', '', 'Sun, Sep 7', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-lord-i-need-you', '', 'Lord. I need You', 'Verse 1
+Sometimes when life seems gentle
+and blessings flood my way,
+I turn my gaze away from You
+and soon forget to pray.
+But when the sky grows darker
+and courage turns to fear,
+My anxious voice cries upward
+with words You long to hear.(
+
+Chorus
+Lord, I need You when the sea of life is calm.
+O Lord, I need You when the wind is blowing strong.
+Whether trials come or cease,
+keep me always on my knees.
+Lord, I need You. Lord, I need You.
+
+Verse 2 
+Lord, help me to remember
+I''m weak but You are strong.
+I cannot sing apart from You;
+for Lord, You are my song.
+Although I''m prone to wander
+and boast in all I do,
+Lord, keep my eyes turned upward
+so I depend on You. (Chorus)', '', 'Sun, Aug 31', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-828-i-ll-fly-away', '828', 'I''ll Fly Away', '', '', 'Sun, Aug 24', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-843-i-d-rather-have-jesus', '843', 'I’d Rather Have Jesus', 'Verse 1
+I''d rather have Jesus than silver or gold
+I''d rather be His than have riches untold
+I''d rather have Jesus than houses or land
+I''d rather be led by His nail-pierced hand
+
+Chorus
+Than to be the king of a vast domain
+And be held in sin''s dread sway
+I''d rather have Jesus than anything
+This world affords today
+
+Verse 2
+I''d rather have Jesus than men''s applause
+I''d rather be faithful to His dear cause
+I''d rather have Jesus than worldwide fame
+Yes, I''d rather be true to His holy name
+
+Verse 3
+He’s Fairer than Lilies of rarest bloom
+He’s Sweeter than Honey from out the comb
+He’s all that my hungering spirit needs
+I’d rather have Jesus and let Him lead ', 'bbbbb', 'Sun, Aug 17', 3, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-249-the-comforter-has-come', '249', 'The Comforter Has Come', 'Verse 1
+O spread the tidings ''round
+Wherever man is found,
+Wherever human hearts and human woes abound;
+Let every Christian tongue proclaim the joyful sound:
+The Comforter has come!
+
+Chorus
+The Comforter has come, the Comforter has come!
+The Holy Ghost from heaven, the Father''s promise given;
+O spread the tidings ''round wherever man is found:
+The Comforter has come!
+
+Verse 2
+The long, long night is past, the morning breaks at last,
+And hushed the dreadful wail and fury of the blast,
+As o''er the golden hills the day advances fast!
+The Comforter has come!
+
+Verse 3
+Lo, the great King of kings with healing in His wings,
+To every captive soul a full deliverance brings;
+And through the vacant cells the song of triumph rings;
+The Comforter has come!
+
+Verse 4
+O boundless Love divine! how shall this tongue of mine
+To wondering mortals tell the matchless grace divine:
+That I, a child of hell, should in His image shine!
+The Comforter has come!', '', 'Sun, Aug 17', 5, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-1-my-faith-has-found-a-resting-place', '1', 'My Faith Has Found a Resting Place', 'Verse 1
+My faith has found a resting place,
+not in device nor creed;
+I trust the ever-living One,
+his wounds for me shall plead.
+
+Chorus
+I need no other argument,
+I need no other plea,
+it is enough that Jesus died,
+and that he died for me.
+
+Verse 2
+Enough for me that Jesus saves,
+this ends my fear and doubt;
+a sinful soul, I come to Him,
+He’ll never cast me out.
+
+Verse 3
+My heart is leaning on the Word,
+the written Word of God,
+salvation by my Savior’s name,
+salvation thro'' his blood. 
+
+Verse 4
+My great Physician heals the sick,
+the lost he came to save;
+for me his precious blood he shed,
+for me his life he gave.
+
+', '#', 'Sun, Aug 10', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-317-what-a-friend-we-have-in-jesus', '317', 'What a Friend We Have in Jesus', 'Verse 1
+What a friend we have in Jesus,
+all our sins and griefs to bear!
+What a privilege to carry
+everything to God in prayer!
+O what peace we often forfeit,
+O what needless pain we bear,
+all because we do not carry
+everything to God in prayer!
+
+Verse 2
+Have we trials and temptations?
+Is there trouble anywhere?
+We should never be discouraged;
+take it to the Lord in prayer!
+Can we find a friend so faithful
+who will all our sorrows share?
+Jesus knows our every weakness;
+take it to the Lord in prayer!
+
+Verse 3
+Are we weak and heavy laden,
+cumbered with a load of care?
+Precious Savior, still our refuge--
+take it to the Lord in prayer!
+Do your friends despise, forsake you?
+Take it to the Lord in prayer!
+In his arms he''ll take and shield you;
+you will find a solace there.
+
+
+', 'b', 'Sun, Aug 3', 5, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-187-amazing-grace', '187', 'Amazing Grace', 'Verse 1
+Amazing grace how sweet the sound
+that saved a wretch like me!
+I once was lost, but now am found,
+was blind, but now I see.
+
+Verse 2
+''Twas grace that taught my heart to fear,
+and grace my fears relieved;
+how precious did that grace appear
+the hour I first believed!
+
+Verse 3
+Through many dangers, toils and snares
+I have already come:
+''tis grace hath brought me safe thus far,
+and grace will lead me home.
+
+Verse 4
+The Lord has promised good to me,
+His word my hope secures;
+he will my shield and portion be
+as long as life endures.
+
+Verse 5
+And, when this flesh and heart shall fail,
+and mortal life shall cease:
+I shall possess, within the veil,
+a life of joy and peace.
+
+
+Verse 6
+When we’ve been there, ten thousand years
+bright shining as the sun
+We’ve no less days, to sing God’s praise
+Than when we first begun.', '', 'Sun, Jul 20', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-503-are-ye-able', '503', 'Are Ye Able?', 'Verse 1
+"Are ye able," said the Master,
+"To be crucified with me?"
+"Yea," the sturdy dreamers answered,
+"To the death we follow Thee."
+
+
+Chorus
+Lord, we are able.
+Our spirits are Thine.
+Remold them, make us,
+Like Thee, divine.
+Thy guiding radiance
+Above us shall be
+A beacon to God,
+To love, and loyalty.
+
+
+Verse 2
+Are ye able to remember,
+When a thief lifts up his eyes,
+That his pardoned soul is worthy
+Of a place in paradise?
+
+
+Verse 3
+Are ye able when the shadows
+Close around you with the sod,
+To believe that spirit triumphs,
+To commend your soul to God?
+
+
+Verse 4
+"Are ye able?" Still the Master
+Whispers down eternity,
+And heroic spirits answer
+Now, as then, in Galilee.', 'bbbb', 'Sun, Jul 20', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-477-channels-only', '477', 'Channels Only', 'Verse 1
+How I praise Thee, precious Savior,
+That Thy love laid hold of me;
+Thou hast saved and cleansed and filled me
+That I might Thy channel be.
+
+Chorus
+Channels only, blessed Master,
+But with all Thy wondrous pow’r
+Flowing through us, Thou canst use us
+Every day and every hour.
+
+Verse 2
+Emptied that Thou shouldest fill me,
+A clean vessel in Thy hand;
+With no pow’r but as Thou givest
+Graciously with each command.
+
+Verse 3
+Witnessing Thy pow’r to save me,
+Setting free from self and sin;
+Thou who boughtest to possess me,
+In Thy fullness, Lord, come in.
+
+Verse 4
+Jesus, fill now with Thy Spirit
+Hearts that full surrender know;
+That the streams of living water
+From our inner self may flow.', 'bbbb', 'Sun, Jul 13', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-861-set-my-soul-afire', '861', 'Set My Soul Afire', 'Verse 1
+Set my soul afire, Lord,
+For Thy Holy Word,
+Burn it deep within me,
+Let Your voice be heard,
+Millions grope in darkness
+In this day and hour,
+I will be Your witness,
+Fill me with Thy power.
+
+Chorus
+Set my soul afire, Lord,
+Set my soul afire.
+Make my life a witness
+Of Thy saving power
+Millions grope in darkness,
+Waiting for Thy Word.
+Set my soul afire,
+Lord, set my soul afire
+
+Verse 2
+Set my soul afire, Lord,
+For the lost in sin,
+Give to me a passion
+As I seek to win;
+Help not to falter,
+Never let me fail,
+Fill me with Thy Spirit,
+Let Thy will prevail.
+
+Verse 3
+Set my soul afire, Lord,
+In my daily life,
+Far too long I''ve wandered
+In this day of strife;
+Nothing else will matter
+But to live for Thee,
+I will be Your witness
+As You live in me.', 'b', 'Sun, Jul 13', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-just-one-more-soul', '', 'Just One More Soul', 'Verse 1
+The preachers are weary
+The singers are tired
+The church, as we know it
+Is losing its fire
+Some are discouraged from bearing the load
+But we must determine to keep pressing on
+
+Chorus
+’Cause if Just One More Soul
+Were to walk down the aisle
+It would be worth every struggle
+It would be worth every mile
+A lifetime of labor is still worth it all
+If it rescues, Just One More Soul!
+
+Verse 2
+So preachers, keep preachin''
+And singers, go sing
+Laymen, keep sharing
+That Jesus is King
+The angels have gathered, they''re surrounding the throne
+And they''ll start rejoicing, for Just One More Soul!', '', 'Sun, Jul 13', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-163-my-redeemer', '163', 'My Redeemer', 'Verse 1
+
+I will sing of my Redeemer
+and his wondrous love to me;
+
+on the cruel cross he suffered,
+from the curse to set me free
+
+Chorus
+
+Sing, O sing of my Redeemer!
+With his blood he purchased me;
+
+On the cross he sealed my pardon,
+paid the debt, and made me free
+
+Verse 2
+
+I will tell the wondrous story,
+how my lost estate to save,
+
+In his boundless love and mercy,
+he the ransom freely gave
+
+Verse 3
+
+I will praise my dear Redeemer,
+his triumphant power I''ll tell:
+
+how the victory he gives me
+over sin and death and hell
+
+Verse 4
+
+I will sing of my Redeemer
+and his heavenly love for me;
+
+he from death to life hath brought me,
+Son of God, with him to be', 'bbbb', 'Sun, Jul 6', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-352-my-hope-is-in-the-lord', '352', 'My Hope Is in the Lord', 'Verse 1
+My hope is in the Lord, Who gave Himself for me,
+And paid the price of all my sin at Calvary.
+
+Chorus
+For me, He died, For me, He lives,
+And ever-lasting life and light He freely gives.
+
+Verse 2
+No merit of my own, His anger to suppress,
+My only hope is found in Jesus’ righteousness.
+
+Verse 3
+And now for me He stands, Before the Father’s throne,
+He shows His wounded hands and names me as His own.
+
+Verse 4
+His grace has planned it all, ’Tis mine but to believe,
+And recognize His work of love and Christ receive.', 'bbbb', 'Sun, Jul 6', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-879-heavenly-sunshine', '879', 'Heavenly Sunshine', 'Verse 1
+Heavenly Sunshine, Heavenly Sunshine
+Flooding my soul with glory divine.
+
+Heavenly Sunshine, Heavenly Sunshine
+Hallelujah Jesus is Mine.', 'bbbbb', 'Sun, Jul 6', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-524-he-hideth-my-soul', '524', 'He Hideth My Soul', 'Verse 1
+A wonderful Savior is Jesus my Lord,
+A wonderful Savior to me.
+
+He hideth my soul in the cleft of the rock,
+Where rivers of pleasure I see.
+
+
+Chorus
+He hideth my soul in the cleft of the rock
+That shadows a dry, thirsty land.
+
+He hideth my life in the depths of his love,
+And covers me there with his hand, and covers me there with his hand.
+
+
+Verse 2
+A wonderful Savior is Jesus my Lord;
+He taketh my burden away.
+
+He holdeth me up, and I shall not be moved;
+He giveth me strength as my day.
+
+
+Verse 3
+With numberless blessings each moment he crowns,
+And filled with his fullness divine,
+
+I sing in my rapture,“Oh, glory to God
+For such a Redeemer as mine!”
+
+
+Verse 4
+When clothed in his brightness, transported I rise
+To meet him in clouds of the sky,
+
+His perfect salvation, his wonderful love,
+I’ll shout with the millions on high.', '', 'Sun, Jun 29', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-616-the-king-s-business', '616', 'The King''s Business', 'Verse 1
+I am a stranger here, within a foreign land;
+My home is far away, upon a golden strand;
+Ambassador to be of realms beyond the sea,
+I’m here on business for my King.
+
+
+Chorus
+This is the message that I bring,
+A message angels fain would sing:
+“Oh, be ye reconciled,”
+Thus saith my Lord and King,
+“Oh, be ye reconciled to God.”
+
+
+Verse 2
+This is the King’s command: that all men, everywhere,
+Repent and turn away from sin’s seductive snare;
+That all who will obey, with Him shall reign for aye,
+And that’s my business for my King.
+
+
+Verse 3
+My home is brighter far than Sharon’s rosy plain,
+Eternal life and joy throughout its vast domain;
+My Sov’reign bids me tell how mortals there may dwell,
+And that’s my business for my King.', 'bbb', 'Sun, Jun 15', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-531-i-know-whom-i-have-believed', '531', 'I Know Whom I Have Believed', 'Verse 1
+I know not why God’s wondrous grace
+to me hath made known
+nor why, unworthy Christ in love
+redeemed me for his own.
+
+Chorus
+But “I know whom I have believed,
+and am persuaded that he is able
+to keep that which I’ve committed
+unto him against that day.”
+
+Verse 2
+I know not how this saving faith
+to me he did impart,
+nor how believing in his Word
+wrought peace within my heart.
+
+Verse 3
+I know not how the Spirit moves,
+convincing us of sin,
+revealing Jesus through the Word,
+creating faith in him.
+
+Verse 4
+I know not when my Lord may come,
+at night or noon-day fair,
+nor if I’ll walk the vale with him,
+or meet him in the air.', '', 'Sun, May 25', 4, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-841-so-little-time', '841', 'So Little Time', 'Verse 1
+So little time! The harvest will be over,
+Our reaping done, we reapers taken home,
+Report our work to Jesus, Lord of the harvest,
+And hope He’ll smile and that He’ll say, “Well done!”
+
+Chorus
+Today we reap, or miss our golden harvest!
+Today is given us lost souls to win.
+O then to save some dear ones from the burning,
+Today we’ll go to bring some sinner in.
+
+Verse 2
+How many times I should have strongly pleaded;
+How often did I fail to strictly warn.
+The Spirit moved, O had I pled for Jesus!
+The grain is fallen, lost ones not reborn.
+
+Verse 3
+Despite the heat, the ceaseless toil, the hardship,
+The broken heart o’er those we cannot win;
+Misunderstood because we’re oft peculiar,
+Still no regrets we’ll have but for our sin.
+
+Verse 4
+A day of pleasure or a feast of friendship;
+A house or car or garments fair or fame,
+Will all be trash when souls are brought to Heaven,
+And then how sad to face the slacker’s blame!
+
+Verse 5
+The harvest white, with reapers few is wasting
+And many souls will die and never know
+The love of Christ, the joy of sins forgiven,
+O let us weep and love and pray and go!', 'bbb', 'Sun, May 4', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-818-great-is-thy-faithfulness', '818', 'Great is Thy Faithfulness', 'Verse 1
+Great is Thy faithfulness, O God my Father;
+there is no shadow of turning with Thee;
+Thou changest not, Thy compassions, they fail not;
+as Thou hast been, Thou forever wilt be.
+
+Chorus
+Great is Thy faithfulness!
+Great is Thy faithfulness!
+Morning by morning new mercies I see;
+all I have needed Thy hand hath provided:
+great is Thy faithfulness, Lord, unto me!
+
+Verse 2
+Summer and winter, and springtime and harvest;
+sun, moon, and stars in their courses above
+join with all nature in manifold witness
+to Thy great faithfulness, mercy, and love.
+
+Verse 3
+Pardon for sin and a peace that endureth,
+Thine own dear presence to cheer and to guide;
+strength for today and bright hope for tomorrow:
+blessings all mine, with ten thousand beside!', '##', 'Sun, May 4', 5, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-i-thank-you-for-the-valley', '', 'I Thank You For The Valley', 'Verse 1
+Thank you for the valley I walked through today
+the darker the valley the more I learn to pray
+I found you where the lilies blooming by the way
+and I thank you for the valley I walked through today
+
+Chorus
+Thank you for ev’ry hill i’ve climbed
+for ev’ry time the sun didn’t shine
+thank you for ev’ry lonely night
+I prayed ‘til I knew ev’ry thing was alright
+and I thank you for the valley I walked through today
+
+Verse 2
+Life can’t be all sunshine or the flowers would die
+the rivers would be desert, all barren and dry
+life can’t be all blessings or there’d be no need to pray
+so I thank you for the valley I walked through today
+', '#', 'Sun, Apr 27', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-calvary-s-blood', '', 'Calvary’s Blood', 'Verse 1
+I carried a burden, a staggering weight,
+And struggled for freedom but could not escape.
+I trembled and cried at the thought of my fate--
+What must I do to be saved?
+I desperately searched for release from my pain
+But found that man''s wisdom was useless and vain.
+Is there not a power that can break every chain?
+What must I do to be saved?
+
+Chorus
+Jesus'' blood flows from Calvary
+Breaking Satan''s power, setting captives free.
+Greatest gift of the greatest love--
+Heaven paid the price with Calvary''s blood.
+Heaven paid the price with Calvary''s blood.
+
+Verse 2
+I saw Jesus bleeding; the cross bore His stain;
+The men standing by were all mocking His pain.
+But then--yes, I heard it--He called out my name:
+""Kneel at the cross and be saved.""
+I fell at the feet of the One hanging there.
+""O Savior, forgive me, "" I cried in despair!
+My burden fell off; Jesus answered my prayer.
+Kneel at the cross and be saved.
+
+', 'C', 'Sun, Apr 20', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-793-master-the-tempest-is-raging', '793', 'Master, the Tempest Is Raging', 'Verse 1
+Master, the tempest is raging!
+The billows are tossing high!
+The sky is o''ershadow''d with blackness,
+No shelter or help is nigh;
+"Carest thou not that we perish?"
+How canst thou lie asleep,
+When each moment so madly is threatening
+A grave in the angry deep?
+
+Chorus
+The winds and the waves shall obey my will,
+Peace, be still!
+Whether the wrath of the storm-tossed sea,
+Or demons, or men, or whatever it be,
+No waters can swallow the ship where lies
+The Master of ocean, and earth and skies;
+They all shall sweetly obey my will,
+Peace, be still!
+They all shall sweetly obey my will,
+Peace, peace, be still!
+
+Verse 2
+Master, with anguish of spirit
+I bow in my grief today;
+The depths of my sad heart are troubled,
+Oh, waken and save, I pray!
+Torrents of sin and of anguish
+Sweep o’er my sinking soul;
+And I perish! I perish, dear Master,
+O, hasten, and take control.
+
+Verse 3
+Master, the terror is over,
+The elements sweetly rest;
+Earth’s sun in the calm lake is mirror''d,
+And heaven’s within my breast;
+Linger, O blessed Redeemer,
+Leave me alone no more;
+And with joy I shall make the blest harbor,
+And rest on the blissful shore.', 'C', 'Sun, Apr 13', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-501-step-by-step', '501', 'Step by Step', 'Verse 1
+’Tis so sweet to walk with Jesus,
+Step by step and day by day;
+Stepping in His very footprints,
+Walking with Him all the way.
+
+Chorus
+Step by step, step by step,
+I would walk with Jesus,
+All the day, all the way,
+Keeping step with Jesus.
+
+Verse 2
+’Tis so safe to walk with Jesus,
+Leaning hard upon His arm,
+Following closely where He leads us,
+None can hurt and naught can harm.
+
+Verse 3
+Step by step I’ll walk with Jesus,
+Just a moment at a time;
+Heights I have not wings to soar to
+Step by step my feet can climb.
+
+Verse 4
+Jesus keep me closer—closer,
+Step by step and day by day;
+Stepping in Thy very footprints
+Walking with Thee all the way.', 'bbb', 'Sun, Apr 13', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-482-more-about-jesus', '482', 'More about Jesus', 'Verse 1
+More about Jesus would I know,
+More of His grace to others show;
+
+More of His saving fullness see,
+More of His love who died for me.
+
+
+Chorus
+More, more about Jesus,
+More, more about Jesus;
+
+More of His saving fullness see,
+More of His love who died for me.
+
+
+Verse 2
+More about Jesus let me learn,
+More of His holy will discern;
+
+Spirit of God, my teacher be,
+Showing the things of Christ to me.
+
+
+Verse 3
+More about Jesus in His Word,
+Holding communion with my Lord;
+
+Hearing His voice in ev''ry line,
+Making each faithful saying mine. 
+
+
+Verse 4
+More about Jesus on His throne,
+Riches in glory all His own;
+
+More of His kingdom''s sure increase;
+More of His coming, Prince of peace. ', 'bbbb', 'Sun, Apr 6', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-868-the-bible-stands', '868', 'The Bible Stands', 'Verse 1
+The Bible stands like a rock undaunted
+''Mid the raging storms of time;
+Its pages burn with the truth eternal,
+And they glow with a light sublime.
+
+Chorus
+The Bible stands tho'' the hills may tumble,
+It will firmly stand when the earth shall crumble;
+I will plant my feet on its firm foundation,
+For the Bible stands
+
+Verse 2
+The Bible stands like a mountain towering
+Far above the works of men;
+Its truth by none ever was refuted,
+And destroy it they never can
+
+Verse 3
+The Bible stands and it will forever,
+When the world has passed away;
+By inspiration it has been given,
+All its precepts I will obey.
+
+Verse 4
+The Bible stands every test we give it,
+For its Author is divine;
+By grace alone I expect to live it,
+And to prove it and make it mine.', '#', 'Sun, Mar 30', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-676-face-to-face', '676', 'Face to Face', 'Verse 1
+Face to face with Christ, my Savior,
+Face to face- what will it be
+When with rapture I behold him,
+Jesus Christ who died for me?
+
+Chorus
+Face to face I shall behold him,
+Far beyond the starry sky;
+Face to face in all his glory,
+I shall see him by and by.
+
+Verse 2
+Only faintly now I see him
+With the darkened veil between,
+But a blessed day is coming
+When his glory shall be seen.
+
+Verse 3
+What rejoicing in his presence,
+When are banished grief and pain;
+When the crooked ways are straightened
+And the dark things shall be plain. 
+
+Verse 4
+Face to face- oh, blissful moment!
+Face to face- to see and know;
+Face to face with my Redeemer,
+Jesus Christ who loves me so. ', '', 'Sun, Mar 23', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-342-only-a-sinner', '342', 'Only a Sinner', 'Verse 1
+Naught have I gotten but what I received;
+Grace hath bestowed it since I have believed;
+Boasting excluded, pride I abase;
+I’m only a sinner, saved by grace!
+
+Chorus
+Only a sinner saved by grace!
+Only a sinner saved by grace!
+This is my story, to God be the glory
+I’m only a sinner saved by grace!
+
+Verse 2
+Once I was foolish, and sin ruled my heart,
+Causing my footsteps from God to depart;
+Jesus hath found me, happy my case;
+I now am a sinner, saved by grace!
+
+Verse 3
+Tears unavailing, no merit had I;
+Mercy had saved me, or else I must die;
+Sin had alarmed me, fearing God’s face;
+But now I’m a sinner saved by grace!
+
+Verse 4
+Suffer a sinner whose heart overflows,
+Loving his Savior to tell what he knows;
+Once more to tell it would I embrace
+I’m only a sinner saved by grace! ', 'C', 'Sun, Mar 23', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-796-heaven-came-down-and-glory-filled-my-soul', '796', 'Heaven Came Down and Glory Filled My Soul', 'Verse 1
+O what a wonderful, wonderful day, day I will never forget;
+After I’d wandered in darkness away, Jesus my Savior I met.
+O what a tender, compassionate friend, He met the need of my heart;
+Shadows dispelling, with joy I am telling, He made all the darkness depart.
+
+Chorus
+Heaven came down and glory filled my soul,
+When at the cross the Savior made me whole;
+​My sins were washed away and my night was turned to day,
+Heaven came down and glory filled my soul!
+
+Verse 2
+Born of the Spirit with life from above into God’s family divine,
+Justified fully thru Calvary’s love, O what a standing is mine!
+And the transaction so quickly was made, when as a sinner I came,
+Took of the offer, of grace He did proffer, He saved me, O praise His dear name!
+
+Verse 3
+Now I’ve a hope that will surely endure after the passing of time;
+I have a future in heaven for sure there in those mansions sublime.
+And it’s because of that wonderful day, when at the cross I believed;
+Riches eternal and blessings supernal, from His precious hand I received.', 'b', 'Sun, Mar 16', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-601-how-firm-a-foundation', '601', 'How Firm a Foundation', 'Verse 1
+How firm a foundation, ye saints of the Lord,
+is laid for your faith in His excellent Word!
+What more can He say than to you He hath said,
+to you who for refuge to Jesus have fled?
+
+Verse 2
+“Fear not, I am with thee, O be not dismayed,
+for I am thy God, and will still give thee aid;
+I''ll strengthen thee, help thee, and cause thee to stand,
+upheld by my righteous, omnipotent hand.
+
+Verse 3
+"When through fiery trials thy pathway shall lie,
+my grace, all sufficient, shall be thy supply;
+the flame shall not hurt thee; I only design
+thy dross to consume, and thy gold to refine
+
+Verse 4
+"The soul that on Jesus hath leaned for repose,
+I will not, I will not desert to its foes;
+that soul, though all hell should endeavor to shake,
+I''ll never, no, never, no, never forsake."
+
+', '', 'Sun, Mar 16', 2, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-348-redeemed', '348', 'Redeemed', 'Verse 1
+Redeemed, how I love to proclaim it!
+Redeemed by the blood of the Lamb;
+Redeemed through His infinite mercy,
+His child, and forever, I am.
+
+Chorus
+Redeemed, redeemed,
+Redeemed by the blood of the Lamb;
+Redeemed, redeemed
+His child, and forever, I am.
+
+Verse 2
+Redeemed and so happy in Jesus;
+No language my rapture can tell.
+I know that the light of His presence
+With me doth continually dwell.
+
+Verse 3
+I think of my blessed Redeemer,
+I think of Him all the day long;
+I sing, for I cannot be silent;
+His love is the theme of my song.
+
+Verse 4
+I know I shall see in His beauty
+The King in whose law I delight,
+Who lovingly guardeth my footsteps,
+And giveth me songs in the night.', '', 'Sun, Mar 16', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-74-singing-i-go', '74', 'Singing I Go', 'Verse 1
+The trusting heart to Jesus clings,
+Nor any ill forebodes,
+
+But at the cross of Calvary sings,
+Praise God for lifted loads!
+
+Chorus
+Singing I go along life''s road,
+Praising the Lord, praising the Lord;
+
+Singing I go along life''s road,
+For Jesus has lifted my load.
+
+Verse 2
+The passing days bring many cares.
+"Fear not," I hear Him say;
+
+And when my fears are turned to prayers,
+The burdens slip away.
+
+Verse 3
+He tells me of my Father''s love
+And never-slumbering eye;
+
+My everlasting King above
+Will all my needs supply
+
+Verse 4
+When to the throne of grace I flee,
+I find the promise true;
+
+The mighty arms upholding me
+Will bear my burdens too. (Chorus)', '#', 'Sun, Mar 2', 2, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-705-take-the-name-of-jesus-with-you', '705', 'Take the Name of Jesus with You', 'Verse 1
+Take the name of Jesus with you,
+Child of sorrow and of woe.
+It will joy and comfort give you,
+Take it then where you go.
+
+Chorus
+Precious name, O how sweet!
+Hope of earth and joy of heaven;
+Precious name, O how sweet!
+Hope of earth and joy of heaven
+
+Verse 2
+Take the name of Jesus ever
+As a shield from every snare,
+If temptations ''round you gather,
+Breathe that holy name in prayer.
+
+Verse 3
+Oh, the precious name of Jesus; 
+how it thrills our soul with joy
+When His loving arms receive us 
+and His songs our tongues employ.
+
+Verse 4
+At the name of Jesus bowing,
+Falling prostrate at His feet,
+King of kings, we''ll gladly crown Him
+When our journey is complete.
+
+', 'bbbb', 'Sun, Feb 23', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-wings-as-eagles', '', 'Wings as Eagles', 'Verse 1
+When the race still lies before me,
+And the wind is blowing strong,
+When the witnesses surround me,
+And my strength is almost gone;
+When the valley plunges deeper,
+And life shatters all my dreams,
+Then I lift my voice to Jesus,
+And He gives my spirit wings.
+
+Chorus
+God gives wings, God gives wings as eagles;
+God gives wings to fly and strength to rise above.
+God gives wings, God gives wings as eagles,
+When my feet begin to stumble,
+And my dreams begin to crumble,
+I mount up on eagles’ wings.
+
+Verse 2
+Let us run the race with patience,
+Let us lay each weight aside,
+Looking only unto Jesus;
+He will be our faithful Guide.
+He has run the race before us;
+He has won the victor’s crown.
+And He calls to ev’ry Christian.
+Follow me to higher ground.', 'b', 'Sun, Jan 19', 2, 'majesty-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-291-higher-ground', '291', 'Higher Ground', 'Verse 1
+I''m pressing on the upward way,
+New heights I''m gaining every day;
+Still praying as I onward bound,
+Lord, plant my feet on higher ground.
+
+
+Chorus
+Lord, lift me up and let me stand,
+By faith, on Heaven''s table land;
+A higher plane than I have found;
+Lord, plant my feet on higher ground.
+
+
+Verse 2
+My heart has no desire to stay
+Where doubts arise and fears dismay;
+Tho'' some may dwell where these abound,
+My pray''r, my aim is higher ground.
+
+
+Verse 3
+I want to live above the world,
+Though Satan''s darts at me are hurled;
+For faith has caught the joyful sound,
+The song of saints on higher ground.
+
+
+Verse 4
+I want to scale the utmost height,
+And catch a gleam of glory bright;
+But still I''ll pray till Heav''n I''ve found,
+Lord, lead me on to higher ground.', 'bbbb', 'Sun, Jan 12', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-164-nothing-but-the-blood', '164', 'Nothing But The Blood', 'Verse 1
+What can wash away my sin?
+Nothing but the blood of Jesus.
+What can make me whole again?
+Nothing but the blood of Jesus
+
+Chorus
+O precious is the flow
+that makes me white as snow;
+no other fount I know;
+nothing but the blood of Jesus
+
+Verse 2
+For my pardon this I see:
+nothing but the blood of Jesus.
+For my cleansing this my plea:
+nothing but the blood of Jesus
+
+Verse 3
+Nothing can for sin atone:
+nothing but the blood of Jesus.
+Naught of good that I have done:
+nothing but the blood of Jesus
+
+Verse 4
+This is all my hope and peace:
+nothing but the blood of Jesus.
+This is all my righteousness:
+nothing but the blood of Jesus', '#', 'Thu, Dec 19', 6, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-384-ring-the-bells-of-heaven', '384', 'Ring the Bells of Heaven', 'Verse 1
+Ring the bells of heaven! There is joy today,
+For a soul, returning from the wild!
+See, the Father meets him out upon the way,
+Welcoming His weary, wandering child.
+
+Chorus
+Glory! Glory! How the angels sing:
+Glory! Glory! How the loud harps ring!
+''Tis the ransomed army, like a mighty sea,
+Pealing forth the anthem of the free.
+
+Verse 2
+Ring the bells of heaven! There is joy today,
+For the wanderer now is reconciled;
+Yes, a soul is rescued from his sinful way,
+And is born anew, a ransomed child
+
+Verse 3
+Ring the bells of heaven! Spread the feast today!
+Angels, swell the glad triumphant strain!
+Tell the joyful tidings, bear it far away!
+For a precious soul is born again', 'bbbb', 'Sun, Dec 1', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-795-pass-me-not', '795', 'Pass Me Not', 'Verse 1
+Pass me not, O gentle Savior
+Hear my humble cry
+While on others Thou art calling
+Do not pass me by
+
+Chorus
+Savior, Savior
+Hear my humble cry
+While on others Thou art calling
+Do not pass me by
+
+Verse 2
+Let me at Thy throne of mercy
+Find a sweet relief
+Kneeling there in deep contrition
+Help my unbelief
+
+Verse 3
+Trusting only in Thy merit
+Would I seek Thy face
+Heal my wounded, broken spirit
+Save me by Thy grace
+
+Verse 4
+Thou the spring of all my comfort
+More than life to me
+Whom have I on earth beside Thee?
+Whom in Heav''n but Thee?', 'bbbb', 'Sun, Dec 1', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-arise-my-soul-arise-wesley', '', 'Arise My Soul Arise (Wesley)', 'Verse 1
+Arise, my soul, arise, shake off thy guilty fears.
+The bleeding Sacrifice in my behalf appears.
+Before the throne my Surety stands, before the throne my Surety stands;
+my name is written on His hands.
+
+Verse 2
+He ever lives above, for me to intercede;
+His all-redeeming love, His precious blood to plead,
+His blood atoned for all our race, His blood atoned for all our race,
+and sprinkles now the throne of grace.
+
+Verse 3
+Five bleeding wounds He bears, received on Calvary;
+they pour effectual prayers, they strongly plead for me.
+"Forgive him, O, forgive," they cry, "Forgive him, O, forgive," they cry,
+"Nor let that ransomed sinner die!"
+
+Verse 4
+The Father hears Him pray, His dear Anointed One;
+He cannot turn away the presence of His Son.
+His Spirit answers to the blood, His Spirit answers to the blood,
+and tells me I am born of God.
+
+Verse 5
+My God is reconciled, His pard''ning voice I hear;
+He owns me for a child, I can no longer fear.
+With confidence I now draw nigh, with confidence I now draw nigh,
+and, "Father, Abba, Father," cry.', 'bb', 'Thu, Nov 14', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-507-his-way-with-thee', '507', 'His Way with Thee', 'Verse 1
+Would you live for Jesus, and be always pure and good?
+Would you walk with Him within the narrow road?
+Would you have Him bear your burden, carry all your load?
+Let Him have His way with thee.
+
+Chorus
+His pow’r can make you what you ought to be;
+His blood can cleanse your heart and make you free;
+His love can fill your soul, and you will see
+’Twas best for Him to have His way with thee.
+
+Verse 2
+Would you have Him make you free, and follow at His call?
+Would you know the peace that comes by giving all?
+Would you have Him save you, so that you need never fall?
+Let Him have His way with thee.
+
+Verse 3
+Would you in His kingdom find a place of constant rest?
+Would you prove Him true in providential test?
+Would you in His service labor always at your best?
+Let Him have His way with thee.
+
+
+', '#', 'Wed, Nov 13', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-470-living-for-jesus', '470', 'Living for Jesus', 'Verse 1
+Living for Jesus, a life that is true,
+Striving to please Him in all that I do;
+Yielding allegiance, glad-hearted and free,
+This is the pathway of blessing for me
+
+Chorus
+O Jesus, Lord and Savior, I give myself to Thee,
+For Thou, in Thy atonement, didst give Thyself for me;
+I own no other Master, my heart shall be Thy throne;
+My life I give, henceforth to live, O Christ, for Thee alone
+
+Verse 2
+Living for Jesus Who died in my place,
+Bearing on Calv’ry my sin and disgrace;
+Such love constrains me to answer His call,
+Follow His leading and give Him my all
+
+Verse 3
+Living for Jesus, wherever I am,
+Doing each duty in His holy Name;
+Willing to suffer affliction and loss,
+Deeming each trial a part of my cross
+
+Verse 4
+Living for Jesus through earth’s little while,
+My dearest treasure, the light of His smile;
+Seeking the lost ones He died to redeem,
+Bringing the weary to find rest in Him', 'b', 'Sun, Oct 6', 3, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-383-no-not-one', '383', 'No, Not One!', 'Verse 1
+
+There’s not a friend like the lowly Jesus
+No, not one! no, not one!
+
+
+None else could heal all our souls’ diseases:
+No, not one! no, not one!
+
+
+Chorus
+
+
+
+Jesus knows all about our struggles;
+He will guide ’til the day is done:
+
+
+There’s not a Friend like the lowly Jesus:
+No, not one! no, not one!
+
+
+Verse 2
+
+
+
+No friend like Him is so high and holy,
+No, not one! no, not one!
+
+
+And yet no friend is so meek and lowly,
+No, not one! no, not one!
+
+
+Verse 3
+
+
+There’s not an hour that He is not near us,
+No, not one! no, not one!
+No night so dark, but His love can cheer us,
+No, not one! no, not one!
+
+
+
+Verse 4
+
+
+
+Did ever saint find this Friend forsake him?
+No, not one! no, not one!
+Or sinner find that He would not take him?
+No, not one! no, not one!
+
+
+Verse 5
+
+
+
+Was e’er a gift like the Savior given?
+No, not one! no, not one!
+
+
+Will He refuse us the bliss of heaven?
+No, not one! no, not one!
+', '#', 'Sun, Sep 29', 4, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-727-god-owns-the-cattle-on-a-thousand-hills', '727', 'God Owns the Cattle on a Thousand Hills', 'Verse 1
+God owns the cattle on a thousand hills,
+The wealth in every mine;
+He owns the rivers and the rocks and rills,
+The sun and stars that shine.
+Wonderful riches, more than tongue can tell -
+He is my Father so they''re mine as well;
+God owns the cattle on a thousand hills -
+I know that He will care for me.  ', 'C', 'Sun, Sep 22', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-362-no-one-ever-cared-for-me-like-jesus', '362', 'No One Ever Cared for Me Like Jesus', 'Verse 1
+I would love to tell you what I think of Jesus
+Since I found in Him a friend so strong and true;
+I would tell you how He changed my life completely
+He did something that no other friend could do
+
+Chorus
+No one ever cared for me like Jesus
+there’s no other friend so kind as He;
+No one else could take the sin and darkness from me
+O how much he cared for me
+
+Verse 2
+All my life was full of sin when Jesus found me
+All my heart was full of misery and woe;
+Jesus placed His strong and loving arms around me
+And He led me in the way I ought to go
+
+Verse 3
+Every day He comes to me with new assurance
+More and more I understand His words for love
+But I’ll never know just why He came to save me,
+‘Till some day I see His blessed face above', 'bbbbb', 'Sun, Sep 15', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-145-burdens-are-lifted-at-calvary', '145', 'Burdens Are Lifted at Calvary', 'Verse 1
+Days are filled with sorrow and care
+Hearts are lonely and drear
+Burdens are lifted at Calvary
+Jesus is very near
+
+Chorus
+Burdens are lifted at Calvary
+Calvary Calvary
+Burdens are lifted at Calvary
+Jesus is very near
+
+Verse 2
+Cast your care on Jesus today
+Leave your worry and fear
+Burdens are lifted at Calvary
+Jesus is very near
+
+Verse 3
+Troubled soul the Savior can see
+Every heartache and tear
+Burdens are lifted at Calvary
+Jesus is very near', '', 'Sun, Jul 28', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-246-pentecostal-power', '246', 'Pentecostal Power', 'Verse 1
+Lord, as of old at Pentecost
+Thou didst Thy power display,
+With cleansing, purifying flame,
+Descend on us today
+
+Chorus
+Lord, send the old time power, the Pentecostal power!
+Thy floodgates of blessing on us throw open wide!
+Lord, send the old time power, the Pentecostal power,
+That sinners be converted and Thy name glorified!
+
+Verse 2
+For mighty works for Thee, prepare
+And strengthen every heart;
+Come, take possession of Thine own,
+And nevermore depart
+
+Verse 3
+All self consume, all sin destroy!
+With earnest zeal endue
+Each waiting heart to work for Thee;
+O Lord, our faith renew! 
+
+Verse 4
+Speak, Lord! before Thy throne we wait,
+Thy promise we believe,
+And will not let Thee go until
+The blessing we receive', '', 'Sun, Jul 28', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-my-life-lord-is-yours-to-control', '', 'My Life Lord Is Yours to Control', 'Verse 1
+With my whole heart I humbly seek you;
+Now use my life, O Lord, I pray.
+I yield my stubborn will completely;
+May your commandments light my way
+
+Chorus
+My life, Lord, is yours to control;
+I give You my heart and my soul.
+I''ll seek Your will, never mine,
+Rich treasure to find.
+Give wisdom to choices I make,
+Along ev''ry path that I take.
+So when I complete life''s race,
+"Well done", You will say
+
+Verse 2
+Your Word has promised me the vict''ry,
+And all I need to do is claim
+Your strength to soar with wings as eagles,
+To walk, to run, and not to faint.', '#', 'Sun, Jul 21', 1, 'majesty-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-852-may-the-lord-find-us-faithful', '852', 'May the Lord Find Us Faithful', 'Verse 1
+God has not given us the spirit of fear, 
+But has given us the strength to obey.
+With power and sound mind, with love, the unfailing kind,
+O be not ashamed of His way.
+
+Chorus
+May the Lord find us faithful, 
+May His Word be our banner held high.
+May the Lord find us faithful, 
+Every day, thought we live, though we die.
+
+Verse 2
+No man that seeketh after things of this life, 
+Is a soldier who passes the test.
+Be faithful, be working, be running, be serving,
+Be searching His Word for His best.
+
+Verse 3
+Living or dying, may honor be Thine,
+From this wretched life, You loved and forgave.
+A life that is on fire, be only our heart’s desire.
+Be faithful from now till the grave.', 'bbbb', 'Sun, Jul 14', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-406-god-leads-us-along', '406', 'God Leads Us Along', 'Verse 1
+In shady, green pastures, so rich and so sweet,
+God leads His dear children along;
+Where the water’s cool flow bathes the weary one’s feet,
+God leads His dear children along
+
+Chorus
+Some through the waters, some through the flood,
+Some through the fire, but all through the blood;
+Some through great sorrow, but God gives a song,
+In the night season and all the day long
+
+Verse 2
+Sometimes on the mount where the sun shines so bright,
+God leads His dear children along;
+Sometimes in the valley, in darkest of night,
+God leads His dear children along
+
+Verse 3
+Though sorrows befall us and Satan oppose,
+God leads His dear children along;
+Through grace we can conquer, defeat all our foes,
+God leads His dear children along
+
+Verse 4
+Away from the mire, and away from the clay,
+God leads His dear children along;
+Away up in glory, eternity’s day,
+God leads His dear children along', 'bbbbb', 'Sun, Jun 30', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-733-i-just-keep-trusting-my-lord', '733', 'I Just Keep Trusting My Lord', 'Verse 1
+I just keep trusting my Lord, as I walk along
+I Just keep trusting my Lord, and he gives a song
+
+Tho’ the storm clouds darken the sky, o’er the heavenly trail
+I just keep trusting my Lord, He will never fail
+
+He’s a faithful friend, Such a faithful friend
+I can count on Him, to the very end
+
+Tho’ the storm clouds darken the sky, o’er the heavenly trail
+I just keep trusting my Lord, He will never fail', 'b', 'Tue, May 21', 1, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-630-sound-the-battle-cry', '630', 'Sound the Battle Cry!', '', 'bbbb', 'Mon, May 20', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-807-the-family-of-god', '807', 'The Family of God', 'Verse 1
+You will notice we say brother
+And sister ''round here
+
+It''s because we''re a family
+And these folks are so near
+
+When one has a heartache
+We all share the tears
+
+And rejoice in each victory
+In this family so dear
+
+
+
+Chorus
+I''m so glad I''m a part
+Of the fam''ly of God
+
+I''ve been washed in the fountain
+Cleansed by His blood
+
+Joint heirs with Jesus
+As we travel this sod
+
+For I''m part of the fam''ly
+The family of God
+
+
+
+Verse 2
+From the door of an orphanage
+To the house of the King
+
+No longer an outcast
+A new song I sing
+
+From rags unto riches
+From the weak to the strong
+
+I''m not worthy to be here
+But praise God I belong', '#', 'Sun, May 19', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-19-let-us-crown-him', '19', 'Let Us Crown Him!', 'Verse 1
+All hail the pow’r of Jesus’ name! Let angels prostrate fall;
+Bring forth the royal diadem, and crown Him Lord of all.
+
+Chorus
+Let us crown Him, Let us crown Him,
+Let us crown the great Redeemer Lord of all
+
+Let us crown Him, Let us crown Him
+Let us crown Him Lord of all.
+
+Verse 2
+Let ev’ry kindred, ev’ry tribe on this terrestrial ball,
+To Him all majesty ascribe, And crown Him Lord of all
+
+Verse 3
+O that with yonder sacred throng we at His feet may fall!
+We’ll join the everlasting song, and crown Him Lord of all.
+
+', 'b', 'Sun, May 12', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-molding-a-masterpiece', '', 'Molding a Masterpiece', 'Verse 1
+Master Potter, why do You labor all day,
+Giving such effort to rough, worthless pieces of clay?
+
+Why such feeling in Your hands?
+Why such care in every touch?
+Why all the struggle? Your creation is nothing but dust.
+
+Chorus
+I''m molding a masterpiece,
+A work of great beauty.
+
+I''m molding a masterpiece; 
+My labor''s not done.
+
+A trophy, a treasure 
+of worth beyond measure
+
+I''m molding a masterpiece,
+A masterpiece of love.
+
+Verse 2
+Loving Jesus, why are the children all here,
+Gathered around You and eagerly clinging so near?
+
+Urgent matters clamor loudly,
+and the children interfere
+Why do You hold them and so tenderly dry every tear?
+
+Verse 3
+Heavenly Father, sometimes I question your way:
+Why do You ask me to mold simple pieces of clay?
+
+Give me eyes to see the future,
+though it''s hidden from my view;
+Give me compassion as I''m molding a treasure for You.', 'b', 'Sun, May 5', 1, 'majesty-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-238-i-must-tell-jesus', '238', 'I Must Tell Jesus', 'Verse 1
+I must tell Jesus all of my trials;
+I cannot bear these burdens alone;
+In my distress He kindly will help me;
+He ever loves and cares for His own.
+
+Chorus
+I must tell Jesus!
+I must tell Jesus!
+I cannot bear my burdens alone;
+I must tell Jesus!
+I must tell Jesus!
+Jesus can help me, Jesus alone.
+
+Verse 2
+I must tell Jesus all of my troubles;
+He is a kind, compassionate friend;
+If I but ask Him, He will deliver,
+Make of my troubles quickly an end.
+
+Verse 3
+Tempted and tried, I need a great Savior,
+One who can help my burdens to bear;
+I must tell Jesus, I must tell Jesus;
+He all my cares and sorrows will share.
+
+Verse 4
+O how the world to evil allures me!
+O how my heart is tempted to sin!
+I must tell Jesus, and He will help me
+Over the world the vict''ry to win.
+
+', 'bbbbb', 'Sun, Apr 28', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-421-wonderful-words-of-life', '421', 'Wonderful Words of Life', 'Verse 1
+Sing them over again to me,
+Wonderful words of life;
+
+Let me more of their beauty see,
+Wonderful words of life;
+
+Words of life and beauty
+Teach me faith and duty.
+
+
+Chorus
+Beautiful words, wonderful words,
+Wonderful words of life;
+
+Beautiful words, wonderful words,
+Wonderful words of life.
+
+
+Verse 2
+Christ, the blessed one, gives to all
+Wonderful words of life;
+
+Sinner, list to the loving call,
+Wonderful words of life;
+
+All so freely given,
+Wooing us to heaven. 
+
+
+Verse 3
+Sweetly echo the gospel call,
+Wonderful words of life;
+
+Offer pardon and peace to all,
+Wonderful words of life;
+
+Jesus, only Savior,
+Sanctify forever.', '', 'Sun, Apr 21', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-139-when-i-see-the-blood', '139', 'When I See the Blood', '', 'C', 'Sun, Mar 17', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-517-i-am-resolved', '517', 'I Am Resolved', '', '', 'Sun, Mar 17', 1, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-2-come-thou-almighty-king', '2', 'Come Thou Almighty King', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-3-praise-the-savior-ye-who-know-him', '3', 'Praise The Savior, Ye Who Know Him!', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-4-when-morning-gilds-the-skies', '4', 'When Morning Gilds the Skies', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-5-o-day-of-rest-and-gladness', '5', 'O Day of Rest and Gladness', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-6-safely-through-another-week', '6', 'Safely Through Another Week', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-7-love-divine-all-loves-excelling', '7', 'Love Divine, All Loves Excelling', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-8-joyful-joyful-we-adore-thee', '8', 'Joyful, Joyful, We Adore Thee', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-10-o-for-a-thousand-tongues-to-sing', '10', 'O for a Thousand Tongues to Sing', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-12-awake-my-soul-in-joyful-lays', '12', 'Awake, My Soul, in Joyful Lays', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-14-arise-my-soul-arise', '14', 'Arise, My Soul, Arise', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-15-angel-voices-ever-singing', '15', 'Angel Voices Ever Singing', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-16-immortal-invisible-god-only-wise', '16', 'Immortal, Invisible, God Only Wise', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-17-lord-with-glowing-heart-i-d-praise-thee', '17', 'Lord With Glowing Heart I''d Praise Thee!', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-20-glorious-things-of-thee-are-spoken', '20', 'Glorious Things of Thee Are Spoken', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-21-christ-is-our-cornerstone', '21', 'Christ Is Our Cornerstone', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-22-the-church-s-one-foundation', '22', 'The Church''s One Foundation', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-23-christ-is-made-the-sure-foundation', '23', 'Christ Is Made the Sure Foundation', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-24-chosen-seed-of-zion-s-children', '24', 'Chosen Seed of Zion''s Children', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-25-o-my-soul-bless-thou-jehova', '25', 'O My Soul, Bless Thou Jehova', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-27-mighty-god-while-angels-bless-thee', '27', 'Mighty God, While Angels Bless Thee', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-28-for-the-beauty', '28', 'For the Beauty', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-102-o-come-o-come-emmanuel', '102', 'O Come, O Come, Emmanuel', '', '#', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-107-angels-we-have-heard-on-high-2', '107', 'Angels We Have Heard on High', '', 'b', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-109-it-came-upon-the-midnight-clear', '109', 'It Came upon the Midnight Clear', '', 'bb', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-111-silent-night', '111', 'Silent Night', '', 'bb', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-168-the-cleansing-wave', '168', 'The Cleansing Wave', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-184-hallelujah-what-a-savior', '184', 'Hallelujah, What a Savior!', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-212-some-golden-daybreak', '212', 'Some Golden Daybreak', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-223-take-time-to-be-holy', '223', 'Take Time to Be Holy', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-236-nearer-my-god-to-thee', '236', 'Nearer, My God, to Thee', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-306-complete-in-thee', '306', 'Complete in Thee', '', 'b', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-334-o-say-but-i-m-glad', '334', 'O Say, but I''m Glad', '', '##', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-344-satisfied', '344', 'Satisfied', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-365-a-child-of-the-king', '365', 'A Child of the King', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-367-jesus-took-my-burden', '367', 'Jesus Took My Burden', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-368-did-you-think-to-pray', '368', 'Did You Think to Pray?', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-369-i-m-abiding-in-canaan-land', '369', 'I''m Abiding in Canaan Land', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-370-saved-to-the-uttermost', '370', 'Saved to the Uttermost', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-371-grace-tis-a-charming-sound', '371', 'Grace! ''Tis a Charming Sound', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-373-count-me', '373', 'Count Me', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-374-it-is-morning-in-my-heart', '374', 'It is Morning in My Heart', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-376-he-included-me', '376', 'He Included Me', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-379-o-boundless-salvation', '379', 'O Boundless Salvation', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-381-is-my-name-written-there', '381', 'Is My Name Written There', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-382-i-heard-the-voice-of-jesus-say', '382', 'I Heard the Voice of Jesus Say', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-394-what-a-wonderful-savior', '394', 'What a Wonderful Savior', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-402-like-a-river-glorious', '402', 'Like a River Glorious', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-416-hiding-in-thee', '416', 'Hiding in Thee', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-418-faith-is-the-victory', '418', 'Faith Is the Victory', '', 'bbb', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-419-fade-fade-each-earthly-joy', '419', 'Fade, Fade, Each Earthly Joy', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-420-my-anchor-holds', '420', 'My Anchor Holds', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-422-yesterday-today-forever', '422', 'Yesterday, Today, Forever', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-424-jesus-lover-of-my-soul', '424', 'Jesus, Lover of My Soul', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-425-my-faith-looks-up-to-thee', '425', 'My Faith Looks up to Thee', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-427-his-yoke-is-easy', '427', 'His Yoke Is Easy', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-428-does-jesus-care', '428', 'Does Jesus Care?', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-429-held-in-his-mighty-arms', '429', 'Held in His Mighty Arms', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-430-the-everlasting-arms', '430', 'The Everlasting Arms', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-431-he-who-safely-keepeth', '431', 'He Who Safely Keepeth', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-432-never-give-up', '432', 'Never Give Up', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-433-show-me-thy-way-o-lord', '433', 'Show Me Thy Way, O Lord', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-435-wonderful-wonderful-jesus', '435', 'Wonderful, Wonderful Jesus', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-436-o-zion-haste', '436', 'O Zion, Haste', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-437-ye-christian-heralds', '437', 'Ye Christian Heralds', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-438-who-trusts-in-god-s-unchanging-love', '438', 'Who Trusts in God''s Unchanging Love', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-439-o-thou-in-whose-presence', '439', 'O Thou, in Whose Presence', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-440-abide-with-me', '440', 'Abide with Me', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-461-o-to-be-like-thee', '461', 'O to Be Like Thee', '', '##', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-489-where-he-leads-me', '489', 'Where He Leads Me', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-562-just-as-i-am-without-one-plea', '562', 'Just as I Am, without One Plea', '', 'bbbbb', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-567-all-your-anxiety', '567', 'All Your Anxiety', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-570-be-still-my-soul', '570', 'Be Still, My Soul', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-591-wonderful-peace', '591', 'Wonderful Peace', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-611-take-my-life-and-let-it-be', '611', 'Take My Life and Let It Be', '', 'b', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-618-stand-up-stand-up-for-jesus', '618', 'Stand Up, Stand Up for Jesus', '', '#', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-636-have-i-done-my-best-for-jesus', '636', 'Have I Done My Best for Jesus', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-674-beulah-land', '674', 'Beulah Land', '', '', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-690-sweet-by-and-by', '690', 'Sweet By and By', '', '#', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-741-i-m-so-happy-and-here-s-the-reason-why', '741', 'I''m So Happy and Here''s the Reason Why', '', 'C', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-791-the-old-book-and-the-old-faith', '791', 'The Old Book and the Old Faith', '', 'bbbbb', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-819-constantly-abiding', '819', 'Constantly Abiding', '', 'bbbbb', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-855-nothing-is-impossible', '855', 'Nothing Is Impossible', '', 'bb', '', 0, 'living-hymns');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-145-hymn', '145', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-3', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-4', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-5', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-6', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-7', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-8', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-9', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-10', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-11', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-12', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-13', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-14', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-15', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-16', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-17', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-18', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-19', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-20', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-21', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-22', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-23', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-24', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-25', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-128-there-s-a-wideness-in-god-s-mercy', '128', 'There’s a Wideness in God’s Mercy', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-26', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-610-give-of-your-best-to-the-master', '610', 'Give of Your Best to the Master', 'Verse 1
+Give of your best to the Master;
+Give of the strength of your youth;
+Throw your soul’s fresh, glowing ardor
+Into the battle for truth.
+Jesus has set the example,
+Dauntless was He, young and brave;
+Give Him your loyal devotion;
+Give Him the best that you have.
+
+
+Chorus
+Give of your best to the Master;
+Give of the strength of your youth;
+Clad in salvation’s full armor,
+Join in the battle for truth.
+
+
+Verse 2
+Give of your best to the Master;
+Give Him first place in your heart;
+Give Him first place in your service;
+Consecrate every part.
+Give, and to you will be given;
+God His beloved Son gave;
+Gratefully seeking to serve Him,
+Give Him the best that you have.
+
+
+Verse 3
+Give of your best to the Master;
+Naught else is worthy His love;
+He gave Himself for your ransom,
+Gave up His glory above.
+Laid down His life without murmur,
+You from sin’s ruin to save;
+Give Him your heart’s adoration,
+Give Him the best that you have.
+', 'bbb', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-27', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-124-we-three-kings-of-orient-are', '124', 'We Three Kings of Orient Are', '', '#', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-28', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-29', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-30', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-31', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-hymn-hymn-32', '', '', '', '', '', 0, 'other-hymn');
+INSERT OR IGNORE INTO hymns (id, hymn_number, name, lyrics_markdown, music_key, last_played, times_played_last_6_months, source_id) VALUES ('hymn-422-hymn', '422', '', 'Verse 1
+Oh, how sweet the glorious message simple faith may claim:
+Yesterday, today, forever, Jesus is the same;
+Still He loves to save the sinful, heal the sick and lame,
+Cheer the mourner, still the tempest glory to His name!
+
+Chorus
+Yesterday, today, forever, Jesus is the same,
+All may change, but Jesus never glory to His name!
+Glory to His name! Glory to His name!
+All may change, but Jesus never glory to His name!
+
+Verse 2
+He who pardoned erring Peter
+Never needst thou fear;
+He who came to faithless Thomas
+All thy doubt will clear;
+He who let the loved disciple
+On His bosom rest,
+Bids thee still, with love as tender,
+Lean upon His breast.
+
+Verse 3
+He who ‘mid the raging billows
+Walked upon the sea
+Still can hush our wildest tempest,
+As on Galilee;
+He who wept and prayed in anguish
+In Gethsemane
+Drinks with us each cup of trembling,
+In our agony.
+
+Verse 4
+As He walked once to Emmaus, with them to abide,
+So thro'' all life’s way He walketh ever near our side;
+Soon again we shall behold Him hasten, Lord, the day
+But ’twill still be this same Jesus as He went away.
+', '', '', 0, 'other-hymn');
