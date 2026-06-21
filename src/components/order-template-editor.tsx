@@ -1,5 +1,10 @@
-import { DotsSixVerticalIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  DotsSixVerticalIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import * as React from "react";
+import { v4 as uuidv4 } from "uuid";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -29,7 +34,7 @@ import type {
   ServiceTypeCard,
 } from "~/lib/order-service-types";
 
-const createId = () => crypto.randomUUID();
+const createId = () => uuidv4();
 
 const createActivity = (): OrderActivity => ({
   activityName: "New Activity",
@@ -107,7 +112,11 @@ const reorderActivity = (
       (activity) => activity.id === targetActivityId
     );
 
-    if (currentIndex === -1 || targetIndex === -1 || currentIndex === targetIndex) {
+    if (
+      currentIndex === -1 ||
+      targetIndex === -1 ||
+      currentIndex === targetIndex
+    ) {
       return segment;
     }
 
@@ -149,7 +158,9 @@ const ActivityEditor = ({
         </div>
         <FieldGroup className="flex-1 md:grid md:grid-cols-2">
           <Field>
-            <FieldLabel htmlFor={`${activity.id}-name`}>Activity name</FieldLabel>
+            <FieldLabel htmlFor={`${activity.id}-name`}>
+              Activity name
+            </FieldLabel>
             <Input
               id={`${activity.id}-name`}
               onChange={(event) =>
@@ -159,7 +170,9 @@ const ActivityEditor = ({
             />
           </Field>
           <Field>
-            <FieldLabel htmlFor={`${activity.id}-type`}>Activity type</FieldLabel>
+            <FieldLabel htmlFor={`${activity.id}-type`}>
+              Activity type
+            </FieldLabel>
             <NativeSelect
               className="w-full"
               id={`${activity.id}-type`}
@@ -182,7 +195,9 @@ const ActivityEditor = ({
           </Field>
           {allowHymnSelection && activity.activityType === "hymn" ? (
             <Field>
-              <FieldLabel htmlFor={`${activity.id}-hymn`}>Hymn selection</FieldLabel>
+              <FieldLabel htmlFor={`${activity.id}-hymn`}>
+                Hymn selection
+              </FieldLabel>
               <NativeSelect
                 className="w-full"
                 id={`${activity.id}-hymn`}
@@ -242,7 +257,9 @@ const SegmentEditor = ({
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <FieldGroup className="flex-1">
           <Field>
-            <FieldLabel htmlFor={`${segment.id}-type-name`}>Service card name</FieldLabel>
+            <FieldLabel htmlFor={`${segment.id}-type-name`}>
+              Service card name
+            </FieldLabel>
             <Input
               id={`${segment.id}-type-name`}
               onChange={(event) =>
@@ -251,7 +268,8 @@ const SegmentEditor = ({
               value={segment.typeName}
             />
             <FieldDescription>
-              Examples: Sunday School, Sunday Main Service, Sunday Evening Service.
+              Examples: Sunday School, Sunday Main Service, Sunday Evening
+              Service.
             </FieldDescription>
           </Field>
         </FieldGroup>
@@ -265,7 +283,9 @@ const SegmentEditor = ({
       <div className="flex items-center justify-between gap-4">
         <div>
           <CardTitle className="text-base">Activities</CardTitle>
-          <CardDescription>Drag activities to reorder them within this service card.</CardDescription>
+          <CardDescription>
+            Drag activities to reorder them within this service card.
+          </CardDescription>
         </div>
         <Button onClick={onAddActivity} type="button" variant="secondary">
           <PlusIcon data-icon="inline-start" />
@@ -286,7 +306,9 @@ const SegmentEditor = ({
           onRemove={() =>
             onUpdateSegment({
               ...segment,
-              activities: segment.activities.filter((item) => item.id !== activity.id),
+              activities: segment.activities.filter(
+                (item) => item.id !== activity.id
+              ),
             })
           }
           onUpdate={(updatedActivity) =>
@@ -312,7 +334,8 @@ export const OrderTemplateEditor = ({
   onChange,
   value,
 }: EditorProps) => {
-  const [draggedActivity, setDraggedActivity] = React.useState<DragState | null>(null);
+  const [draggedActivity, setDraggedActivity] =
+    React.useState<DragState | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -320,11 +343,17 @@ export const OrderTemplateEditor = ({
         <div className="flex flex-col gap-1">
           <h2 className="font-heading text-xl font-semibold">Service cards</h2>
           <p className="text-sm text-muted-foreground">
-            Add cards for the main service segments, then add activities to each card.
+            Add cards for the main service segments, then add activities to each
+            card.
           </p>
         </div>
         <Button
-          onClick={() => onChange({ ...value, service_type: [...value.service_type, createSegment()] })}
+          onClick={() =>
+            onChange({
+              ...value,
+              service_type: [...value.service_type, createSegment()],
+            })
+          }
           type="button"
           variant="outline"
         >
@@ -363,13 +392,13 @@ export const OrderTemplateEditor = ({
           onRemove={() =>
             onChange({
               ...value,
-              service_type: value.service_type.filter((item) => item.id !== segment.id),
+              service_type: value.service_type.filter(
+                (item) => item.id !== segment.id
+              ),
             })
           }
           onUpdateSegment={(updatedSegment) =>
-            onChange(
-              updateSegment(value, segment.id, () => updatedSegment)
-            )
+            onChange(updateSegment(value, segment.id, () => updatedSegment))
           }
           segment={segment}
         />

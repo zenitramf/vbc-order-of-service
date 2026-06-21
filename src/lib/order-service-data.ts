@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
+import { v4 as uuidv4 } from "uuid";
 
 import type {
   CreateOrderInput,
@@ -163,7 +164,7 @@ const slugify = (value: string) =>
     .trim()
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/gu, "-")
-    .replaceAll(/^-+|-+$/gu, "") || crypto.randomUUID();
+    .replaceAll(/^-+|-+$/gu, "") || uuidv4();
 
 const normalizeTemplate = (
   template: OrderServiceTemplateJson,
@@ -174,11 +175,11 @@ const normalizeTemplate = (
     activities: (segment.activities ?? []).map((activity) => ({
       activityName: activity.activityName?.trim() || "Activity",
       activityType: activity.activityType?.trim() || "custom",
-      id: activity.id || crypto.randomUUID(),
+      id: activity.id || uuidv4(),
       ...(activity.hymnId ? { hymnId: activity.hymnId } : {}),
       ...(activity.notes ? { notes: activity.notes } : {}),
     })),
-    id: segment.id || crypto.randomUUID(),
+    id: segment.id || uuidv4(),
     typeName: segment.typeName?.trim() || "Service Segment",
   })),
 });
@@ -404,7 +405,7 @@ export const saveTemplate = createServerFn({ method: "POST" })
     await ensureDatabase();
     const db = getDatabase();
     const name = data.name.trim() || "Untitled Template";
-    const id = data.id || crypto.randomUUID();
+    const id = data.id || uuidv4();
     const serviceTypeId = slugify(name);
     const template = normalizeTemplate({ ...data.template, name }, name);
     const timestamp = nowIso();
@@ -485,7 +486,7 @@ export const createOrder = createServerFn({ method: "POST" })
       throw new Error("Template not found.");
     }
 
-    const id = crypto.randomUUID();
+    const id = uuidv4();
     const order = normalizeTemplate(template.template, template.name);
     await db
       .prepare(
@@ -572,7 +573,7 @@ export const publishOrder = createServerFn({ method: "POST" })
       statements.push(
         db
           .prepare("INSERT INTO hymn_plays (id, hymn_id, order_id, played_on) VALUES (?, ?, ?, ?)")
-          .bind(crypto.randomUUID(), hymnId, data, order.serviceDate),
+          .bind(uuidv4(), hymnId, data, order.serviceDate),
         db
           .prepare(
             `UPDATE hymns
@@ -647,7 +648,7 @@ export const saveHymn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ id: string }> => {
     await ensureDatabase();
     const db = getDatabase();
-    const id = data.id || crypto.randomUUID();
+    const id = data.id || uuidv4();
     const timestamp = nowIso();
     await db
       .prepare(
