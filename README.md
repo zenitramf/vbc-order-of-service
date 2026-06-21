@@ -53,7 +53,7 @@ pnpm run deploy
 You can access Cloudflare bindings in server functions by using importable `env`:
 
 ```ts
-import { env } from 'cloudflare:workers'
+import { env } from "cloudflare:workers";
 ```
 
 See `src/routes/index.tsx` for an example.

@@ -4,20 +4,20 @@ export const seo = ({
   keywords,
   image,
 }: {
-  title: string;
   description?: string;
   image?: string;
   keywords?: string;
+  title: string;
 }) => {
   const tags = [
     { title },
-    { name: "description", content: description },
-    { name: "keywords", content: keywords },
-    { name: "twitter:title", content: title },
-    { name: "og:type", content: "website" },
-    { name: "og:title", content: title },
-    { name: "og:description", content: description },
-    ...(image ? [{ name: "og:image", content: image }] : []),
+    { content: description, name: "description" },
+    { content: keywords, name: "keywords" },
+    { content: title, name: "twitter:title" },
+    { content: "website", name: "og:type" },
+    { content: title, name: "og:title" },
+    { content: description, name: "og:description" },
+    ...(image ? [{ content: image, name: "og:image" }] : []),
   ];
 
   return tags;
