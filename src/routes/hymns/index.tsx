@@ -2,7 +2,13 @@ import { MusicNotesIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -42,27 +48,156 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { deleteHymn, getHymns } from "~/lib/order-service-data";
+import type { HymnRecord } from "~/lib/order-service-types";
+
+interface HymnColumnsOptions {
+  hymnToDelete: string | null;
+  isDeleting: boolean;
+  onDelete: (hymnId: string, hymnName: string) => Promise<void>;
+  onOpenChange: (open: boolean, hymnId: string) => void;
+}
+
+const createHymnColumns = ({
+  hymnToDelete,
+  isDeleting,
+  onDelete,
+  onOpenChange,
+}: HymnColumnsOptions): ColumnDef<HymnRecord>[] => [
+  {
+    accessorKey: "hymnNumber",
+    header: "No.",
+  },
+  {
+    accessorKey: "name",
+    cell: ({ row }) => (
+      <Link
+        className="font-medium hover:underline"
+        params={{ hymnId: row.original.id }}
+        to="/hymns/$hymnId"
+      >
+        {row.original.name}
+      </Link>
+    ),
+    header: "Name",
+  },
+  {
+    accessorKey: "sourceName",
+    cell: ({ row }) => (
+      <Badge variant="secondary">{row.original.sourceName}</Badge>
+    ),
+    header: "Source",
+  },
+  {
+    accessorKey: "musicKey",
+    header: "Key",
+  },
+  {
+    accessorKey: "lastPlayed",
+    cell: ({ row }) => row.original.lastPlayed || "—",
+    header: "Last played",
+  },
+  {
+    accessorKey: "timesPlayedLastSixMonths",
+    header: "6 months",
+  },
+  {
+    cell: ({ row }) => (
+      <div className="flex gap-2">
+        <Button asChild size="sm" variant="outline">
+          <Link params={{ hymnId: row.original.id }} to="/hymns/$hymnId">
+            Edit
+          </Link>
+        </Button>
+        <AlertDialog
+          onOpenChange={(open) => {
+            onOpenChange(open, row.original.id);
+          }}
+          open={hymnToDelete === row.original.id}
+        >
+          <AlertDialogTrigger asChild>
+            <Button size="sm" type="button" variant="ghost">
+              <TrashIcon data-icon="inline-start" />
+              Delete
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this hymn?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove "{row.original.name}" from your
+                hymn library.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isDeleting}
+                onClick={async () => {
+                  await onDelete(row.original.id, row.original.name);
+                }}
+                variant="destructive"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    ),
+    header: "Actions",
+    id: "actions",
+  },
+];
 
 const HymnsPage = () => {
   const hymns = Route.useLoaderData();
+  const [hymnRows, setHymnRows] = useState(hymns);
   const router = useRouter();
   const deleteHymnFn = useServerFn(deleteHymn);
   const [hymnToDelete, setHymnToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  useEffect(() => {
+    setHymnRows(hymns);
+  }, [hymns]);
+
   const handleDelete = async (hymnId: string, hymnName: string) => {
+    const previousRows = hymnRows;
+
     try {
       setIsDeleting(true);
+      setHymnRows((currentRows) =>
+        currentRows.filter((hymn) => hymn.id !== hymnId)
+      );
+      setHymnToDelete(null);
+
       await deleteHymnFn({ data: hymnId });
       await router.invalidate();
-      setHymnToDelete(null);
       toast.success(`Deleted "${hymnName}".`);
     } catch {
+      setHymnRows(previousRows);
       toast.error("Unable to delete hymn. Please try again.");
     } finally {
       setIsDeleting(false);
     }
   };
+
+  const columns = createHymnColumns({
+    hymnToDelete,
+    isDeleting,
+    onDelete: handleDelete,
+    onOpenChange: (open, hymnId) => {
+      setHymnToDelete(open ? hymnId : null);
+    },
+  });
+
+  const table = useReactTable({
+    columns,
+    data: hymnRows,
+    getCoreRowModel: getCoreRowModel(),
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -92,7 +227,7 @@ const HymnsPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {hymns.length === 0 ? (
+          {hymnRows.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -115,85 +250,32 @@ const HymnsPage = () => {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>No.</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Key</TableHead>
-                  <TableHead>Last played</TableHead>
-                  <TableHead>6 months</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
               </TableHeader>
               <TableBody>
-                {hymns.map((hymn) => (
-                  <TableRow key={hymn.id}>
-                    <TableCell>{hymn.hymnNumber}</TableCell>
-                    <TableCell>
-                      <Link
-                        className="font-medium hover:underline"
-                        params={{ hymnId: hymn.id }}
-                        to="/hymns/$hymnId"
-                      >
-                        {hymn.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{hymn.sourceName}</Badge>
-                    </TableCell>
-                    <TableCell>{hymn.musicKey}</TableCell>
-                    <TableCell>{hymn.lastPlayed || "—"}</TableCell>
-                    <TableCell>{hymn.timesPlayedLastSixMonths}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button asChild size="sm" variant="outline">
-                          <Link
-                            params={{ hymnId: hymn.id }}
-                            to="/hymns/$hymnId"
-                          >
-                            Edit
-                          </Link>
-                        </Button>
-                        <AlertDialog
-                          onOpenChange={(open) => {
-                            setHymnToDelete(open ? hymn.id : null);
-                          }}
-                          open={hymnToDelete === hymn.id}
-                        >
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" type="button" variant="ghost">
-                              <TrashIcon data-icon="inline-start" />
-                              Delete
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Delete this hymn?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will permanently remove "{hymn.name}" from
-                                your hymn library.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel disabled={isDeleting}>
-                                Cancel
-                              </AlertDialogCancel>
-                              <AlertDialogAction
-                                disabled={isDeleting}
-                                onClick={async () => {
-                                  await handleDelete(hymn.id, hymn.name);
-                                }}
-                                variant="destructive"
-                              >
-                                {isDeleting ? "Deleting..." : "Delete"}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
                   </TableRow>
                 ))}
               </TableBody>
