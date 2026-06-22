@@ -21,13 +21,20 @@ import {
   FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import { getEmailSettings, saveEmailSettings } from "~/lib/order-service-data";
+import {
+  addEmailRecipient,
+  deleteEmailRecipient,
+  getEmailSettings,
+  saveEmailSettings,
+} from "~/lib/order-service-data";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 const SettingsPage = () => {
   const settings = Route.useLoaderData();
   const router = useRouter();
+  const addRecipient = useServerFn(addEmailRecipient);
+  const deleteRecipient = useServerFn(deleteEmailRecipient);
   const saveSettings = useServerFn(saveEmailSettings);
   const [smtpAddress, setSmtpAddress] = React.useState(settings.smtpAddress);
   const [smtpPort, setSmtpPort] = React.useState(String(settings.smtpPort));
@@ -42,7 +49,7 @@ const SettingsPage = () => {
   const canSave =
     smtpAddress.trim().length > 0 && Number.isInteger(portNumber) && portNumber >= 1 && portNumber <= 65_535;
 
-  const addRecipient = () => {
+  const onAddRecipient = async () => {
     const email = newRecipient.trim().toLowerCase();
 
     if (!EMAIL_REGEX.test(email)) {
@@ -55,8 +62,26 @@ const SettingsPage = () => {
       return;
     }
 
-    setRecipients((current) => [...current, email].sort());
-    setNewRecipient("");
+    try {
+      await addRecipient({ data: email });
+      setRecipients((current) => [...current, email].sort());
+      setNewRecipient("");
+      toast.success("Recipient added.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Recipient could not be added.");
+    }
+  };
+
+  const onDeleteRecipient = async (email: string) => {
+    try {
+      await deleteRecipient({ data: email });
+      setRecipients((current) => current.filter((recipient) => recipient !== email));
+      toast.success("Recipient removed.");
+      await router.invalidate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Recipient could not be removed.");
+    }
   };
 
   const onSave = async () => {
@@ -192,14 +217,14 @@ const SettingsPage = () => {
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
-                        addRecipient();
+                        void onAddRecipient();
                       }
                     }}
                     placeholder="recipient@example.com"
                     type="email"
                     value={newRecipient}
                   />
-                  <Button onClick={addRecipient} type="button" variant="outline">
+                  <Button onClick={() => void onAddRecipient()} type="button" variant="outline">
                     <PlusIcon data-icon="inline-start" />
                     Add
                   </Button>
@@ -215,7 +240,7 @@ const SettingsPage = () => {
                     <div className="flex items-center justify-between gap-3 rounded-lg border p-3" key={email}>
                       <span className="truncate text-sm">{email}</span>
                       <Button
-                        onClick={() => setRecipients((current) => current.filter((recipient) => recipient !== email))}
+                        onClick={() => void onDeleteRecipient(email)}
                         size="sm"
                         type="button"
                         variant="ghost"

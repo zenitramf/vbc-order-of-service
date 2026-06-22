@@ -1103,6 +1103,31 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     return { success: true };
   });
 
+export const addEmailRecipient = createServerFn({ method: "POST" })
+  .validator((email: string) => email)
+  .handler(async ({ data }): Promise<{ email: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const email = data.trim().toLowerCase();
+    assertValidEmail(email, "Recipient");
+    await db
+      .prepare("INSERT OR IGNORE INTO email_recipients (id, email) VALUES (?, ?)")
+      .bind(uuidv4(), email)
+      .run();
+
+    return { email };
+  });
+
+export const deleteEmailRecipient = createServerFn({ method: "POST" })
+  .validator((email: string) => email)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    await db.prepare("DELETE FROM email_recipients WHERE email = ?").bind(data.trim().toLowerCase()).run();
+
+    return { success: true };
+  });
+
 export const getHymns = createServerFn({ method: "GET" }).handler(
   async (): Promise<HymnRecord[]> => {
     await ensureDatabase();
