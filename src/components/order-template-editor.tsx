@@ -8,6 +8,18 @@ import { v4 as uuidv4 } from "uuid";
 
 import { Button } from "~/components/ui/button";
 import {
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxLabel,
+  ComboboxList,
+  ComboboxSeparator,
+} from "~/components/ui/combobox";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -26,6 +38,7 @@ import {
   NativeSelectOption,
 } from "~/components/ui/native-select";
 import { Textarea } from "~/components/ui/textarea";
+import { cn } from "~/lib/utils";
 import type {
   HymnOption,
   OrderActivity,
@@ -33,6 +46,16 @@ import type {
   ReferenceOption,
   ServiceTypeCard,
 } from "~/lib/order-service-types";
+
+interface HymnComboboxOption {
+  label: string;
+  value: string;
+}
+
+interface HymnComboboxGroup {
+  items: HymnComboboxOption[];
+  value: string;
+}
 
 const createId = () => uuidv4();
 
@@ -47,6 +70,21 @@ const createSegment = (): ServiceTypeCard => ({
   id: createId(),
   typeName: "New Service Segment",
 });
+
+const groupHymnOptionsBySource = (
+  hymnOptions: HymnOption[]
+): HymnComboboxGroup[] => {
+  const groups = new Map<string, HymnComboboxOption[]>();
+
+  for (const hymn of hymnOptions) {
+    const sourceName = hymn.sourceName || "Other";
+    const items = groups.get(sourceName) ?? [];
+    items.push({ label: hymn.label, value: hymn.id });
+    groups.set(sourceName, items);
+  }
+
+  return Array.from(groups, ([value, items]) => ({ items, value }));
+};
 
 interface DragState {
   activityId: string;
@@ -140,10 +178,22 @@ const ActivityEditor = ({
   onUpdate,
 }: ActivityEditorProps) => {
   const isDragging = draggedActivity?.activityId === activity.id;
+  const hymnOptionGroups = React.useMemo(
+    () => groupHymnOptionsBySource(hymnOptions),
+    [hymnOptions]
+  );
+  const selectedHymn = hymnOptionGroups
+    .flatMap((group) => group.items)
+    .find((hymn) => hymn.value === activity.hymnId);
+  const needsHymnSelection =
+    allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
 
   return (
     <div
-      className="rounded-2xl border bg-background/50 p-4"
+      className={cn(
+        "rounded-2xl border bg-background/50 p-4",
+        needsHymnSelection && "border-destructive"
+      )}
       draggable
       onDragEnd={onDragEnd}
       onDragOver={(event) => event.preventDefault()}
@@ -198,24 +248,49 @@ const ActivityEditor = ({
               <FieldLabel htmlFor={`${activity.id}-hymn`}>
                 Hymn selection
               </FieldLabel>
-              <NativeSelect
-                className="w-full"
-                id={`${activity.id}-hymn`}
-                onChange={(event) =>
+              <Combobox
+                isItemEqualToValue={(item, value) => item.value === value.value}
+                items={hymnOptionGroups}
+                onValueChange={(hymn) =>
                   onUpdate({
                     ...activity,
-                    hymnId: event.target.value || undefined,
+                    hymnId: hymn?.value,
                   })
                 }
-                value={activity.hymnId ?? ""}
+                value={selectedHymn ?? null}
               >
-                <NativeSelectOption value="">Choose a hymn</NativeSelectOption>
-                {hymnOptions.map((hymn) => (
-                  <NativeSelectOption key={hymn.id} value={hymn.id}>
-                    {hymn.label}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                <ComboboxInput
+                  aria-invalid={needsHymnSelection}
+                  className="w-full"
+                  id={`${activity.id}-hymn`}
+                  placeholder="Choose a hymn"
+                />
+                <ComboboxContent>
+                  <ComboboxEmpty>No hymns found.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(group, index) => (
+                      <ComboboxGroup key={group.value} items={group.items}>
+                        <ComboboxLabel>{group.value}</ComboboxLabel>
+                        <ComboboxCollection>
+                          {(hymn) => (
+                            <ComboboxItem key={hymn.value} value={hymn}>
+                              {hymn.label}
+                            </ComboboxItem>
+                          )}
+                        </ComboboxCollection>
+                        {index < hymnOptionGroups.length - 1 ? (
+                          <ComboboxSeparator />
+                        ) : null}
+                      </ComboboxGroup>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+              {needsHymnSelection ? (
+                <FieldDescription className="text-destructive">
+                  Select a hymn before publishing or sending this order.
+                </FieldDescription>
+              ) : null}
             </Field>
           ) : null}
           <Field className="md:col-span-2">

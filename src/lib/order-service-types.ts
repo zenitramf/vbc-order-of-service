@@ -1,4 +1,5 @@
 export type ServiceStatus = "Planning" | "Published";
+export type OrderEmailStatus = "Queued" | "Sending" | "Sent" | "Failed";
 
 export type ActivityTypeId =
   | "hymn"
@@ -69,6 +70,31 @@ export interface OrderRecord extends OrderSummary {
   templateId?: string;
 }
 
+export interface OrderEmailDeliveryRecord {
+  errorMessage?: string;
+  id: string;
+  orderId: string;
+  queuedAt: string;
+  sentAt?: string;
+  status: OrderEmailStatus;
+  subject: string;
+}
+
+export interface OrderEmailQueueMessage {
+  attachment: {
+    bucket: string;
+    contentType: "application/pdf";
+    filename: string;
+    objectKey: string;
+  };
+  body: "See attachment";
+  deliveryId: string;
+  orderId: string;
+  recipients: string[];
+  smtpSettingsKey: "email.smtp";
+  subject: string;
+}
+
 export interface HymnRecord {
   hymnNumber: string;
   id: string;
@@ -84,6 +110,7 @@ export interface HymnRecord {
 export interface HymnOption {
   id: string;
   label: string;
+  sourceName: string;
 }
 
 export interface DashboardData {
@@ -170,6 +197,7 @@ export interface EmailSettingsRecord {
   recipients: string[];
   smtpAddress: string;
   smtpPort: number | "";
+  smtpSenderName: string;
   smtpTokenConfigured: boolean;
   smtpUserConfigured: boolean;
 }
@@ -178,6 +206,7 @@ export interface SaveEmailSettingsInput {
   recipients: string[];
   smtpAddress: string;
   smtpPort: number;
+  smtpSenderName: string;
   smtpToken?: string;
   smtpUser?: string;
 }

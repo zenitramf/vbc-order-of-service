@@ -11,6 +11,9 @@ import type {
   EmailSettingsRecord,
   HymnOption,
   HymnRecord,
+  OrderEmailDeliveryRecord,
+  OrderEmailQueueMessage,
+  OrderEmailStatus,
   OrderRecord,
   OrderServiceTemplateJson,
   OrderSummary,
@@ -168,6 +171,20 @@ CREATE TABLE IF NOT EXISTS email_recipients (
   email TEXT NOT NULL UNIQUE,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS order_email_deliveries (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL UNIQUE REFERENCES orders_of_service(id),
+  subject TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'Queued',
+  queued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  sent_at TEXT,
+  error_message TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS order_email_deliveries_order_idx
+  ON order_email_deliveries(order_id);
 `;
 
 let databaseInitialized = false;
@@ -186,6 +203,16 @@ const getPdfBucket = (): R2Bucket => {
   }
 
   return env.SERVICE_PDFS;
+};
+
+const getEmailQueue = (): Queue<OrderEmailQueueMessage> => {
+  const queue = (env as unknown as { OOS_EMAIL_SENDER?: Queue<OrderEmailQueueMessage> }).OOS_EMAIL_SENDER;
+
+  if (!queue) {
+    throw new Error("Cloudflare Queue binding OOS_EMAIL_SENDER is not configured.");
+  }
+
+  return queue;
 };
 
 const nowIso = () => new Date().toISOString();
@@ -229,8 +256,12 @@ const asString = (value: unknown) => (typeof value === "string" ? value : "");
 const asNumber = (value: unknown) =>
   typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
 
+const getErrorMessage = (error: unknown, fallbackMessage: string) =>
+  error instanceof Error && error.message ? error.message : fallbackMessage;
+
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const EMAIL_SETTINGS_KEY = "email.smtp";
+const SERVICE_PDFS_BUCKET_NAME = "vbc-order-of-service-pdfs";
 
 const getRequiredSecret = (key: string) => {
   const value = (env as unknown as Record<string, string | undefined>)[key]?.trim();
@@ -273,6 +304,10 @@ const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
 
   if (!Number.isInteger(settings.smtpPort) || settings.smtpPort < 1 || settings.smtpPort > 65_535) {
     throw new Error("SMTP port must be between 1 and 65535.");
+  }
+
+  if (!settings.smtpSenderName.trim()) {
+    throw new Error("Sender name is required.");
   }
 
   if (settings.smtpUser !== undefined && settings.smtpUser.trim().length > 0) {
@@ -399,6 +434,29 @@ const mapOrderRow = (row: Record<string, unknown>): OrderRecord => {
 const buildServiceDateConflictMessage = (serviceDate: string) =>
   `An order of service already exists for ${serviceDate}.`;
 
+const formatEmailServiceDate = (serviceDate: string) =>
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+    weekday: "short",
+  }).format(new Date(`${serviceDate}T00:00:00.000Z`));
+
+const getOrderEmailSubject = (order: OrderRecord) =>
+  `${order.title} - ${formatEmailServiceDate(order.serviceDate)}`;
+
+const mapOrderEmailDeliveryRow = (
+  row: Record<string, unknown>
+): OrderEmailDeliveryRecord => ({
+  errorMessage: asString(row.error_message) || undefined,
+  id: asString(row.id),
+  orderId: asString(row.order_id),
+  queuedAt: asString(row.queued_at),
+  sentAt: asString(row.sent_at) || undefined,
+  status: asString(row.status) as OrderEmailStatus,
+  subject: asString(row.subject),
+});
+
 const isServiceDateUniqueConstraintError = (error: unknown): boolean =>
   error instanceof Error &&
   error.message.includes("UNIQUE constraint failed") &&
@@ -519,6 +577,21 @@ const loadHymnsById = async (
       return [hymn.id, hymn] as const;
     })
   );
+};
+
+const hasHymnActivityWithoutSelection = (order: OrderRecord): boolean =>
+  order.order.service_type.some((segment) =>
+    segment.activities.some(
+      (activity) => activity.activityType === "hymn" && !activity.hymnId
+    )
+  );
+
+const assertHymnActivitiesHaveSelections = (order: OrderRecord): void => {
+  if (hasHymnActivityWithoutSelection(order)) {
+    throw new Error(
+      "Select a hymn for every hymn activity before publishing or sending."
+    );
+  }
 };
 
 const buildCraftMyPdfOrderPayload = async (
@@ -938,6 +1011,8 @@ export const publishOrder = createServerFn({ method: "POST" })
       throw new Error("Order of service not found.");
     }
 
+    assertHymnActivitiesHaveSelections(order);
+
     if (order.status === "Published") {
       return { id: data, pdfObjectKey: order.pdfObjectKey };
     }
@@ -1024,6 +1099,119 @@ export const getPublishedOrderPdf = createServerFn({ method: "GET" })
     };
   });
 
+export const getOrderEmailDelivery = createServerFn({ method: "GET" })
+  .validator((orderId: string) => orderId)
+  .handler(async ({ data }): Promise<OrderEmailDeliveryRecord | null> => {
+    await ensureDatabase();
+    const delivery = await getDatabase()
+      .prepare("SELECT * FROM order_email_deliveries WHERE order_id = ?")
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    return delivery ? mapOrderEmailDeliveryRow(delivery) : null;
+  });
+
+export const sendOrderEmail = createServerFn({ method: "POST" })
+  .validator((orderId: string) => orderId)
+  .handler(async ({ data }): Promise<OrderEmailDeliveryRecord> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const order = await getOrder({ data });
+
+    if (!order || order.status !== "Published" || !order.pdfObjectKey) {
+      throw new Error("Publish and save the order PDF before sending email.");
+    }
+
+    assertHymnActivitiesHaveSelections(order);
+
+    const existingDelivery = await db
+      .prepare("SELECT * FROM order_email_deliveries WHERE order_id = ?")
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    if (existingDelivery) {
+      throw new Error("Email has already been queued for this order of service.");
+    }
+
+    const settingsRow = await db
+      .prepare("SELECT value FROM app_settings WHERE key = ?")
+      .bind(EMAIL_SETTINGS_KEY)
+      .first<{ value: string }>();
+    const { results } = await db
+      .prepare("SELECT email FROM email_recipients ORDER BY email")
+      .all<{ email: string }>();
+    const storedSettings = settingsRow
+      ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
+      : {};
+
+    if (!(storedSettings.smtpTokenConfigured && storedSettings.smtpUserConfigured)) {
+      throw new Error("SMTP settings are not fully configured.");
+    }
+
+    const recipients = results.map((row) => row.email);
+
+    if (recipients.length === 0) {
+      throw new Error("At least one email recipient must be configured.");
+    }
+
+    const object = await getPdfBucket().head(order.pdfObjectKey);
+
+    if (!object) {
+      throw new Error("Published PDF was not found in R2 storage.");
+    }
+
+    const deliveryId = uuidv4();
+    const subject = getOrderEmailSubject(order);
+    const timestamp = nowIso();
+    const message: OrderEmailQueueMessage = {
+      attachment: {
+        bucket: SERVICE_PDFS_BUCKET_NAME,
+        contentType: "application/pdf",
+        filename: order.pdfObjectKey,
+        objectKey: order.pdfObjectKey,
+      },
+      body: "See attachment",
+      deliveryId,
+      orderId: data,
+      recipients,
+      smtpSettingsKey: EMAIL_SETTINGS_KEY,
+      subject,
+    };
+
+    await db
+      .prepare(
+        `INSERT INTO order_email_deliveries (id, order_id, subject, status, queued_at, updated_at)
+        VALUES (?, ?, ?, 'Queued', ?, ?)`
+      )
+      .bind(deliveryId, data, subject, timestamp, timestamp)
+      .run();
+
+    try {
+      await getEmailQueue().send(message, { contentType: "json" });
+    } catch (error) {
+      await db
+        .prepare(
+          `UPDATE order_email_deliveries
+          SET status = 'Failed', error_message = ?, updated_at = ?
+          WHERE id = ?`
+        )
+        .bind(getErrorMessage(error, "Unable to queue email."), nowIso(), deliveryId)
+        .run();
+      throw error;
+    }
+
+    const delivery = await db
+      .prepare("SELECT * FROM order_email_deliveries WHERE id = ?")
+      .bind(deliveryId)
+      .first<Record<string, unknown>>();
+
+    if (!delivery) {
+      throw new Error("Email delivery record could not be loaded.");
+    }
+
+    return mapOrderEmailDeliveryRow(delivery);
+  });
+
 export const getEmailSettings = createServerFn({ method: "GET" }).handler(
   async (): Promise<EmailSettingsRecord> => {
     await ensureDatabase();
@@ -1043,6 +1231,7 @@ export const getEmailSettings = createServerFn({ method: "GET" }).handler(
       recipients: results.map((row) => row.email),
       smtpAddress: typeof storedSettings.smtpAddress === "string" ? storedSettings.smtpAddress : "",
       smtpPort: typeof storedSettings.smtpPort === "number" ? storedSettings.smtpPort : "",
+      smtpSenderName: typeof storedSettings.smtpSenderName === "string" ? storedSettings.smtpSenderName : "",
       smtpTokenConfigured: Boolean(storedSettings.smtpTokenConfigured),
       smtpUserConfigured: Boolean(storedSettings.smtpUserConfigured),
     };
@@ -1080,6 +1269,7 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     const settingsToStore = {
       smtpAddress: data.smtpAddress.trim(),
       smtpPort: data.smtpPort,
+      smtpSenderName: data.smtpSenderName.trim(),
       smtpTokenConfigured: true,
       smtpTokenEncrypted: encryptedToken,
       smtpUserConfigured: true,
@@ -1151,15 +1341,17 @@ export const getHymnOptions = createServerFn({ method: "GET" }).handler(
     const db = getDatabase();
     const { results } = await db
       .prepare(
-        `SELECT id, hymn_number, name
+        `SELECT hymns.id, hymns.hymn_number, hymns.name, hymn_sources.name AS source_name
         FROM hymns
-        ORDER BY CAST(NULLIF(hymn_number, '') AS INTEGER), name`
+        JOIN hymn_sources ON hymn_sources.id = hymns.source_id
+        ORDER BY hymn_sources.name, CAST(NULLIF(hymns.hymn_number, '') AS INTEGER), hymns.name`
       )
       .all<Record<string, unknown>>();
 
     return results.map((row) => ({
       id: asString(row.id),
       label: [asString(row.hymn_number), asString(row.name)].filter(Boolean).join(" — "),
+      sourceName: asString(row.source_name),
     }));
   }
 );

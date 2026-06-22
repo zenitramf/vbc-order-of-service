@@ -38,6 +38,7 @@ const SettingsPage = () => {
   const saveSettings = useServerFn(saveEmailSettings);
   const [smtpAddress, setSmtpAddress] = React.useState(settings.smtpAddress);
   const [smtpPort, setSmtpPort] = React.useState(String(settings.smtpPort));
+  const [smtpSenderName, setSmtpSenderName] = React.useState(settings.smtpSenderName);
   const [smtpUser, setSmtpUser] = React.useState("");
   const [smtpToken, setSmtpToken] = React.useState("");
   const [recipients, setRecipients] = React.useState(settings.recipients);
@@ -47,7 +48,11 @@ const SettingsPage = () => {
   const portNumber = Number(smtpPort);
   const invalidRecipient = newRecipient.trim().length > 0 && !EMAIL_REGEX.test(newRecipient.trim());
   const canSave =
-    smtpAddress.trim().length > 0 && Number.isInteger(portNumber) && portNumber >= 1 && portNumber <= 65_535;
+    smtpAddress.trim().length > 0 &&
+    smtpSenderName.trim().length > 0 &&
+    Number.isInteger(portNumber) &&
+    portNumber >= 1 &&
+    portNumber <= 65_535;
 
   const onAddRecipient = async () => {
     const email = newRecipient.trim().toLowerCase();
@@ -104,6 +109,7 @@ const SettingsPage = () => {
           recipients,
           smtpAddress,
           smtpPort: port,
+          smtpSenderName,
           ...(smtpToken.trim() ? { smtpToken } : {}),
           ...(smtpUser.trim() ? { smtpUser } : {}),
         },
@@ -165,6 +171,16 @@ const SettingsPage = () => {
                   type="number"
                   value={smtpPort}
                 />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="smtp-sender-name">Sender name</FieldLabel>
+                <Input
+                  id="smtp-sender-name"
+                  onChange={(event) => setSmtpSenderName(event.target.value)}
+                  placeholder="Victory Baptist Church"
+                  value={smtpSenderName}
+                />
+                <FieldDescription>This name is shown as the sender display name.</FieldDescription>
               </Field>
               <Field>
                 <FieldLabel htmlFor="smtp-user">SMTP user email</FieldLabel>

@@ -7,7 +7,7 @@
   "name": "vbc-order-of-service",
   "compatibility_date": "2026-06-21",
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+  "main": "src/worker.ts",
   "d1_databases": [
     {
       "binding": "DB",
@@ -20,6 +20,36 @@
     {
       "binding": "SERVICE_PDFS",
       "bucket_name": "vbc-order-of-service-pdfs",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "OOS_EMAIL_SENDER",
+        "queue": "oos-email-sender",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "oos-email-sender",
+        "max_batch_size": 5,
+        "max_batch_timeout": 10,
+        "max_retries": 0,
+      },
+    ],
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ORDER_EMAIL_STATUS",
+        "class_name": "OrderEmailStatusDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1-order-email-status",
+      "new_sqlite_classes": ["OrderEmailStatusDurableObject"],
     },
   ],
   "observability": {

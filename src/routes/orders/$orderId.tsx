@@ -28,13 +28,15 @@ import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select"
 import {
   getHymnOptions,
   getOrder,
+  getOrderEmailDelivery,
   getOrders,
   getPublishedOrderPdf,
   getReferenceData,
   publishOrder,
   saveOrder,
+  sendOrderEmail,
 } from "~/lib/order-service-data";
-import type { OrderServiceTemplateJson, ServiceStatus } from "~/lib/order-service-types";
+import type { OrderEmailDeliveryRecord, OrderServiceTemplateJson, ServiceStatus } from "~/lib/order-service-types";
 
 const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
@@ -42,15 +44,33 @@ const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
 const getServiceDateConflictMessage = (serviceDate: string) =>
   `An order of service already exists for ${serviceDate}.`;
 
+const hasHymnActivityWithoutSelection = (
+  orderJson: OrderServiceTemplateJson | null
+): boolean =>
+  Boolean(
+    orderJson?.service_type.some((segment) =>
+      segment.activities.some(
+        (activity) => activity.activityType === "hymn" && !activity.hymnId
+      )
+    )
+  );
+
+const MISSING_HYMN_SELECTION_MESSAGE =
+  "Select a hymn for every hymn activity before publishing or sending.";
+
 const OrderRoute = () => {
-  const { hymnOptions, order, orders, referenceData } = Route.useLoaderData();
+  const { emailDelivery: initialEmailDelivery, hymnOptions, order, orders, referenceData } = Route.useLoaderData();
   const router = useRouter();
   const saveOrderFn = useServerFn(saveOrder);
   const publishOrderFn = useServerFn(publishOrder);
   const getPublishedOrderPdfFn = useServerFn(getPublishedOrderPdf);
+  const sendOrderEmailFn = useServerFn(sendOrderEmail);
+  const getOrderEmailDeliveryFn = useServerFn(getOrderEmailDelivery);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isPublishing, setIsPublishing] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false);
+  const [emailDelivery, setEmailDelivery] = React.useState<OrderEmailDeliveryRecord | null>(initialEmailDelivery);
   const [title, setTitle] = React.useState(order?.title ?? "");
   const [serviceDate, setServiceDate] = React.useState(order?.serviceDate ?? "");
   const [serviceTypeId, setServiceTypeId] = React.useState(order?.serviceTypeId ?? "");
@@ -59,43 +79,30 @@ const OrderRoute = () => {
     order?.order ?? null
   );
   const [formError, setFormError] = React.useState<string | null>(null);
-
-  if (!order || !orderJson) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>Order not found</EmptyTitle>
-          <EmptyDescription>The requested order of service may have been deleted.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button asChild>
-            <Link to="/orders/new">
-              <PlusIcon data-icon="inline-start" />
-              Create order
-            </Link>
-          </Button>
-        </EmptyContent>
-      </Empty>
-    );
-  }
+  const currentOrderId = order?.id ?? "";
 
   const hasServiceDateConflict = React.useMemo(
     () =>
       orders.some(
         (existingOrder) =>
-          existingOrder.id !== order.id &&
+          existingOrder.id !== order?.id &&
           existingOrder.serviceDate === serviceDate
       ),
-    [order.id, orders, serviceDate]
+    [order?.id, orders, serviceDate]
   );
 
   const serviceDateErrorMessage = hasServiceDateConflict
     ? getServiceDateConflictMessage(serviceDate)
     : formError;
+  const hasMissingHymnSelection = hasHymnActivityWithoutSelection(orderJson);
 
   const handleSave = async (): Promise<boolean> => {
     if (hasServiceDateConflict) {
       setFormError(getServiceDateConflictMessage(serviceDate));
+      return false;
+    }
+
+    if (!currentOrderId || !orderJson) {
       return false;
     }
 
@@ -105,7 +112,7 @@ const OrderRoute = () => {
     try {
       await saveOrderFn({
         data: {
-          id: order.id,
+          id: currentOrderId,
           order: { ...orderJson, name: title },
           serviceDate,
           serviceTypeId,
@@ -130,6 +137,12 @@ const OrderRoute = () => {
   };
 
   const handlePublish = async () => {
+    if (hasMissingHymnSelection) {
+      setFormError(MISSING_HYMN_SELECTION_MESSAGE);
+      toast.error(MISSING_HYMN_SELECTION_MESSAGE);
+      return;
+    }
+
     const saveSucceeded = await handleSave();
 
     if (!saveSucceeded) {
@@ -140,7 +153,7 @@ const OrderRoute = () => {
     setFormError(null);
 
     try {
-      await publishOrderFn({ data: order.id });
+      await publishOrderFn({ data: currentOrderId });
       setStatus("Published");
       await router.invalidate();
     } catch (error) {
@@ -160,7 +173,7 @@ const OrderRoute = () => {
     setFormError(null);
 
     try {
-      const pdf = await getPublishedOrderPdfFn({ data: order.id });
+      const pdf = await getPublishedOrderPdfFn({ data: currentOrderId });
       const binary = window.atob(pdf.base64);
       const bytes = Uint8Array.from(binary, (character) => character.codePointAt(0) ?? 0);
       const url = window.URL.createObjectURL(
@@ -183,8 +196,86 @@ const OrderRoute = () => {
     }
   };
 
+  const handleSendEmail = async () => {
+    if (hasMissingHymnSelection) {
+      setFormError(MISSING_HYMN_SELECTION_MESSAGE);
+      toast.error(MISSING_HYMN_SELECTION_MESSAGE);
+      return;
+    }
+
+    setIsSendingEmail(true);
+    setFormError(null);
+
+    try {
+      const delivery = await sendOrderEmailFn({ data: currentOrderId });
+      setEmailDelivery(delivery);
+      toast.success("Email Send Queued");
+      await router.invalidate();
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to queue email. Please try again."
+      );
+      setFormError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const publishButtonLabel = isPublishing ? "Publishing…" : "Publish and Send";
+  const emailStatusLabel = emailDelivery?.status ?? "Not Sent";
+  const sendEmailButtonLabel = isSendingEmail ? "Queueing…" : "Send Email";
   const downloadButtonLabel = isDownloading ? "Downloading…" : "Download Service";
+
+  React.useEffect(() => {
+    setEmailDelivery(initialEmailDelivery);
+  }, [initialEmailDelivery]);
+
+  React.useEffect(() => {
+    if (!order || !(emailDelivery?.status === "Queued" || emailDelivery?.status === "Sending")) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void (async () => {
+        const latestDelivery = await getOrderEmailDeliveryFn({ data: currentOrderId });
+
+        if (!latestDelivery) {
+          return;
+        }
+
+        setEmailDelivery((currentDelivery) => {
+          if (currentDelivery?.status !== "Sent" && latestDelivery.status === "Sent") {
+            toast.success(`Message with ${latestDelivery.subject} Sent`);
+          }
+
+          return latestDelivery;
+        });
+      })();
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [currentOrderId, emailDelivery?.status, getOrderEmailDeliveryFn, order]);
+
+  if (!order || !orderJson) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Order not found</EmptyTitle>
+          <EmptyDescription>The requested order of service may have been deleted.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link to="/orders/new">
+              <PlusIcon data-icon="inline-start" />
+              Create order
+            </Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -193,6 +284,11 @@ const OrderRoute = () => {
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-heading text-3xl font-semibold tracking-tight">Edit Order of Service</h1>
             <Badge variant={status === "Published" ? "default" : "secondary"}>{status}</Badge>
+            {status === "Published" ? (
+              <Badge variant={emailDelivery?.status === "Sent" ? "default" : "outline"}>
+                Email: {emailStatusLabel}
+              </Badge>
+            ) : null}
           </div>
           <p className="text-muted-foreground">
             Plan service cards, select hymns, and prepare the order for publishing.
@@ -209,13 +305,24 @@ const OrderRoute = () => {
             {isSaving ? "Saving…" : "Save"}
           </Button>
           {status === "Published" ? (
-            <Button disabled={isDownloading} onClick={handleDownload} type="button">
-              <DownloadSimpleIcon data-icon="inline-start" />
-              {downloadButtonLabel}
-            </Button>
+            <>
+              <Button disabled={isDownloading} onClick={handleDownload} type="button">
+                <DownloadSimpleIcon data-icon="inline-start" />
+                {downloadButtonLabel}
+              </Button>
+              <Button
+                disabled={Boolean(emailDelivery) || hasMissingHymnSelection || isSendingEmail}
+                onClick={handleSendEmail}
+                type="button"
+                variant="outline"
+              >
+                <PaperPlaneTiltIcon data-icon="inline-start" />
+                {sendEmailButtonLabel}
+              </Button>
+            </>
           ) : (
             <Button
-              disabled={hasServiceDateConflict || isPublishing}
+              disabled={hasMissingHymnSelection || hasServiceDateConflict || isPublishing}
               onClick={handlePublish}
               type="button"
             >
@@ -225,6 +332,26 @@ const OrderRoute = () => {
           )}
         </div>
       </div>
+
+      {emailDelivery ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Email delivery log</CardTitle>
+            <CardDescription>
+              Message with {emailDelivery.subject} {emailDelivery.status === "Sent" ? "sent" : "queued"}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Status</span>
+              <Badge variant={emailDelivery.status === "Sent" ? "default" : "outline"}>{emailDelivery.status}</Badge>
+            </div>
+            <p className="text-muted-foreground">Queued at {emailDelivery.queuedAt}</p>
+            {emailDelivery.sentAt ? <p className="text-muted-foreground">Sent at {emailDelivery.sentAt}</p> : null}
+            {emailDelivery.errorMessage ? <p className="text-destructive">{emailDelivery.errorMessage}</p> : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -295,13 +422,14 @@ const OrderRoute = () => {
 export const Route = createFileRoute("/orders/$orderId")({
   component: OrderRoute,
   loader: async ({ params }) => {
-    const [order, referenceData, hymnOptions, orders] = await Promise.all([
+    const [order, referenceData, hymnOptions, orders, emailDelivery] = await Promise.all([
       getOrder({ data: params.orderId }),
       getReferenceData(),
       getHymnOptions(),
       getOrders(),
+      getOrderEmailDelivery({ data: params.orderId }),
     ]);
 
-    return { hymnOptions, order, orders, referenceData };
+    return { emailDelivery, hymnOptions, order, orders, referenceData };
   },
 });
