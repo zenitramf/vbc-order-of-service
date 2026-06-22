@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import {
   BookOpenTextIcon,
   CalendarCheckIcon,
@@ -8,7 +10,6 @@ import {
   MusicNotesIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
-/// <reference types="vite/client" />
 import {
   HeadContent,
   Link,
