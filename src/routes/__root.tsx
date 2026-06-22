@@ -1,15 +1,23 @@
-/// <reference types="vite/client" />
-import { HeadContent, Link, Outlet, Scripts, createRootRoute, useRouterState } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import {
   BookOpenTextIcon,
   CalendarCheckIcon,
   ChurchIcon,
+  GearIcon,
   HouseIcon,
   ListChecksIcon,
   MusicNotesIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
+/// <reference types="vite/client" />
+import {
+  HeadContent,
+  Link,
+  Outlet,
+  Scripts,
+  createRootRoute,
+  useRouterState,
+} from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import * as React from "react";
 
 import { DefaultCatchBoundary } from "~/components/default-catch-boundary";
@@ -23,7 +31,6 @@ import {
   BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
 import { Separator } from "~/components/ui/separator";
-import { Toaster } from "~/components/ui/sonner";
 import {
   Sidebar,
   SidebarContent,
@@ -39,6 +46,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "~/components/ui/sidebar";
+import { Toaster } from "~/components/ui/sonner";
 import { seo } from "~/utils/seo";
 
 import appCss from "~/styles/app.css?url";
@@ -71,7 +79,9 @@ const RootDocument = ({ children }: { children: React.ReactNode }) => (
 );
 
 const AppBreadcrumb = () => {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const segments = pathname.split("/").filter(Boolean);
 
   return (
@@ -112,7 +122,9 @@ const AppBreadcrumb = () => {
 };
 
 const AppSidebar = () => {
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
 
   return (
     <Sidebar collapsible="icon">
@@ -138,7 +150,8 @@ const AppSidebar = () => {
                 const isActive =
                   item.to === "/"
                     ? pathname === "/"
-                    : pathname === item.to || pathname.startsWith(`${item.to}/`);
+                    : pathname === item.to ||
+                      pathname.startsWith(`${item.to}/`);
 
                 return (
                   <SidebarMenuItem key={item.to}>
@@ -175,6 +188,24 @@ const AppSidebar = () => {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarGroupLabel>Configuration</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link to="/settings">
+                      <GearIcon />
+                      <span>Settings</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

@@ -166,6 +166,22 @@ export interface SendOrderToCraftMyPdfInput {
   templateId?: string;
 }
 
+export interface EmailSettingsRecord {
+  recipients: string[];
+  smtpAddress: string;
+  smtpPort: number | "";
+  smtpTokenConfigured: boolean;
+  smtpUserConfigured: boolean;
+}
+
+export interface SaveEmailSettingsInput {
+  recipients: string[];
+  smtpAddress: string;
+  smtpPort: number;
+  smtpToken?: string;
+  smtpUser?: string;
+}
+
 export interface SaveHymnInput {
   hymnNumber: string;
   id?: string;

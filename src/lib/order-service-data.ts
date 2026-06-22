@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
+import { Buffer } from "node:buffer";
 import { v4 as uuidv4 } from "uuid";
 
 import type {
@@ -7,6 +8,7 @@ import type {
   CraftMyPdfOrderPayloadActivity,
   CreateOrderInput,
   DashboardData,
+  EmailSettingsRecord,
   HymnOption,
   HymnRecord,
   OrderRecord,
@@ -14,6 +16,7 @@ import type {
   OrderSummary,
   ReferenceData,
   ReferenceOption,
+  SaveEmailSettingsInput,
   SaveHymnInput,
   SaveOrderInput,
   SaveTemplateInput,
@@ -153,6 +156,18 @@ CREATE TABLE IF NOT EXISTS hymn_plays (
 );
 
 CREATE INDEX IF NOT EXISTS hymn_plays_hymn_date_idx ON hymn_plays(hymn_id, played_on);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS email_recipients (
+  id TEXT PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 let databaseInitialized = false;
@@ -213,6 +228,65 @@ const asString = (value: unknown) => (typeof value === "string" ? value : "");
 
 const asNumber = (value: unknown) =>
   typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+const EMAIL_SETTINGS_KEY = "email.smtp";
+
+const getRequiredSecret = (key: string) => {
+  const value = (env as unknown as Record<string, string | undefined>)[key]?.trim();
+
+  if (!value) {
+    throw new Error(`${key} is not configured. Add it as a Cloudflare Worker secret before saving email settings.`);
+  }
+
+  return value;
+};
+
+const getEmailEncryptionKey = async () => {
+  const secret = getRequiredSecret("EMAIL_SETTINGS_ENCRYPTION_KEY");
+  const secretBytes = new TextEncoder().encode(secret);
+  const hash = await crypto.subtle.digest("SHA-256", secretBytes);
+
+  return crypto.subtle.importKey("raw", hash, "AES-GCM", false, ["encrypt", "decrypt"]);
+};
+
+const encryptSetting = async (value: string) => {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encodedValue = new TextEncoder().encode(value);
+  const encrypted = await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, await getEmailEncryptionKey(), encodedValue);
+
+  return `${Buffer.from(iv).toString("base64")}.${Buffer.from(encrypted).toString("base64")}`;
+};
+
+const isValidEmail = (email: string) => EMAIL_REGEX.test(email.trim());
+
+const assertValidEmail = (email: string, fieldName: string) => {
+  if (!isValidEmail(email)) {
+    throw new Error(`${fieldName} must be a valid email address.`);
+  }
+};
+
+const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
+  if (!settings.smtpAddress.trim()) {
+    throw new Error("SMTP address is required.");
+  }
+
+  if (!Number.isInteger(settings.smtpPort) || settings.smtpPort < 1 || settings.smtpPort > 65_535) {
+    throw new Error("SMTP port must be between 1 and 65535.");
+  }
+
+  if (settings.smtpUser !== undefined && settings.smtpUser.trim().length > 0) {
+    assertValidEmail(settings.smtpUser, "SMTP user");
+  }
+
+  if (settings.smtpToken !== undefined && settings.smtpToken.trim().length === 0) {
+    throw new Error("SMTP token cannot be blank.");
+  }
+
+  for (const email of settings.recipients) {
+    assertValidEmail(email, "Recipient");
+  }
+};
 
 const ensureDatabase = async () => {
   if (databaseInitialized) {
@@ -948,6 +1022,85 @@ export const getPublishedOrderPdf = createServerFn({ method: "GET" })
       base64: buffer.toString("base64"),
       filename: order.pdfObjectKey,
     };
+  });
+
+export const getEmailSettings = createServerFn({ method: "GET" }).handler(
+  async (): Promise<EmailSettingsRecord> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const settingsRow = await db
+      .prepare("SELECT value FROM app_settings WHERE key = ?")
+      .bind(EMAIL_SETTINGS_KEY)
+      .first<{ value: string }>();
+    const { results } = await db
+      .prepare("SELECT email FROM email_recipients ORDER BY email")
+      .all<{ email: string }>();
+    const storedSettings = settingsRow
+      ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
+      : {};
+
+    return {
+      recipients: results.map((row) => row.email),
+      smtpAddress: typeof storedSettings.smtpAddress === "string" ? storedSettings.smtpAddress : "",
+      smtpPort: typeof storedSettings.smtpPort === "number" ? storedSettings.smtpPort : "",
+      smtpTokenConfigured: Boolean(storedSettings.smtpTokenConfigured),
+      smtpUserConfigured: Boolean(storedSettings.smtpUserConfigured),
+    };
+  }
+);
+
+export const saveEmailSettings = createServerFn({ method: "POST" })
+  .validator((data: SaveEmailSettingsInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    assertValidEmailSettings(data);
+
+    const db = getDatabase();
+    const trimmedRecipients = [...new Set(data.recipients.map((email) => email.trim().toLowerCase()))];
+    const currentRow = await db
+      .prepare("SELECT value FROM app_settings WHERE key = ?")
+      .bind(EMAIL_SETTINGS_KEY)
+      .first<{ value: string }>();
+    const currentSettings = currentRow ? (JSON.parse(currentRow.value) as Record<string, unknown>) : {};
+    const encryptedToken = data.smtpToken
+      ? await encryptSetting(data.smtpToken.trim())
+      : asString(currentSettings.smtpTokenEncrypted);
+    const encryptedUser = data.smtpUser
+      ? await encryptSetting(data.smtpUser.trim().toLowerCase())
+      : asString(currentSettings.smtpUserEncrypted);
+
+    if (!encryptedToken) {
+      throw new Error("SMTP token is required before email settings can be saved.");
+    }
+
+    if (!encryptedUser) {
+      throw new Error("SMTP user is required before email settings can be saved.");
+    }
+
+    const settingsToStore = {
+      smtpAddress: data.smtpAddress.trim(),
+      smtpPort: data.smtpPort,
+      smtpTokenConfigured: true,
+      smtpTokenEncrypted: encryptedToken,
+      smtpUserConfigured: true,
+      smtpUserEncrypted: encryptedUser,
+    };
+
+    await db.batch([
+      db.prepare(
+        `INSERT INTO app_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at`
+      ).bind(EMAIL_SETTINGS_KEY, JSON.stringify(settingsToStore), nowIso()),
+      db.prepare("DELETE FROM email_recipients"),
+      ...trimmedRecipients.map((email) =>
+        db.prepare("INSERT INTO email_recipients (id, email) VALUES (?, ?)").bind(uuidv4(), email)
+      ),
+    ]);
+
+    return { success: true };
   });
 
 export const getHymns = createServerFn({ method: "GET" }).handler(

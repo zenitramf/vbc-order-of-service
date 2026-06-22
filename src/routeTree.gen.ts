@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TemplatesIndexRouteImport } from './routes/templates/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as OrdersIndexRouteImport } from './routes/orders/index'
 import { Route as HymnsIndexRouteImport } from './routes/hymns/index'
 import { Route as TemplatesNewRouteImport } from './routes/templates/new'
@@ -28,6 +29,11 @@ const IndexRoute = IndexRouteImport.update({
 const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
   id: '/templates/',
   path: '/templates/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OrdersIndexRoute = OrdersIndexRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/templates/new': typeof TemplatesNewRoute
   '/hymns/': typeof HymnsIndexRoute
   '/orders/': typeof OrdersIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/templates/new': typeof TemplatesNewRoute
   '/hymns': typeof HymnsIndexRoute
   '/orders': typeof OrdersIndexRoute
+  '/settings': typeof SettingsIndexRoute
   '/templates': typeof TemplatesIndexRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/templates/new': typeof TemplatesNewRoute
   '/hymns/': typeof HymnsIndexRoute
   '/orders/': typeof OrdersIndexRoute
+  '/settings/': typeof SettingsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/hymns/'
     | '/orders/'
+    | '/settings/'
     | '/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/hymns'
     | '/orders'
+    | '/settings'
     | '/templates'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/hymns/'
     | '/orders/'
+    | '/settings/'
     | '/templates/'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   TemplatesNewRoute: typeof TemplatesNewRoute
   HymnsIndexRoute: typeof HymnsIndexRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
   TemplatesIndexRoute: typeof TemplatesIndexRoute
 }
 
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/templates'
       fullPath: '/templates/'
       preLoaderRoute: typeof TemplatesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/': {
+      id: '/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/orders/': {
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   TemplatesNewRoute: TemplatesNewRoute,
   HymnsIndexRoute: HymnsIndexRoute,
   OrdersIndexRoute: OrdersIndexRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
   TemplatesIndexRoute: TemplatesIndexRoute,
 }
 export const routeTree = rootRouteImport
