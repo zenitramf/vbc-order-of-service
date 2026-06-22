@@ -3,6 +3,8 @@ import { env } from "cloudflare:workers";
 import { v4 as uuidv4 } from "uuid";
 
 import type {
+  CraftMyPdfOrderPayload,
+  CraftMyPdfOrderPayloadActivity,
   CreateOrderInput,
   DashboardData,
   HymnOption,
@@ -15,6 +17,7 @@ import type {
   SaveHymnInput,
   SaveOrderInput,
   SaveTemplateInput,
+  SendOrderToCraftMyPdfInput,
   ServiceStatus,
   TemplateRecord,
   TemplateSummary,
@@ -129,6 +132,7 @@ CREATE TABLE IF NOT EXISTS orders_of_service (
   template_id TEXT REFERENCES order_service_templates(id),
   order_json TEXT NOT NULL,
   published_at TEXT,
+  pdf_object_key TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -137,6 +141,8 @@ CREATE INDEX IF NOT EXISTS orders_of_service_date_idx ON orders_of_service(servi
 CREATE UNIQUE INDEX IF NOT EXISTS orders_of_service_service_date_unique_idx
   ON orders_of_service(service_date);
 CREATE INDEX IF NOT EXISTS orders_of_service_status_idx ON orders_of_service(status);
+
+ALTER TABLE orders_of_service ADD COLUMN pdf_object_key TEXT;
 
 CREATE TABLE IF NOT EXISTS hymn_plays (
   id TEXT PRIMARY KEY,
@@ -157,6 +163,14 @@ const getDatabase = (): D1Database => {
   }
 
   return env.DB;
+};
+
+const getPdfBucket = (): R2Bucket => {
+  if (!env.SERVICE_PDFS) {
+    throw new Error("Cloudflare R2 binding SERVICE_PDFS is not configured.");
+  }
+
+  return env.SERVICE_PDFS;
 };
 
 const nowIso = () => new Date().toISOString();
@@ -210,7 +224,16 @@ const ensureDatabase = async () => {
     .map((statement) => statement.trim())
     .filter((statement) => statement.length > 0);
 
-  await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
+  for (const statement of schemaStatements) {
+    try {
+      // oxlint-disable-next-line no-await-in-loop -- schema must be applied in order.
+      await db.prepare(statement).run();
+    } catch (error) {
+      if (!String(error).includes("duplicate column name")) {
+        throw error;
+      }
+    }
+  }
 
   await db.batch([
     db.prepare("INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)").bind("Planning", "Planning"),
@@ -286,6 +309,7 @@ const mapOrderRow = (row: Record<string, unknown>): OrderRecord => {
     activityCount: countActivities(order),
     id: asString(row.id),
     order,
+    pdfObjectKey: asString(row.pdf_object_key) || undefined,
     publishedAt: asString(row.published_at) || undefined,
     segmentCount: order.service_type.length,
     serviceDate: asString(row.service_date),
@@ -355,6 +379,122 @@ const RECENT_HYMN_PLAY_COUNT_SQL = `
       AND hymn_plays.played_on >= date('now', '-6 months')
   ), 0) AS times_played_last_6_months
 `;
+
+const CRAFTMYPDF_DEFAULT_API_URL = "https://api.craftmypdf.com/v1/create";
+
+const getPdfObjectKey = (order: Pick<OrderRecord, "serviceDate" | "title">): string => {
+  const serviceName = order.title.trim().replaceAll(/[\\/:*?"<>|]+/gu, "-") || "Order of Service";
+
+  return `${order.serviceDate} - ${serviceName}.pdf`;
+};
+
+const getCraftMyPdfFileUrl = (responseBody: string): string => {
+  const parsed = JSON.parse(responseBody) as Record<string, unknown>;
+  const candidates = [
+    parsed.file,
+    parsed.file_url,
+    parsed.download_url,
+    parsed.url,
+    parsed.pdf,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.startsWith("http")) {
+      return candidate;
+    }
+  }
+
+  throw new Error("CraftMyPDF response did not include a PDF download URL.");
+};
+
+const getEnvValue = (key: string): string | undefined => {
+  const value = (env as unknown as Record<string, unknown>)[key];
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmedValue = value.trim();
+
+  return trimmedValue.length > 0 ? trimmedValue : undefined;
+};
+
+const loadHymnsById = async (
+  db: D1Database,
+  hymnIds: string[]
+): Promise<Map<string, HymnRecord>> => {
+  if (hymnIds.length === 0) {
+    return new Map<string, HymnRecord>();
+  }
+
+  const placeholders = hymnIds.map(() => "?").join(", ");
+  const { results } = await db
+    .prepare(
+      `SELECT hymns.*, hymn_sources.name AS source_name, ${RECENT_HYMN_PLAY_COUNT_SQL}
+      FROM hymns
+      JOIN hymn_sources ON hymn_sources.id = hymns.source_id
+      WHERE hymns.id IN (${placeholders})`
+    )
+    .bind(...hymnIds)
+    .all<Record<string, unknown>>();
+
+  return new Map(
+    results.map((row) => {
+      const hymn = mapHymnRow(row);
+
+      return [hymn.id, hymn] as const;
+    })
+  );
+};
+
+const buildCraftMyPdfOrderPayload = async (
+  db: D1Database,
+  order: OrderRecord
+): Promise<CraftMyPdfOrderPayload> => {
+  const hymnIds = new Set<string>();
+
+  for (const segment of order.order.service_type) {
+    for (const activity of segment.activities) {
+      if (activity.hymnId) {
+        hymnIds.add(activity.hymnId);
+      }
+    }
+  }
+
+  const hymnsById = await loadHymnsById(db, [...hymnIds]);
+
+  return {
+    generatedAt: nowIso(),
+    order: {
+      name: order.order.name,
+      service_type: order.order.service_type.map((segment) => ({
+        activities: segment.activities.map((activity) => {
+          const payloadActivity: CraftMyPdfOrderPayloadActivity = {
+            ...activity,
+          };
+          const hymn = activity.hymnId ? hymnsById.get(activity.hymnId) : undefined;
+
+          if (hymn) {
+            payloadActivity.hymn = hymn;
+          }
+
+          return payloadActivity;
+        }),
+        id: segment.id,
+        typeName: segment.typeName,
+      })),
+    },
+    orderId: order.id,
+    publishedAt: order.publishedAt,
+    serviceDate: order.serviceDate,
+    serviceTypeId: order.serviceTypeId,
+    serviceTypeName: order.serviceTypeName,
+    status: order.status,
+    templateId: order.templateId,
+    title: order.title,
+    updatedAt: order.updatedAt,
+  };
+};
 
 export const getReferenceData = createServerFn({ method: "GET" }).handler(
   async (): Promise<ReferenceData> => {
@@ -537,6 +677,82 @@ export const getOrder = createServerFn({ method: "GET" })
     return row ? mapOrderRow(row) : null;
   });
 
+export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
+  .validator((data: SendOrderToCraftMyPdfInput) => data)
+  .handler(
+    async ({ data }): Promise<{
+      craftMyPdfResponseBody?: string;
+      craftMyPdfStatus?: number;
+      dryRun: boolean;
+      requestBody: {
+        data: CraftMyPdfOrderPayload;
+        template_id: string;
+      };
+    }> => {
+      await ensureDatabase();
+      const db = getDatabase();
+      const order = await getOrder({ data: data.orderId });
+
+      if (!order) {
+        throw new Error("Order of service not found.");
+      }
+
+      const templateId =
+        data.templateId?.trim() || getEnvValue("CRAFT_PDF_ID") || getEnvValue("CRAFTMYPDF_TEMPLATE_ID");
+
+      if (!templateId) {
+        throw new Error(
+          "CraftMyPDF template id is required. Set the CRAFT_PDF_ID secret."
+        );
+      }
+
+      const payload = await buildCraftMyPdfOrderPayload(db, order);
+      const requestBody = {
+        data: payload,
+        template_id: templateId,
+      };
+
+      if (data.dryRun === true) {
+        return {
+          dryRun: true,
+          requestBody,
+        };
+      }
+
+      const apiKey = getEnvValue("CRAFTMYPDF_API_KEY") || getEnvValue("CRAFTPDF_API_KEY");
+
+      if (!apiKey) {
+        throw new Error("CRAFTMYPDF_API_KEY secret is not configured.");
+      }
+
+      const apiUrl = getEnvValue("CRAFTMYPDF_API_URL") ?? CRAFTMYPDF_DEFAULT_API_URL;
+      const response = await fetch(apiUrl, {
+        body: JSON.stringify(requestBody),
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "X-API-KEY": apiKey,
+        },
+        method: "POST",
+      });
+
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        throw new Error(
+          `CraftMyPDF request failed (${response.status} ${response.statusText}): ${responseText}`
+        );
+      }
+
+      return {
+        craftMyPdfResponseBody: responseText,
+        craftMyPdfStatus: response.status,
+        dryRun: false,
+        requestBody,
+      };
+    }
+  );
+
 export const createOrder = createServerFn({ method: "POST" })
   .validator((data: CreateOrderInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
@@ -639,7 +855,7 @@ export const saveOrder = createServerFn({ method: "POST" })
 
 export const publishOrder = createServerFn({ method: "POST" })
   .validator((id: string) => id)
-  .handler(async ({ data }): Promise<{ id: string }> => {
+  .handler(async ({ data }): Promise<{ id: string; pdfObjectKey?: string }> => {
     await ensureDatabase();
     const db = getDatabase();
     const order = await getOrder({ data });
@@ -649,8 +865,26 @@ export const publishOrder = createServerFn({ method: "POST" })
     }
 
     if (order.status === "Published") {
-      return { id: data };
+      return { id: data, pdfObjectKey: order.pdfObjectKey };
     }
+
+    const craftMyPdfResult = await postOrderToCraftMyPdf({ data: { orderId: data } });
+    const pdfUrl = getCraftMyPdfFileUrl(craftMyPdfResult.craftMyPdfResponseBody ?? "{}");
+    const pdfResponse = await fetch(pdfUrl);
+
+    if (!pdfResponse.ok) {
+      throw new Error(
+        `Unable to download generated PDF (${pdfResponse.status} ${pdfResponse.statusText}).`
+      );
+    }
+
+    const pdfObjectKey = getPdfObjectKey(order);
+    await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
+      httpMetadata: {
+        contentDisposition: `attachment; filename="${pdfObjectKey.replaceAll('"', "'")}"`,
+        contentType: "application/pdf",
+      },
+    });
 
     const hymnIds = new Set<string>();
 
@@ -666,10 +900,10 @@ export const publishOrder = createServerFn({ method: "POST" })
       db
         .prepare(
           `UPDATE orders_of_service
-          SET status = 'Published', published_at = ?, updated_at = ?
+          SET status = 'Published', published_at = ?, pdf_object_key = ?, updated_at = ?
           WHERE id = ?`
         )
-        .bind(timestamp, timestamp, data),
+        .bind(timestamp, pdfObjectKey, timestamp, data),
     ];
 
     for (const hymnId of hymnIds) {
@@ -689,7 +923,31 @@ export const publishOrder = createServerFn({ method: "POST" })
 
     await db.batch(statements);
 
-    return { id: data };
+    return { id: data, pdfObjectKey };
+  });
+
+export const getPublishedOrderPdf = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ base64: string; filename: string }> => {
+    await ensureDatabase();
+    const order = await getOrder({ data });
+
+    if (!order || !order.pdfObjectKey) {
+      throw new Error("Published PDF was not found for this order of service.");
+    }
+
+    const object = await getPdfBucket().get(order.pdfObjectKey);
+
+    if (!object) {
+      throw new Error("Published PDF was not found in R2 storage.");
+    }
+
+    const buffer = Buffer.from(await object.arrayBuffer());
+
+    return {
+      base64: buffer.toString("base64"),
+      filename: order.pdfObjectKey,
+    };
   });
 
 export const getHymns = createServerFn({ method: "GET" }).handler(

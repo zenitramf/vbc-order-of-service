@@ -63,6 +63,7 @@ export interface OrderSummary {
 
 export interface OrderRecord extends OrderSummary {
   order: OrderServiceTemplateJson;
+  pdfObjectKey?: string;
   publishedAt?: string;
   serviceTypeId: string;
   templateId?: string;
@@ -118,6 +119,51 @@ export interface CreateOrderInput {
   serviceDate: string;
   templateId: string;
   title: string;
+}
+
+export interface CraftMyPdfOrderPayloadHymn {
+  hymnNumber: string;
+  id: string;
+  lastPlayed: string;
+  lyricsMarkdown: string;
+  musicKey: string;
+  name: string;
+  sourceId: string;
+  sourceName: string;
+  timesPlayedLastSixMonths: number;
+}
+
+export interface CraftMyPdfOrderPayloadActivity extends OrderActivity {
+  hymn?: CraftMyPdfOrderPayloadHymn;
+}
+
+export interface CraftMyPdfOrderPayloadSegment {
+  activities: CraftMyPdfOrderPayloadActivity[];
+  id: string;
+  typeName: string;
+}
+
+export interface CraftMyPdfOrderPayload {
+  generatedAt: string;
+  order: {
+    name: string;
+    service_type: CraftMyPdfOrderPayloadSegment[];
+  };
+  orderId: string;
+  publishedAt?: string;
+  serviceDate: string;
+  serviceTypeId: string;
+  serviceTypeName: string;
+  status: ServiceStatus;
+  templateId?: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface SendOrderToCraftMyPdfInput {
+  dryRun?: boolean;
+  orderId: string;
+  templateId?: string;
 }
 
 export interface SaveHymnInput {

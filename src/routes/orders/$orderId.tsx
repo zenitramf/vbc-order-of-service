@@ -1,7 +1,7 @@
-// oxlint-disable no-use-before-define
+// oxlint-disable complexity, no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { FloppyDiskIcon, PaperPlaneTiltIcon, PlusIcon } from "@phosphor-icons/react";
+import { DownloadSimpleIcon, FloppyDiskIcon, PaperPlaneTiltIcon, PlusIcon } from "@phosphor-icons/react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -29,6 +29,7 @@ import {
   getHymnOptions,
   getOrder,
   getOrders,
+  getPublishedOrderPdf,
   getReferenceData,
   publishOrder,
   saveOrder,
@@ -46,8 +47,10 @@ const OrderRoute = () => {
   const router = useRouter();
   const saveOrderFn = useServerFn(saveOrder);
   const publishOrderFn = useServerFn(publishOrder);
+  const getPublishedOrderPdfFn = useServerFn(getPublishedOrderPdf);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isPublishing, setIsPublishing] = React.useState(false);
+  const [isDownloading, setIsDownloading] = React.useState(false);
   const [title, setTitle] = React.useState(order?.title ?? "");
   const [serviceDate, setServiceDate] = React.useState(order?.serviceDate ?? "");
   const [serviceTypeId, setServiceTypeId] = React.useState(order?.serviceTypeId ?? "");
@@ -152,13 +155,36 @@ const OrderRoute = () => {
     }
   };
 
-  let publishButtonLabel = "Publish and Send";
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    setFormError(null);
 
-  if (status === "Published") {
-    publishButtonLabel = "Published";
-  } else if (isPublishing) {
-    publishButtonLabel = "Publishing…";
-  }
+    try {
+      const pdf = await getPublishedOrderPdfFn({ data: order.id });
+      const binary = window.atob(pdf.base64);
+      const bytes = Uint8Array.from(binary, (character) => character.codePointAt(0) ?? 0);
+      const url = window.URL.createObjectURL(
+        new Blob([bytes], { type: "application/pdf" })
+      );
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = pdf.filename;
+      anchor.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to download order of service. Please try again."
+      );
+      setFormError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const publishButtonLabel = isPublishing ? "Publishing…" : "Publish and Send";
+  const downloadButtonLabel = isDownloading ? "Downloading…" : "Download Service";
 
   return (
     <div className="flex flex-col gap-6">
@@ -182,14 +208,21 @@ const OrderRoute = () => {
             <FloppyDiskIcon data-icon="inline-start" />
             {isSaving ? "Saving…" : "Save"}
           </Button>
-          <Button
-            disabled={hasServiceDateConflict || isPublishing || status === "Published"}
-            onClick={handlePublish}
-            type="button"
-          >
-            <PaperPlaneTiltIcon data-icon="inline-start" />
-            {publishButtonLabel}
-          </Button>
+          {status === "Published" ? (
+            <Button disabled={isDownloading} onClick={handleDownload} type="button">
+              <DownloadSimpleIcon data-icon="inline-start" />
+              {downloadButtonLabel}
+            </Button>
+          ) : (
+            <Button
+              disabled={hasServiceDateConflict || isPublishing}
+              onClick={handlePublish}
+              type="button"
+            >
+              <PaperPlaneTiltIcon data-icon="inline-start" />
+              {publishButtonLabel}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -197,7 +230,7 @@ const OrderRoute = () => {
         <CardHeader>
           <CardTitle>Service details</CardTitle>
           <CardDescription>
-            Publishing is a placeholder that marks this order Published and updates selected hymn usage.
+            Publishing generates a PDF, stores it in R2, and updates selected hymn usage.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -21,6 +21,12 @@
 			"database_id": "ac1c9ff0-03f2-4328-9b9a-266fa5c09af5",
 		},
 	],
+	"r2_buckets": [
+		{
+			"binding": "SERVICE_PDFS",
+			"bucket_name": "vbc-order-of-service-pdfs",
+		},
+	],
 	"observability": {
 		"enabled": true,
 	},
