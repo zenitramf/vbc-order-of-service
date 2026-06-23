@@ -542,10 +542,10 @@ const RECENT_HYMN_PLAY_COUNT_SQL = `
 
 const CRAFTMYPDF_DEFAULT_API_URL = "https://api.craftmypdf.com/v1/create";
 
-const getPdfObjectKey = (order: Pick<OrderRecord, "serviceDate" | "title">): string => {
+const getPdfObjectKey = (order: Pick<OrderRecord, "id" | "serviceDate" | "title">): string => {
   const serviceName = order.title.trim().replaceAll(/[\\/:*?"<>|]+/gu, "-") || "Order of Service";
 
-  return `${order.serviceDate} - ${serviceName}.pdf`;
+  return `oos/${order.id}/${order.serviceDate} - ${serviceName}.pdf`;
 };
 
 const getCraftMyPdfFileUrl = (responseBody: string): string => {
@@ -1056,9 +1056,10 @@ export const publishOrder = createServerFn({ method: "POST" })
     }
 
     const pdfObjectKey = getPdfObjectKey(order);
+    const pdfFilename = pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
     await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
       httpMetadata: {
-        contentDisposition: `attachment; filename="${pdfObjectKey.replaceAll('"', "'")}"`,
+        contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
         contentType: "application/pdf",
       },
     });
