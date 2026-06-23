@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS hymn_files (
+  id TEXT PRIMARY KEY,
+  hymn_id TEXT NOT NULL REFERENCES hymns(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  object_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS hymn_files_hymn_idx ON hymn_files(hymn_id);

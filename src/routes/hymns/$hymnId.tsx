@@ -11,10 +11,10 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { getHymn, getReferenceData } from "~/lib/order-service-data";
+import { getHymn, getHymnFiles, getReferenceData } from "~/lib/order-service-data";
 
 const HymnRoute = () => {
-  const { hymn, referenceData } = Route.useLoaderData();
+  const { files, hymn, referenceData } = Route.useLoaderData();
 
   if (!hymn) {
     return (
@@ -35,17 +35,18 @@ const HymnRoute = () => {
     );
   }
 
-  return <HymnEditorPage hymn={hymn} referenceData={referenceData} />;
+  return <HymnEditorPage files={files} hymn={hymn} referenceData={referenceData} />;
 };
 
 export const Route = createFileRoute("/hymns/$hymnId")({
   component: HymnRoute,
   loader: async ({ params }) => {
-    const [hymn, referenceData] = await Promise.all([
+    const [hymn, referenceData, files] = await Promise.all([
       getHymn({ data: params.hymnId }),
       getReferenceData(),
+      getHymnFiles({ data: params.hymnId }),
     ]);
 
-    return { hymn, referenceData };
+    return { files, hymn, referenceData };
   },
 });

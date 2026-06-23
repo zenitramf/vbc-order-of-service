@@ -9,6 +9,8 @@ import type {
   CreateOrderInput,
   DashboardData,
   EmailSettingsRecord,
+  HymnFileDownload,
+  HymnFileRecord,
   HymnOption,
   HymnRecord,
   OrderEmailDeliveryRecord,
@@ -19,11 +21,13 @@ import type {
   OrderSummary,
   ReferenceData,
   ReferenceOption,
+  RenameHymnFileInput,
   SaveEmailSettingsInput,
   SaveHymnInput,
   SaveOrderInput,
   SaveTemplateInput,
   SendOrderToCraftMyPdfInput,
+  UploadHymnFileInput,
   ServiceStatus,
   TemplateRecord,
   TemplateSummary,
@@ -116,6 +120,19 @@ CREATE TABLE IF NOT EXISTS hymns (
 
 CREATE INDEX IF NOT EXISTS hymns_name_idx ON hymns(name);
 CREATE INDEX IF NOT EXISTS hymns_number_idx ON hymns(hymn_number);
+
+CREATE TABLE IF NOT EXISTS hymn_files (
+  id TEXT PRIMARY KEY,
+  hymn_id TEXT NOT NULL REFERENCES hymns(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  object_key TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS hymn_files_hymn_idx ON hymn_files(hymn_id);
 
 CREATE TABLE IF NOT EXISTS order_service_templates (
   id TEXT PRIMARY KEY,
@@ -498,6 +515,17 @@ const mapHymnRow = (row: Record<string, unknown>): HymnRecord => ({
   sourceId: asString(row.source_id),
   sourceName: asString(row.source_name),
   timesPlayedLastSixMonths: asNumber(row.times_played_last_6_months),
+});
+
+const mapHymnFileRow = (row: Record<string, unknown>): HymnFileRecord => ({
+  contentType: asString(row.content_type),
+  createdAt: asString(row.created_at),
+  filename: asString(row.filename),
+  hymnId: asString(row.hymn_id),
+  id: asString(row.id),
+  objectKey: asString(row.object_key),
+  sizeBytes: asNumber(row.size_bytes),
+  updatedAt: asString(row.updated_at),
 });
 
 const RECENT_HYMN_PLAY_COUNT_SQL = `
@@ -1375,6 +1403,156 @@ export const getHymn = createServerFn({ method: "GET" })
       .first<Record<string, unknown>>();
 
     return row ? mapHymnRow(row) : null;
+  });
+
+export const getHymnFiles = createServerFn({ method: "GET" })
+  .validator((hymnId: string) => hymnId)
+  .handler(async ({ data }): Promise<HymnFileRecord[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare("SELECT * FROM hymn_files WHERE hymn_id = ? ORDER BY filename")
+      .bind(data)
+      .all<Record<string, unknown>>();
+
+    return results.map(mapHymnFileRow);
+  });
+
+export const uploadHymnFile = createServerFn({ method: "POST" })
+  .validator((data: UploadHymnFileInput) => data)
+  .handler(async ({ data }): Promise<HymnFileRecord> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const bucket = getPdfBucket();
+    const id = uuidv4();
+    const filename = data.filename.trim();
+
+    if (!filename) {
+      throw new Error("File name is required.");
+    }
+
+    const hymn = await db
+      .prepare("SELECT id FROM hymns WHERE id = ?")
+      .bind(data.hymnId)
+      .first<{ id: string }>();
+
+    if (!hymn) {
+      throw new Error("Hymn not found.");
+    }
+
+    const bytes = Buffer.from(data.base64, "base64");
+    const objectKey = `hymns/${data.hymnId}/${id}-${slugify(filename)}`;
+
+    await bucket.put(objectKey, bytes, {
+      httpMetadata: {
+        contentDisposition: `inline; filename="${filename.replaceAll('"', "'")}"`,
+        contentType: data.contentType || "application/octet-stream",
+      },
+    });
+
+    await db
+      .prepare(
+        `INSERT INTO hymn_files (id, hymn_id, filename, content_type, size_bytes, object_key)
+        VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        data.hymnId,
+        filename,
+        data.contentType || "application/octet-stream",
+        bytes.byteLength,
+        objectKey
+      )
+      .run();
+
+    const row = await db
+      .prepare("SELECT * FROM hymn_files WHERE id = ?")
+      .bind(id)
+      .first<Record<string, unknown>>();
+
+    if (!row) {
+      throw new Error("Uploaded hymn file could not be loaded.");
+    }
+
+    return mapHymnFileRow(row);
+  });
+
+export const renameHymnFile = createServerFn({ method: "POST" })
+  .validator((data: RenameHymnFileInput) => data)
+  .handler(async ({ data }): Promise<HymnFileRecord> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const filename = data.filename.trim();
+
+    if (!filename) {
+      throw new Error("File name is required.");
+    }
+
+    await db
+      .prepare("UPDATE hymn_files SET filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(filename, data.id)
+      .run();
+
+    const row = await db
+      .prepare("SELECT * FROM hymn_files WHERE id = ?")
+      .bind(data.id)
+      .first<Record<string, unknown>>();
+
+    if (!row) {
+      throw new Error("Hymn file not found.");
+    }
+
+    return mapHymnFileRow(row);
+  });
+
+export const deleteHymnFile = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<void> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const bucket = getPdfBucket();
+    const row = await db
+      .prepare("SELECT object_key FROM hymn_files WHERE id = ?")
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    if (!row) {
+      return;
+    }
+
+    await bucket.delete(asString(row.object_key));
+    await db.prepare("DELETE FROM hymn_files WHERE id = ?").bind(data).run();
+  });
+
+export const getHymnFileDownload = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<HymnFileDownload> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const bucket = getPdfBucket();
+    const row = await db
+      .prepare("SELECT * FROM hymn_files WHERE id = ?")
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    if (!row) {
+      throw new Error("Hymn file not found.");
+    }
+
+    const file = mapHymnFileRow(row);
+    const object = await bucket.get(file.objectKey);
+
+    if (!object) {
+      throw new Error("Hymn file was not found in R2 storage.");
+    }
+
+    const arrayBuffer = await object.arrayBuffer();
+
+    return {
+      base64: Buffer.from(arrayBuffer).toString("base64"),
+      contentType: file.contentType,
+      filename: file.filename,
+    };
   });
 
 export const saveHymn = createServerFn({ method: "POST" })

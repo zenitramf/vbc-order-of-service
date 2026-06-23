@@ -107,6 +107,35 @@ export interface HymnRecord {
   timesPlayedLastSixMonths: number;
 }
 
+export interface HymnFileRecord {
+  contentType: string;
+  createdAt: string;
+  filename: string;
+  hymnId: string;
+  id: string;
+  objectKey: string;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
+export interface UploadHymnFileInput {
+  base64: string;
+  contentType: string;
+  filename: string;
+  hymnId: string;
+}
+
+export interface RenameHymnFileInput {
+  filename: string;
+  id: string;
+}
+
+export interface HymnFileDownload {
+  base64: string;
+  contentType: string;
+  filename: string;
+}
+
 export interface HymnOption {
   hasLyrics: boolean;
   id: string;
