@@ -111,6 +111,8 @@ export interface HymnOption {
   hasLyrics: boolean;
   id: string;
   label: string;
+  lastPlayed: string;
+  musicKey: string;
   sourceName: string;
 }
 

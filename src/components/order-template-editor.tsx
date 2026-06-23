@@ -1,4 +1,5 @@
 import {
+  ArrowSquareOutIcon,
   DotsSixVerticalIcon,
   PlusIcon,
   TrashIcon,
@@ -58,6 +59,9 @@ import { cn } from "~/lib/utils";
 interface HymnComboboxOption {
   hasLyrics: boolean;
   label: string;
+  lastPlayed: string;
+  musicKey: string;
+  sourceName: string;
   value: string;
 }
 
@@ -88,7 +92,14 @@ const groupHymnOptionsBySource = (
   for (const hymn of hymnOptions) {
     const sourceName = hymn.sourceName || "Other";
     const items = groups.get(sourceName) ?? [];
-    items.push({ hasLyrics: hymn.hasLyrics, label: hymn.label, value: hymn.id });
+    items.push({
+      hasLyrics: hymn.hasLyrics,
+      label: hymn.label,
+      lastPlayed: hymn.lastPlayed,
+      musicKey: hymn.musicKey,
+      sourceName: hymn.sourceName,
+      value: hymn.id,
+    });
     groups.set(sourceName, items);
   }
 
@@ -197,6 +208,13 @@ const ActivityEditor = ({
   const needsHymnSelection =
     allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
   const selectedHymnNeedsLyrics = Boolean(selectedHymn && !selectedHymn.hasLyrics);
+  const selectedHymnDetails = selectedHymn
+    ? [
+        `Last played: ${selectedHymn.lastPlayed || "Never"}`,
+        `Key: ${selectedHymn.musicKey || "Not set"}`,
+        `Source: ${selectedHymn.sourceName || "Not set"}`,
+      ]
+    : [];
 
   return (
     <div
@@ -259,27 +277,40 @@ const ActivityEditor = ({
                 <FieldLabel htmlFor={`${activity.id}-hymn`}>
                   Hymn selection
                 </FieldLabel>
-                {selectedHymnNeedsLyrics ? (
+                {selectedHymn ? (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button
-                          aria-label="Selected hymn needs lyrics"
-                          className="inline-flex text-destructive"
-                          type="button"
-                        >
-                          <WarningCircleIcon aria-hidden="true" className="size-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent className="flex max-w-64 flex-col items-start gap-1">
-                        <span>Lyrics need to be added.</span>
                         <Link
-                          className="underline underline-offset-2"
-                          params={{ hymnId: selectedHymn?.value ?? "" }}
+                          aria-label={
+                            selectedHymnNeedsLyrics
+                              ? "Selected hymn needs lyrics"
+                              : "Update selected hymn"
+                          }
+                          className={cn(
+                            "inline-flex",
+                            selectedHymnNeedsLyrics
+                              ? "text-destructive"
+                              : "text-muted-foreground hover:text-foreground"
+                          )}
+                          params={{ hymnId: selectedHymn.value }}
                           to="/hymns/$hymnId"
                         >
-                          Update hymn
+                          {selectedHymnNeedsLyrics ? (
+                            <WarningCircleIcon aria-hidden="true" className="size-4" />
+                          ) : (
+                            <ArrowSquareOutIcon aria-hidden="true" className="size-4" />
+                          )}
                         </Link>
+                      </TooltipTrigger>
+                      <TooltipContent className="flex max-w-64 flex-col items-start gap-1">
+                        {selectedHymnNeedsLyrics ? (
+                          <span>Lyrics need to be added.</span>
+                        ) : (
+                          selectedHymnDetails.map((detail) => (
+                            <span key={detail}>{detail}</span>
+                          ))
+                        )}
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

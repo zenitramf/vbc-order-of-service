@@ -1341,7 +1341,7 @@ export const getHymnOptions = createServerFn({ method: "GET" }).handler(
     const db = getDatabase();
     const { results } = await db
       .prepare(
-        `SELECT hymns.id, hymns.hymn_number, hymns.name, hymns.lyrics_markdown, hymn_sources.name AS source_name
+        `SELECT hymns.id, hymns.hymn_number, hymns.name, hymns.lyrics_markdown, hymns.last_played, hymns.music_key, hymn_sources.name AS source_name
         FROM hymns
         JOIN hymn_sources ON hymn_sources.id = hymns.source_id
         ORDER BY hymn_sources.name, CAST(NULLIF(hymns.hymn_number, '') AS INTEGER), hymns.name`
@@ -1352,6 +1352,8 @@ export const getHymnOptions = createServerFn({ method: "GET" }).handler(
       hasLyrics: Boolean(asString(row.lyrics_markdown).trim()),
       id: asString(row.id),
       label: [asString(row.hymn_number), asString(row.name)].filter(Boolean).join(" — "),
+      lastPlayed: asString(row.last_played),
+      musicKey: asString(row.music_key),
       sourceName: asString(row.source_name),
     }));
   }
