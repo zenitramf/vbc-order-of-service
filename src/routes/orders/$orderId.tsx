@@ -32,6 +32,7 @@ import {
   getOrders,
   getPublishedOrderPdf,
   getReferenceData,
+  postOrderToCraftMyPdf,
   publishOrder,
   saveOrder,
   sendOrderEmail,
@@ -58,11 +59,38 @@ const hasHymnActivityWithoutSelection = (
 const MISSING_HYMN_SELECTION_MESSAGE =
   "Select a hymn for every hymn activity before publishing or sending.";
 
+const copyTextToClipboard = async (text: string): Promise<void> => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.style.left = "-9999px";
+  textArea.style.position = "fixed";
+  textArea.style.top = "0";
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+
+  try {
+    const copied = document.execCommand("copy");
+
+    if (!copied) {
+      throw new Error("Clipboard copy command was not available.");
+    }
+  } finally {
+    textArea.remove();
+  }
+};
+
 const OrderRoute = () => {
   const { emailDelivery: initialEmailDelivery, hymnOptions, order, orders, referenceData } = Route.useLoaderData();
   const router = useRouter();
   const saveOrderFn = useServerFn(saveOrder);
   const publishOrderFn = useServerFn(publishOrder);
+  const postOrderToCraftMyPdfFn = useServerFn(postOrderToCraftMyPdf);
   const getPublishedOrderPdfFn = useServerFn(getPublishedOrderPdf);
   const sendOrderEmailFn = useServerFn(sendOrderEmail);
   const getOrderEmailDeliveryFn = useServerFn(getOrderEmailDelivery);
@@ -244,6 +272,39 @@ const OrderRoute = () => {
     }
   };
 
+  const canPublish =
+    status !== "Published" &&
+    !hasMissingHymnSelection &&
+    !hasServiceDateConflict &&
+    !isPublishing;
+
+  const handleCopyCraftMyPdfData = async () => {
+    if (!canPublish) {
+      return;
+    }
+
+    const saveSucceeded = await handleSave();
+
+    if (!saveSucceeded) {
+      return;
+    }
+
+    try {
+      const result = await postOrderToCraftMyPdfFn({
+        data: { dryRun: true, orderId: currentOrderId },
+      });
+      await copyTextToClipboard(JSON.stringify(result.requestBody.data, null, 2));
+      toast.success("CraftMyPDF data copied to clipboard.");
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to copy CraftMyPDF data. Please try again."
+      );
+      setFormError(errorMessage);
+      toast.error(errorMessage);
+    }
+  };
+
   const handleSendEmail = async () => {
     if (hasMissingHymnSelection) {
       setFormError(MISSING_HYMN_SELECTION_MESSAGE);
@@ -330,7 +391,18 @@ const OrderRoute = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight">Edit Order of Service</h1>
+            <h1
+              className="font-heading text-3xl font-semibold tracking-tight"
+              onDoubleClick={
+                canPublish
+                  ? () => {
+                      void handleCopyCraftMyPdfData();
+                    }
+                  : undefined
+              }
+            >
+              Edit Order of Service
+            </h1>
             <Badge variant={status === "Published" ? "default" : "secondary"}>{status}</Badge>
             {status === "Published" ? (
               <Badge variant={emailDelivery?.status === "Sent" ? "default" : "outline"}>
@@ -370,7 +442,7 @@ const OrderRoute = () => {
             </>
           ) : (
             <Button
-              disabled={hasMissingHymnSelection || hasServiceDateConflict || isPublishing}
+              disabled={!canPublish}
               onClick={handlePublish}
               type="button"
             >
