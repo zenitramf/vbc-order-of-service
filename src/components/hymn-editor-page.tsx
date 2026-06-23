@@ -12,6 +12,19 @@ import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-tabl
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
+import { toast } from "sonner";
+
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "~/components/ui/alert-dialog";
 
 import { MusicKeySelector } from "~/components/music-key-selector";
 import { Button } from "~/components/ui/button";
@@ -129,6 +142,8 @@ export const HymnEditorPage = ({
   const [isUploading, setIsUploading] = React.useState(false);
   const [editingFileId, setEditingFileId] = React.useState<string | null>(null);
   const [editingFilename, setEditingFilename] = React.useState("");
+  const [fileToDelete, setFileToDelete] = React.useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -194,9 +209,22 @@ export const HymnEditorPage = ({
     setEditingFilename("");
   };
 
-  const handleDeleteFile = async (fileId: string) => {
-    await deleteHymnFileFn({ data: fileId });
-    setFiles((currentFiles) => currentFiles.filter((file) => file.id !== fileId));
+  const handleDeleteFile = async (fileId: string, filename: string) => {
+    const previousFiles = files;
+
+    try {
+      setIsDeleting(true);
+      setFiles((currentFiles) => currentFiles.filter((file) => file.id !== fileId));
+      setFileToDelete(null);
+
+      await deleteHymnFileFn({ data: fileId });
+      toast.success(`Deleted "${filename}".`);
+    } catch {
+      setFiles(previousFiles);
+      toast.error("Unable to delete hymn file. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const fileTable = useReactTable({
@@ -295,15 +323,39 @@ export const HymnEditorPage = ({
                   Rename
                 </Button>
               )}
-              <Button
-                onClick={() => void handleDeleteFile(file.id)}
-                size="sm"
-                type="button"
-                variant="ghost"
+              <AlertDialog
+                onOpenChange={(open) => {
+                  setFileToDelete(open ? file.id : null);
+                }}
+                open={fileToDelete === file.id}
               >
-                <TrashIcon data-icon="inline-start" />
-                Delete
-              </Button>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" type="button" variant="ghost">
+                    <TrashIcon data-icon="inline-start" />
+                    Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this hymn file?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently remove "{file.filename}" from this hymn and R2 storage.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={isDeleting}
+                      onClick={async () => {
+                        await handleDeleteFile(file.id, file.filename);
+                      }}
+                      variant="destructive"
+                    >
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           );
         },
