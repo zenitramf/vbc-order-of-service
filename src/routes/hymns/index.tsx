@@ -1,14 +1,22 @@
-import { MusicNotesIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  CaretDownIcon,
+  CaretUpDownIcon,
+  CaretUpIcon,
+  MusicNotesIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import type { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import type { ColumnDef, Row, SortingState } from "@tanstack/react-table";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -39,6 +47,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
+import { Input } from "~/components/ui/input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "~/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -57,6 +70,42 @@ interface HymnColumnsOptions {
   onOpenChange: (open: boolean, hymnId: string) => void;
 }
 
+const ALL_FILTER_VALUE = "all";
+
+const sortDate = (rowA: Row<HymnRecord>, rowB: Row<HymnRecord>) =>
+  (Date.parse(rowA.original.lastPlayed) || 0) -
+  (Date.parse(rowB.original.lastPlayed) || 0);
+
+const sortHymnNumber = (rowA: Row<HymnRecord>, rowB: Row<HymnRecord>) => {
+  const firstNumber = Number.parseInt(rowA.original.hymnNumber, 10);
+  const secondNumber = Number.parseInt(rowB.original.hymnNumber, 10);
+
+  if (Number.isNaN(firstNumber) || Number.isNaN(secondNumber)) {
+    return rowA.original.hymnNumber.localeCompare(rowB.original.hymnNumber);
+  }
+
+  return firstNumber - secondNumber;
+};
+
+const toSelectOptions = (values: string[]) => {
+  const uniqueValues = [...new Set(values.filter(Boolean))];
+
+  // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target does not include toSorted.
+  return uniqueValues.sort((first, second) => first.localeCompare(second));
+};
+
+const renderSortIcon = (sortDirection: false | "asc" | "desc") => {
+  if (sortDirection === "asc") {
+    return <CaretUpIcon data-icon="inline-end" />;
+  }
+
+  if (sortDirection === "desc") {
+    return <CaretDownIcon data-icon="inline-end" />;
+  }
+
+  return <CaretUpDownIcon data-icon="inline-end" />;
+};
+
 const createHymnColumns = ({
   hymnToDelete,
   isDeleting,
@@ -66,6 +115,7 @@ const createHymnColumns = ({
   {
     accessorKey: "hymnNumber",
     header: "No.",
+    sortingFn: sortHymnNumber,
   },
   {
     accessorKey: "name",
@@ -95,6 +145,7 @@ const createHymnColumns = ({
     accessorKey: "lastPlayed",
     cell: ({ row }) => row.original.lastPlayed || "—",
     header: "Last played",
+    sortingFn: sortDate,
   },
   {
     accessorKey: "timesPlayedLastSixMonths",
@@ -158,6 +209,13 @@ const HymnsPage = () => {
   const deleteHymnFn = useServerFn(deleteHymn);
   const [hymnToDelete, setHymnToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sourceFilter, setSourceFilter] = useState(ALL_FILTER_VALUE);
+  const [keyFilter, setKeyFilter] = useState(ALL_FILTER_VALUE);
+  const [sixMonthFilter, setSixMonthFilter] = useState(ALL_FILTER_VALUE);
+  const [lastPlayedFrom, setLastPlayedFrom] = useState("");
+  const [lastPlayedTo, setLastPlayedTo] = useState("");
 
   useEffect(() => {
     setHymnRows(hymns);
@@ -184,6 +242,67 @@ const HymnsPage = () => {
     }
   };
 
+  const sourceOptions = useMemo(
+    () => toSelectOptions(hymnRows.map((hymn) => hymn.sourceName)),
+    [hymnRows]
+  );
+  const keyOptions = useMemo(
+    () => toSelectOptions(hymnRows.map((hymn) => hymn.musicKey)),
+    [hymnRows]
+  );
+  const sixMonthOptions = useMemo(() => {
+    const uniquePlayCounts = [
+      ...new Set(hymnRows.map((hymn) => hymn.timesPlayedLastSixMonths)),
+    ];
+
+    // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target does not include toSorted.
+    return uniquePlayCounts.sort((first, second) => first - second);
+  }, [hymnRows]);
+  const filteredHymnRows = useMemo(() => {
+    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+    const fromTime = lastPlayedFrom ? Date.parse(lastPlayedFrom) : null;
+    const toTime = lastPlayedTo ? Date.parse(lastPlayedTo) : null;
+
+    return hymnRows.filter((hymn) => {
+      const matchesSearch = normalizedSearchTerm
+        ? `${hymn.hymnNumber} ${hymn.name}`
+            .toLowerCase()
+            .includes(normalizedSearchTerm)
+        : true;
+      const matchesSource =
+        sourceFilter === ALL_FILTER_VALUE || hymn.sourceName === sourceFilter;
+      const matchesKey =
+        keyFilter === ALL_FILTER_VALUE || hymn.musicKey === keyFilter;
+      const matchesSixMonths =
+        sixMonthFilter === ALL_FILTER_VALUE ||
+        hymn.timesPlayedLastSixMonths === Number(sixMonthFilter);
+      const lastPlayedTime = Date.parse(hymn.lastPlayed);
+      const matchesFrom =
+        fromTime === null ||
+        (!Number.isNaN(lastPlayedTime) && lastPlayedTime >= fromTime);
+      const matchesTo =
+        toTime === null ||
+        (!Number.isNaN(lastPlayedTime) && lastPlayedTime <= toTime);
+
+      return (
+        matchesSearch &&
+        matchesSource &&
+        matchesKey &&
+        matchesSixMonths &&
+        matchesFrom &&
+        matchesTo
+      );
+    });
+  }, [
+    hymnRows,
+    keyFilter,
+    lastPlayedFrom,
+    lastPlayedTo,
+    searchTerm,
+    sixMonthFilter,
+    sourceFilter,
+  ]);
+
   const columns = createHymnColumns({
     hymnToDelete,
     isDeleting,
@@ -193,10 +312,30 @@ const HymnsPage = () => {
     },
   });
 
+  const hasActiveFilters =
+    searchTerm !== "" ||
+    sourceFilter !== ALL_FILTER_VALUE ||
+    keyFilter !== ALL_FILTER_VALUE ||
+    sixMonthFilter !== ALL_FILTER_VALUE ||
+    lastPlayedFrom !== "" ||
+    lastPlayedTo !== "";
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setSourceFilter(ALL_FILTER_VALUE);
+    setKeyFilter(ALL_FILTER_VALUE);
+    setSixMonthFilter(ALL_FILTER_VALUE);
+    setLastPlayedFrom("");
+    setLastPlayedTo("");
+  };
+
   const table = useReactTable({
     columns,
-    data: hymnRows,
+    data: filteredHymnRows,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: { sorting },
   });
 
   return (
@@ -227,6 +366,81 @@ const HymnsPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+            <Input
+              className="lg:col-span-2"
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search hymn no. or name"
+              type="search"
+              value={searchTerm}
+            />
+            <NativeSelect
+              aria-label="Filter by source"
+              onChange={(event) => setSourceFilter(event.target.value)}
+              value={sourceFilter}
+            >
+              <NativeSelectOption value={ALL_FILTER_VALUE}>
+                All sources
+              </NativeSelectOption>
+              {sourceOptions.map((source) => (
+                <NativeSelectOption key={source} value={source}>
+                  {source}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <NativeSelect
+              aria-label="Filter by key"
+              onChange={(event) => setKeyFilter(event.target.value)}
+              value={keyFilter}
+            >
+              <NativeSelectOption value={ALL_FILTER_VALUE}>
+                All keys
+              </NativeSelectOption>
+              {keyOptions.map((musicKey) => (
+                <NativeSelectOption key={musicKey} value={musicKey}>
+                  {musicKey}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <NativeSelect
+              aria-label="Filter by six month plays"
+              onChange={(event) => setSixMonthFilter(event.target.value)}
+              value={sixMonthFilter}
+            >
+              <NativeSelectOption value={ALL_FILTER_VALUE}>
+                Any 6 mo. plays
+              </NativeSelectOption>
+              {sixMonthOptions.map((playCount) => (
+                <NativeSelectOption key={playCount} value={String(playCount)}>
+                  {playCount} plays
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+            <div className="grid grid-cols-2 gap-2 lg:col-span-5">
+              <Input
+                aria-label="Last played on or after"
+                onChange={(event) => setLastPlayedFrom(event.target.value)}
+                placeholder="Last played from"
+                type="date"
+                value={lastPlayedFrom}
+              />
+              <Input
+                aria-label="Last played on or before"
+                onChange={(event) => setLastPlayedTo(event.target.value)}
+                placeholder="Last played to"
+                type="date"
+                value={lastPlayedTo}
+              />
+            </div>
+            <Button
+              disabled={!hasActiveFilters}
+              onClick={handleClearFilters}
+              type="button"
+              variant="outline"
+            >
+              Clear filters
+            </Button>
+          </div>
           {hymnRows.length === 0 ? (
             <Empty>
               <EmptyHeader>
@@ -252,32 +466,56 @@ const HymnsPage = () => {
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
+                    {headerGroup.headers.map((header) => {
+                      const sortDirection = header.column.getIsSorted();
+
+                      return (
+                        <TableHead key={header.id}>
+                          {header.isPlaceholder ? null : (
+                            <Button
+                              className="h-auto px-0 font-semibold"
+                              disabled={!header.column.getCanSort()}
+                              onClick={header.column.getToggleSortingHandler()}
+                              type="button"
+                              variant="ghost"
+                            >
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                              {renderSortIcon(sortDirection)}
+                            </Button>
+                          )}
+                        </TableHead>
+                      );
+                    })}
                   </TableRow>
                 ))}
               </TableHeader>
               <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
+                {table.getRowModel().rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      className="py-8 text-center text-muted-foreground"
+                      colSpan={columns.length}
+                    >
+                      No hymns match the current filters.
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           )}
