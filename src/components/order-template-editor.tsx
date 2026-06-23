@@ -2,7 +2,9 @@ import {
   DotsSixVerticalIcon,
   PlusIcon,
   TrashIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
+import { Link } from "@tanstack/react-router";
 import * as React from "react";
 import { v4 as uuidv4 } from "uuid";
 
@@ -38,6 +40,12 @@ import {
   NativeSelectOption,
 } from "~/components/ui/native-select";
 import { Textarea } from "~/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import type {
   HymnOption,
   OrderActivity,
@@ -48,6 +56,7 @@ import type {
 import { cn } from "~/lib/utils";
 
 interface HymnComboboxOption {
+  hasLyrics: boolean;
   label: string;
   value: string;
 }
@@ -79,7 +88,7 @@ const groupHymnOptionsBySource = (
   for (const hymn of hymnOptions) {
     const sourceName = hymn.sourceName || "Other";
     const items = groups.get(sourceName) ?? [];
-    items.push({ label: hymn.label, value: hymn.id });
+    items.push({ hasLyrics: hymn.hasLyrics, label: hymn.label, value: hymn.id });
     groups.set(sourceName, items);
   }
 
@@ -187,6 +196,7 @@ const ActivityEditor = ({
     .find((hymn) => hymn.value === activity.hymnId);
   const needsHymnSelection =
     allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
+  const selectedHymnNeedsLyrics = Boolean(selectedHymn && !selectedHymn.hasLyrics);
 
   return (
     <div
@@ -245,9 +255,36 @@ const ActivityEditor = ({
           </Field>
           {allowHymnSelection && activity.activityType === "hymn" ? (
             <Field className="md:col-span-2">
-              <FieldLabel htmlFor={`${activity.id}-hymn`}>
-                Hymn selection
-              </FieldLabel>
+              <div className="flex items-center gap-2">
+                <FieldLabel htmlFor={`${activity.id}-hymn`}>
+                  Hymn selection
+                </FieldLabel>
+                {selectedHymnNeedsLyrics ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          aria-label="Selected hymn needs lyrics"
+                          className="inline-flex text-destructive"
+                          type="button"
+                        >
+                          <WarningCircleIcon aria-hidden="true" className="size-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="flex max-w-64 flex-col items-start gap-1">
+                        <span>Lyrics need to be added.</span>
+                        <Link
+                          className="underline underline-offset-2"
+                          params={{ hymnId: selectedHymn?.value ?? "" }}
+                          to="/hymns/$hymnId"
+                        >
+                          Update hymn
+                        </Link>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : null}
+              </div>
               <Combobox
                 isItemEqualToValue={(item, value) => item.value === value.value}
                 items={hymnOptionGroups}

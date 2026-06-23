@@ -108,6 +108,7 @@ export interface HymnRecord {
 }
 
 export interface HymnOption {
+  hasLyrics: boolean;
   id: string;
   label: string;
   sourceName: string;
