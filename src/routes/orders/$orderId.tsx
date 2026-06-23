@@ -95,8 +95,19 @@ const OrderRoute = () => {
     ? getServiceDateConflictMessage(serviceDate)
     : formError;
   const hasMissingHymnSelection = hasHymnActivityWithoutSelection(orderJson);
+  const saveSnapshot = React.useMemo(
+    () =>
+      JSON.stringify({
+        order: orderJson ? { ...orderJson, name: title } : null,
+        serviceDate,
+        serviceTypeId,
+        title,
+      }),
+    [orderJson, serviceDate, serviceTypeId, title]
+  );
+  const lastSavedSnapshotRef = React.useRef(saveSnapshot);
 
-  const handleSave = async (): Promise<boolean> => {
+  const handleSave = React.useCallback(async (): Promise<boolean> => {
     if (hasServiceDateConflict) {
       setFormError(getServiceDateConflictMessage(serviceDate));
       return false;
@@ -134,7 +145,44 @@ const OrderRoute = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [
+    currentOrderId,
+    hasServiceDateConflict,
+    orderJson,
+    router,
+    saveOrderFn,
+    serviceDate,
+    serviceTypeId,
+    title,
+  ]);
+
+  React.useEffect(() => {
+    if (lastSavedSnapshotRef.current === saveSnapshot) {
+      return;
+    }
+
+    if (hasServiceDateConflict || !currentOrderId || !orderJson) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        const saveSucceeded = await handleSave();
+
+        if (saveSucceeded) {
+          lastSavedSnapshotRef.current = saveSnapshot;
+        }
+      })();
+    }, 800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    currentOrderId,
+    handleSave,
+    hasServiceDateConflict,
+    orderJson,
+    saveSnapshot,
+  ]);
 
   const handlePublish = async () => {
     if (hasMissingHymnSelection) {

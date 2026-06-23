@@ -8,6 +8,13 @@ import { v4 as uuidv4 } from "uuid";
 
 import { Button } from "~/components/ui/button";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "~/components/ui/card";
+import {
   Combobox,
   ComboboxCollection,
   ComboboxContent,
@@ -20,13 +27,6 @@ import {
   ComboboxSeparator,
 } from "~/components/ui/combobox";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
-import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -38,7 +38,6 @@ import {
   NativeSelectOption,
 } from "~/components/ui/native-select";
 import { Textarea } from "~/components/ui/textarea";
-import { cn } from "~/lib/utils";
 import type {
   HymnOption,
   OrderActivity,
@@ -46,6 +45,7 @@ import type {
   ReferenceOption,
   ServiceTypeCard,
 } from "~/lib/order-service-types";
+import { cn } from "~/lib/utils";
 
 interface HymnComboboxOption {
   label: string;
@@ -244,7 +244,7 @@ const ActivityEditor = ({
             </NativeSelect>
           </Field>
           {allowHymnSelection && activity.activityType === "hymn" ? (
-            <Field>
+            <Field className="md:col-span-2">
               <FieldLabel htmlFor={`${activity.id}-hymn`}>
                 Hymn selection
               </FieldLabel>
