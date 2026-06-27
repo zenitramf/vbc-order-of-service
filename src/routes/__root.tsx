@@ -9,6 +9,8 @@ import {
   ListChecksIcon,
   MusicNotesIcon,
   PlusIcon,
+  UserCircleIcon,
+  UsersThreeIcon,
 } from "@phosphor-icons/react";
 import {
   HeadContent,
@@ -59,11 +61,18 @@ const navigationItems = [
   { icon: MusicNotesIcon, label: "Hymns", to: "/hymns" },
 ] as const;
 
+const teamManagementItems = [
+  { icon: UsersThreeIcon, label: "Teams", to: "/teams" },
+  { icon: UserCircleIcon, label: "Team Members", to: "/members" },
+] as const;
+
 const routeLabels = new Map([
   ["orders", "Orders"],
   ["new", "New"],
   ["templates", "Templates"],
   ["hymns", "Hymns"],
+  ["teams", "Teams"],
+  ["members", "Team Members"],
 ]);
 
 const RootDocument = ({ children }: { children: React.ReactNode }) => (
@@ -169,6 +178,29 @@ const AppSidebar = () => {
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
+          <SidebarGroupLabel>Team Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {teamManagementItems.map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                  pathname === item.to || pathname.startsWith(`${item.to}/`);
+
+                return (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link to={item.to}>
+                        <Icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
           <SidebarGroupLabel>Create</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -206,7 +238,6 @@ const AppSidebar = () => {
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
-
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

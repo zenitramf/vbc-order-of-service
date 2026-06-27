@@ -1,7 +1,12 @@
+import {
+  DownloadSimpleIcon,
+  FloppyDiskIcon,
+  PaperPlaneTiltIcon,
+  PlusIcon,
+} from "@phosphor-icons/react";
 // oxlint-disable complexity, no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { DownloadSimpleIcon, FloppyDiskIcon, PaperPlaneTiltIcon, PlusIcon } from "@phosphor-icons/react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -22,9 +27,17 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "~/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "~/components/ui/native-select";
 import {
   getHymnOptions,
   getOrder,
@@ -32,12 +45,22 @@ import {
   getOrders,
   getPublishedOrderPdf,
   getReferenceData,
+  getTeamMembers,
+  getTeams,
   postOrderToCraftMyPdf,
   publishOrder,
   saveOrder,
   sendOrderEmail,
 } from "~/lib/order-service-data";
-import type { OrderEmailDeliveryRecord, OrderServiceTemplateJson, ServiceStatus } from "~/lib/order-service-types";
+import type {
+  OrderEmailDeliveryRecord,
+  OrderServiceTemplateJson,
+  ServiceStatus,
+} from "~/lib/order-service-types";
+import {
+  findMissingRequiredTeams,
+  teamsById as toTeamsById,
+} from "~/lib/teams-logic";
 
 const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
@@ -70,6 +93,7 @@ const copyTextToClipboard = async (text: string): Promise<void> => {
   textArea.style.left = "-9999px";
   textArea.style.position = "fixed";
   textArea.style.top = "0";
+  // oxlint-disable-next-line prefer-dom-node-append -- Workers DOM types mis-resolve Element#append.
   document.body.appendChild(textArea);
   textArea.focus();
   textArea.select();
@@ -86,7 +110,15 @@ const copyTextToClipboard = async (text: string): Promise<void> => {
 };
 
 const OrderRoute = () => {
-  const { emailDelivery: initialEmailDelivery, hymnOptions, order, orders, referenceData } = Route.useLoaderData();
+  const {
+    emailDelivery: initialEmailDelivery,
+    hymnOptions,
+    order,
+    orders,
+    referenceData,
+    teamMembers,
+    teams,
+  } = Route.useLoaderData();
   const router = useRouter();
   const saveOrderFn = useServerFn(saveOrder);
   const publishOrderFn = useServerFn(publishOrder);
@@ -98,14 +130,20 @@ const OrderRoute = () => {
   const [isPublishing, setIsPublishing] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
-  const [emailDelivery, setEmailDelivery] = React.useState<OrderEmailDeliveryRecord | null>(initialEmailDelivery);
+  const [emailDelivery, setEmailDelivery] =
+    React.useState<OrderEmailDeliveryRecord | null>(initialEmailDelivery);
   const [title, setTitle] = React.useState(order?.title ?? "");
-  const [serviceDate, setServiceDate] = React.useState(order?.serviceDate ?? "");
-  const [serviceTypeId, setServiceTypeId] = React.useState(order?.serviceTypeId ?? "");
-  const [status, setStatus] = React.useState<ServiceStatus>(order?.status ?? "Planning");
-  const [orderJson, setOrderJson] = React.useState<OrderServiceTemplateJson | null>(
-    order?.order ?? null
+  const [serviceDate, setServiceDate] = React.useState(
+    order?.serviceDate ?? ""
   );
+  const [serviceTypeId, setServiceTypeId] = React.useState(
+    order?.serviceTypeId ?? ""
+  );
+  const [status, setStatus] = React.useState<ServiceStatus>(
+    order?.status ?? "Planning"
+  );
+  const [orderJson, setOrderJson] =
+    React.useState<OrderServiceTemplateJson | null>(order?.order ?? null);
   const [formError, setFormError] = React.useState<string | null>(null);
   const currentOrderId = order?.id ?? "";
 
@@ -123,6 +161,15 @@ const OrderRoute = () => {
     ? getServiceDateConflictMessage(serviceDate)
     : formError;
   const hasMissingHymnSelection = hasHymnActivityWithoutSelection(orderJson);
+  const teamsLookup = React.useMemo(() => toTeamsById(teams), [teams]);
+  const missingRequiredTeams = React.useMemo(
+    () => (orderJson ? findMissingRequiredTeams(orderJson, teamsLookup) : []),
+    [orderJson, teamsLookup]
+  );
+  const hasMissingRequiredTeams = missingRequiredTeams.length > 0;
+  const missingRequiredTeamsMessage = `Assign members to every required team before publishing: ${missingRequiredTeams
+    .map((entry) => `${entry.teamName} (${entry.cardName})`)
+    .join(", ")}.`;
   const saveSnapshot = React.useMemo(
     () =>
       JSON.stringify({
@@ -219,6 +266,12 @@ const OrderRoute = () => {
       return;
     }
 
+    if (hasMissingRequiredTeams) {
+      setFormError(missingRequiredTeamsMessage);
+      toast.error(missingRequiredTeamsMessage);
+      return;
+    }
+
     const saveSucceeded = await handleSave();
 
     if (!saveSucceeded) {
@@ -251,7 +304,10 @@ const OrderRoute = () => {
     try {
       const pdf = await getPublishedOrderPdfFn({ data: currentOrderId });
       const binary = window.atob(pdf.base64);
-      const bytes = Uint8Array.from(binary, (character) => character.codePointAt(0) ?? 0);
+      const bytes = Uint8Array.from(
+        binary,
+        (character) => character.codePointAt(0) ?? 0
+      );
       const url = window.URL.createObjectURL(
         new Blob([bytes], { type: "application/pdf" })
       );
@@ -275,6 +331,7 @@ const OrderRoute = () => {
   const canPublish =
     status !== "Published" &&
     !hasMissingHymnSelection &&
+    !hasMissingRequiredTeams &&
     !hasServiceDateConflict &&
     !isPublishing;
 
@@ -293,7 +350,9 @@ const OrderRoute = () => {
       const result = await postOrderToCraftMyPdfFn({
         data: { dryRun: true, orderId: currentOrderId },
       });
-      await copyTextToClipboard(JSON.stringify(result.requestBody.data, null, 2));
+      await copyTextToClipboard(
+        JSON.stringify(result.requestBody.data, null, 2)
+      );
       toast.success("CraftMyPDF data copied to clipboard.");
     } catch (error) {
       const errorMessage = getErrorMessage(
@@ -335,27 +394,40 @@ const OrderRoute = () => {
   const publishButtonLabel = isPublishing ? "Publishing…" : "Publish and Send";
   const emailStatusLabel = emailDelivery?.status ?? "Not Sent";
   const sendEmailButtonLabel = isSendingEmail ? "Queueing…" : "Send Email";
-  const downloadButtonLabel = isDownloading ? "Downloading…" : "Download Service";
+  const downloadButtonLabel = isDownloading
+    ? "Downloading…"
+    : "Download Service";
 
   React.useEffect(() => {
     setEmailDelivery(initialEmailDelivery);
   }, [initialEmailDelivery]);
 
   React.useEffect(() => {
-    if (!order || !(emailDelivery?.status === "Queued" || emailDelivery?.status === "Sending")) {
+    if (
+      !order ||
+      !(
+        emailDelivery?.status === "Queued" ||
+        emailDelivery?.status === "Sending"
+      )
+    ) {
       return;
     }
 
     const intervalId = window.setInterval(() => {
       void (async () => {
-        const latestDelivery = await getOrderEmailDeliveryFn({ data: currentOrderId });
+        const latestDelivery = await getOrderEmailDeliveryFn({
+          data: currentOrderId,
+        });
 
         if (!latestDelivery) {
           return;
         }
 
         setEmailDelivery((currentDelivery) => {
-          if (currentDelivery?.status !== "Sent" && latestDelivery.status === "Sent") {
+          if (
+            currentDelivery?.status !== "Sent" &&
+            latestDelivery.status === "Sent"
+          ) {
             toast.success(`Message with ${latestDelivery.subject} Sent`);
           }
 
@@ -372,7 +444,9 @@ const OrderRoute = () => {
       <Empty>
         <EmptyHeader>
           <EmptyTitle>Order not found</EmptyTitle>
-          <EmptyDescription>The requested order of service may have been deleted.</EmptyDescription>
+          <EmptyDescription>
+            The requested order of service may have been deleted.
+          </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
@@ -403,15 +477,22 @@ const OrderRoute = () => {
             >
               Edit Order of Service
             </h1>
-            <Badge variant={status === "Published" ? "default" : "secondary"}>{status}</Badge>
+            <Badge variant={status === "Published" ? "default" : "secondary"}>
+              {status}
+            </Badge>
             {status === "Published" ? (
-              <Badge variant={emailDelivery?.status === "Sent" ? "default" : "outline"}>
+              <Badge
+                variant={
+                  emailDelivery?.status === "Sent" ? "default" : "outline"
+                }
+              >
                 Email: {emailStatusLabel}
               </Badge>
             ) : null}
           </div>
           <p className="text-muted-foreground">
-            Plan service cards, select hymns, and prepare the order for publishing.
+            Plan service cards, select hymns, and prepare the order for
+            publishing.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -426,12 +507,20 @@ const OrderRoute = () => {
           </Button>
           {status === "Published" ? (
             <>
-              <Button disabled={isDownloading} onClick={handleDownload} type="button">
+              <Button
+                disabled={isDownloading}
+                onClick={handleDownload}
+                type="button"
+              >
                 <DownloadSimpleIcon data-icon="inline-start" />
                 {downloadButtonLabel}
               </Button>
               <Button
-                disabled={Boolean(emailDelivery) || hasMissingHymnSelection || isSendingEmail}
+                disabled={
+                  Boolean(emailDelivery) ||
+                  hasMissingHymnSelection ||
+                  isSendingEmail
+                }
                 onClick={handleSendEmail}
                 type="button"
                 variant="outline"
@@ -458,17 +547,32 @@ const OrderRoute = () => {
           <CardHeader>
             <CardTitle>Email delivery log</CardTitle>
             <CardDescription>
-              Message with {emailDelivery.subject} {emailDelivery.status === "Sent" ? "sent" : "queued"}.
+              Message with {emailDelivery.subject}{" "}
+              {emailDelivery.status === "Sent" ? "sent" : "queued"}.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">Status</span>
-              <Badge variant={emailDelivery.status === "Sent" ? "default" : "outline"}>{emailDelivery.status}</Badge>
+              <Badge
+                variant={
+                  emailDelivery.status === "Sent" ? "default" : "outline"
+                }
+              >
+                {emailDelivery.status}
+              </Badge>
             </div>
-            <p className="text-muted-foreground">Queued at {emailDelivery.queuedAt}</p>
-            {emailDelivery.sentAt ? <p className="text-muted-foreground">Sent at {emailDelivery.sentAt}</p> : null}
-            {emailDelivery.errorMessage ? <p className="text-destructive">{emailDelivery.errorMessage}</p> : null}
+            <p className="text-muted-foreground">
+              Queued at {emailDelivery.queuedAt}
+            </p>
+            {emailDelivery.sentAt ? (
+              <p className="text-muted-foreground">
+                Sent at {emailDelivery.sentAt}
+              </p>
+            ) : null}
+            {emailDelivery.errorMessage ? (
+              <p className="text-destructive">{emailDelivery.errorMessage}</p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -477,17 +581,24 @@ const OrderRoute = () => {
         <CardHeader>
           <CardTitle>Service details</CardTitle>
           <CardDescription>
-            Publishing generates a PDF, stores it in R2, and updates selected hymn usage.
+            Publishing generates a PDF, stores it in R2, and updates selected
+            hymn usage.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="order-title">Title</FieldLabel>
-              <Input id="order-title" onChange={(event) => setTitle(event.target.value)} value={title} />
+              <Input
+                id="order-title"
+                onChange={(event) => setTitle(event.target.value)}
+                value={title}
+              />
             </Field>
             <Field>
-              <FieldLabel htmlFor="order-date">Order of service date</FieldLabel>
+              <FieldLabel htmlFor="order-date">
+                Order of service date
+              </FieldLabel>
               <Input
                 id="order-date"
                 onChange={(event) => {
@@ -515,13 +626,17 @@ const OrderRoute = () => {
                 value={serviceTypeId}
               >
                 {referenceData.serviceTypes.map((serviceType) => (
-                  <NativeSelectOption key={serviceType.id} value={serviceType.id}>
+                  <NativeSelectOption
+                    key={serviceType.id}
+                    value={serviceType.id}
+                  >
                     {serviceType.name}
                   </NativeSelectOption>
                 ))}
               </NativeSelect>
               <FieldDescription>
-                Templates manage service types. Save a modified template when you need a new reusable service type.
+                Templates manage service types. Save a modified template when
+                you need a new reusable service type.
               </FieldDescription>
             </Field>
           </FieldGroup>
@@ -531,8 +646,11 @@ const OrderRoute = () => {
       <OrderTemplateEditor
         activityTypes={referenceData.activityTypes}
         allowHymnSelection
+        allowTeamAssignment
         hymnOptions={hymnOptions}
         onChange={(value) => setOrderJson({ ...value, name: title })}
+        teamMembers={teamMembers}
+        teams={teams}
         value={{ ...orderJson, name: title }}
       />
     </div>
@@ -542,14 +660,32 @@ const OrderRoute = () => {
 export const Route = createFileRoute("/orders/$orderId")({
   component: OrderRoute,
   loader: async ({ params }) => {
-    const [order, referenceData, hymnOptions, orders, emailDelivery] = await Promise.all([
+    const [
+      order,
+      referenceData,
+      hymnOptions,
+      orders,
+      emailDelivery,
+      teams,
+      teamMembers,
+    ] = await Promise.all([
       getOrder({ data: params.orderId }),
       getReferenceData(),
       getHymnOptions(),
       getOrders(),
       getOrderEmailDelivery({ data: params.orderId }),
+      getTeams(),
+      getTeamMembers(),
     ]);
 
-    return { emailDelivery, hymnOptions, order, orders, referenceData };
+    return {
+      emailDelivery,
+      hymnOptions,
+      order,
+      orders,
+      referenceData,
+      teamMembers,
+      teams,
+    };
   },
 });

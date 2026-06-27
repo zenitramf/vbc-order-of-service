@@ -11,13 +11,19 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TemplatesIndexRouteImport } from './routes/templates/index'
+import { Route as TeamsIndexRouteImport } from './routes/teams/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as OrdersIndexRouteImport } from './routes/orders/index'
+import { Route as MembersIndexRouteImport } from './routes/members/index'
 import { Route as HymnsIndexRouteImport } from './routes/hymns/index'
 import { Route as TemplatesNewRouteImport } from './routes/templates/new'
 import { Route as TemplatesTemplateIdRouteImport } from './routes/templates/$templateId'
+import { Route as TeamsNewRouteImport } from './routes/teams/new'
+import { Route as TeamsTeamIdRouteImport } from './routes/teams/$teamId'
 import { Route as OrdersNewRouteImport } from './routes/orders/new'
 import { Route as OrdersOrderIdRouteImport } from './routes/orders/$orderId'
+import { Route as MembersNewRouteImport } from './routes/members/new'
+import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
 import { Route as HymnsNewRouteImport } from './routes/hymns/new'
 import { Route as HymnsHymnIdRouteImport } from './routes/hymns/$hymnId'
 
@@ -31,6 +37,11 @@ const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
   path: '/templates/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeamsIndexRoute = TeamsIndexRouteImport.update({
+  id: '/teams/',
+  path: '/teams/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/settings/',
   path: '/settings/',
@@ -39,6 +50,11 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
 const OrdersIndexRoute = OrdersIndexRouteImport.update({
   id: '/orders/',
   path: '/orders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembersIndexRoute = MembersIndexRouteImport.update({
+  id: '/members/',
+  path: '/members/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HymnsIndexRoute = HymnsIndexRouteImport.update({
@@ -56,6 +72,16 @@ const TemplatesTemplateIdRoute = TemplatesTemplateIdRouteImport.update({
   path: '/templates/$templateId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeamsNewRoute = TeamsNewRouteImport.update({
+  id: '/teams/new',
+  path: '/teams/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
+  id: '/teams/$teamId',
+  path: '/teams/$teamId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersNewRoute = OrdersNewRouteImport.update({
   id: '/orders/new',
   path: '/orders/new',
@@ -64,6 +90,16 @@ const OrdersNewRoute = OrdersNewRouteImport.update({
 const OrdersOrderIdRoute = OrdersOrderIdRouteImport.update({
   id: '/orders/$orderId',
   path: '/orders/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembersNewRoute = MembersNewRouteImport.update({
+  id: '/members/new',
+  path: '/members/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MembersMemberIdRoute = MembersMemberIdRouteImport.update({
+  id: '/members/$memberId',
+  path: '/members/$memberId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HymnsNewRoute = HymnsNewRouteImport.update({
@@ -81,26 +117,38 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/hymns/$hymnId': typeof HymnsHymnIdRoute
   '/hymns/new': typeof HymnsNewRoute
+  '/members/$memberId': typeof MembersMemberIdRoute
+  '/members/new': typeof MembersNewRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/orders/new': typeof OrdersNewRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/teams/new': typeof TeamsNewRoute
   '/templates/$templateId': typeof TemplatesTemplateIdRoute
   '/templates/new': typeof TemplatesNewRoute
   '/hymns/': typeof HymnsIndexRoute
+  '/members/': typeof MembersIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/teams/': typeof TeamsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/hymns/$hymnId': typeof HymnsHymnIdRoute
   '/hymns/new': typeof HymnsNewRoute
+  '/members/$memberId': typeof MembersMemberIdRoute
+  '/members/new': typeof MembersNewRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/orders/new': typeof OrdersNewRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/teams/new': typeof TeamsNewRoute
   '/templates/$templateId': typeof TemplatesTemplateIdRoute
   '/templates/new': typeof TemplatesNewRoute
   '/hymns': typeof HymnsIndexRoute
+  '/members': typeof MembersIndexRoute
   '/orders': typeof OrdersIndexRoute
   '/settings': typeof SettingsIndexRoute
+  '/teams': typeof TeamsIndexRoute
   '/templates': typeof TemplatesIndexRoute
 }
 export interface FileRoutesById {
@@ -108,13 +156,19 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/hymns/$hymnId': typeof HymnsHymnIdRoute
   '/hymns/new': typeof HymnsNewRoute
+  '/members/$memberId': typeof MembersMemberIdRoute
+  '/members/new': typeof MembersNewRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/orders/new': typeof OrdersNewRoute
+  '/teams/$teamId': typeof TeamsTeamIdRoute
+  '/teams/new': typeof TeamsNewRoute
   '/templates/$templateId': typeof TemplatesTemplateIdRoute
   '/templates/new': typeof TemplatesNewRoute
   '/hymns/': typeof HymnsIndexRoute
+  '/members/': typeof MembersIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/settings/': typeof SettingsIndexRoute
+  '/teams/': typeof TeamsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRouteTypes {
@@ -123,39 +177,57 @@ export interface FileRouteTypes {
     | '/'
     | '/hymns/$hymnId'
     | '/hymns/new'
+    | '/members/$memberId'
+    | '/members/new'
     | '/orders/$orderId'
     | '/orders/new'
+    | '/teams/$teamId'
+    | '/teams/new'
     | '/templates/$templateId'
     | '/templates/new'
     | '/hymns/'
+    | '/members/'
     | '/orders/'
     | '/settings/'
+    | '/teams/'
     | '/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/hymns/$hymnId'
     | '/hymns/new'
+    | '/members/$memberId'
+    | '/members/new'
     | '/orders/$orderId'
     | '/orders/new'
+    | '/teams/$teamId'
+    | '/teams/new'
     | '/templates/$templateId'
     | '/templates/new'
     | '/hymns'
+    | '/members'
     | '/orders'
     | '/settings'
+    | '/teams'
     | '/templates'
   id:
     | '__root__'
     | '/'
     | '/hymns/$hymnId'
     | '/hymns/new'
+    | '/members/$memberId'
+    | '/members/new'
     | '/orders/$orderId'
     | '/orders/new'
+    | '/teams/$teamId'
+    | '/teams/new'
     | '/templates/$templateId'
     | '/templates/new'
     | '/hymns/'
+    | '/members/'
     | '/orders/'
     | '/settings/'
+    | '/teams/'
     | '/templates/'
   fileRoutesById: FileRoutesById
 }
@@ -163,13 +235,19 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   HymnsHymnIdRoute: typeof HymnsHymnIdRoute
   HymnsNewRoute: typeof HymnsNewRoute
+  MembersMemberIdRoute: typeof MembersMemberIdRoute
+  MembersNewRoute: typeof MembersNewRoute
   OrdersOrderIdRoute: typeof OrdersOrderIdRoute
   OrdersNewRoute: typeof OrdersNewRoute
+  TeamsTeamIdRoute: typeof TeamsTeamIdRoute
+  TeamsNewRoute: typeof TeamsNewRoute
   TemplatesTemplateIdRoute: typeof TemplatesTemplateIdRoute
   TemplatesNewRoute: typeof TemplatesNewRoute
   HymnsIndexRoute: typeof HymnsIndexRoute
+  MembersIndexRoute: typeof MembersIndexRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
+  TeamsIndexRoute: typeof TeamsIndexRoute
   TemplatesIndexRoute: typeof TemplatesIndexRoute
 }
 
@@ -189,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TemplatesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/teams/': {
+      id: '/teams/'
+      path: '/teams'
+      fullPath: '/teams/'
+      preLoaderRoute: typeof TeamsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/': {
       id: '/settings/'
       path: '/settings'
@@ -201,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/orders'
       fullPath: '/orders/'
       preLoaderRoute: typeof OrdersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/members/': {
+      id: '/members/'
+      path: '/members'
+      fullPath: '/members/'
+      preLoaderRoute: typeof MembersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hymns/': {
@@ -224,6 +316,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TemplatesTemplateIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/teams/new': {
+      id: '/teams/new'
+      path: '/teams/new'
+      fullPath: '/teams/new'
+      preLoaderRoute: typeof TeamsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teams/$teamId': {
+      id: '/teams/$teamId'
+      path: '/teams/$teamId'
+      fullPath: '/teams/$teamId'
+      preLoaderRoute: typeof TeamsTeamIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/orders/new': {
       id: '/orders/new'
       path: '/orders/new'
@@ -236,6 +342,20 @@ declare module '@tanstack/react-router' {
       path: '/orders/$orderId'
       fullPath: '/orders/$orderId'
       preLoaderRoute: typeof OrdersOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/members/new': {
+      id: '/members/new'
+      path: '/members/new'
+      fullPath: '/members/new'
+      preLoaderRoute: typeof MembersNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/members/$memberId': {
+      id: '/members/$memberId'
+      path: '/members/$memberId'
+      fullPath: '/members/$memberId'
+      preLoaderRoute: typeof MembersMemberIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hymns/new': {
@@ -259,13 +379,19 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   HymnsHymnIdRoute: HymnsHymnIdRoute,
   HymnsNewRoute: HymnsNewRoute,
+  MembersMemberIdRoute: MembersMemberIdRoute,
+  MembersNewRoute: MembersNewRoute,
   OrdersOrderIdRoute: OrdersOrderIdRoute,
   OrdersNewRoute: OrdersNewRoute,
+  TeamsTeamIdRoute: TeamsTeamIdRoute,
+  TeamsNewRoute: TeamsNewRoute,
   TemplatesTemplateIdRoute: TemplatesTemplateIdRoute,
   TemplatesNewRoute: TemplatesNewRoute,
   HymnsIndexRoute: HymnsIndexRoute,
+  MembersIndexRoute: MembersIndexRoute,
   OrdersIndexRoute: OrdersIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
+  TeamsIndexRoute: TeamsIndexRoute,
   TemplatesIndexRoute: TemplatesIndexRoute,
 }
 export const routeTree = rootRouteImport

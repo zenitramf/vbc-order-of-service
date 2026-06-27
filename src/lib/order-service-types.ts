@@ -21,10 +21,21 @@ export interface OrderActivity {
   notes?: string;
 }
 
+export interface TeamAssignment {
+  memberIds: string[];
+  teamId: string;
+}
+
 export interface ServiceTypeCard {
   activities: OrderActivity[];
   id: string;
+  /** Order-level: members assigned to teams for this service card. */
+  teamAssignments?: TeamAssignment[];
   typeName: string;
+  /** Template-level: teams that may optionally be staffed for this card. */
+  optionalTeamIds?: string[];
+  /** Template-level: teams that must be staffed before publishing. */
+  requiredTeamIds?: string[];
 }
 
 export interface OrderServiceTemplateJson {
@@ -251,4 +262,65 @@ export interface SaveHymnInput {
   musicKey: string;
   name: string;
   sourceId: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  parentTeamId?: string;
+}
+
+export interface TeamSummary extends Team {
+  memberCount: number;
+  parentName?: string;
+}
+
+export interface TeamMember {
+  email: string;
+  firstName: string;
+  id: string;
+  lastName: string;
+  notes: string;
+  phone: string;
+  teamIds: string[];
+}
+
+export interface TeamMemberSummary extends TeamMember {
+  teamNames: string[];
+}
+
+/** A team together with the members currently assigned to it. */
+export interface TeamRecord extends TeamSummary {
+  members: TeamMemberSummary[];
+}
+
+/** A node in the team hierarchy (top-level teams hold their sub-teams). */
+export interface TeamTreeNode extends TeamSummary {
+  children: TeamTreeNode[];
+}
+
+export interface SaveTeamInput {
+  id?: string;
+  name: string;
+  parentTeamId?: string;
+}
+
+export interface SaveTeamMemberInput {
+  email: string;
+  firstName: string;
+  id?: string;
+  lastName: string;
+  notes: string;
+  phone: string;
+  teamIds: string[];
+}
+
+export interface TeamMembershipInput {
+  memberId: string;
+  teamId: string;
+}
+
+export interface TemplateOption {
+  id: string;
+  name: string;
 }

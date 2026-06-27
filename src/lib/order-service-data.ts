@@ -1,6 +1,7 @@
+import { Buffer } from "node:buffer";
+
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { Buffer } from "node:buffer";
 import { v4 as uuidv4 } from "uuid";
 
 import type {
@@ -26,12 +27,29 @@ import type {
   SaveHymnInput,
   SaveOrderInput,
   SaveTemplateInput,
+  SaveTeamInput,
+  SaveTeamMemberInput,
   SendOrderToCraftMyPdfInput,
+  Team,
+  TeamMember,
+  TeamMembershipInput,
+  TeamMemberSummary,
+  TeamRecord,
+  TeamSummary,
+  TemplateOption,
   UploadHymnFileInput,
   ServiceStatus,
   TemplateRecord,
   TemplateSummary,
 } from "~/lib/order-service-types";
+import {
+  DEFAULT_TEAMS,
+  findMissingRequiredTeams,
+  memberTeamNames,
+  normalizeServiceCardTeams,
+  teamsById as toTeamsById,
+  validateTeamMember,
+} from "~/lib/teams-logic";
 
 const DEFAULT_TEMPLATE: OrderServiceTemplateJson = {
   name: "Sunday Service",
@@ -54,25 +72,53 @@ const DEFAULT_TEMPLATE: OrderServiceTemplateJson = {
     },
     {
       activities: [
-        { activityName: "Opening Hymn", activityType: "hymn", id: "opening-hymn" },
+        {
+          activityName: "Opening Hymn",
+          activityType: "hymn",
+          id: "opening-hymn",
+        },
         { activityName: "Prayer", activityType: "prayer", id: "prayer" },
         {
           activityName: "Scripture Reading",
           activityType: "scripture_reading",
           id: "scripture-reading",
         },
-        { activityName: "Offertory", activityType: "offertory", id: "offertory" },
-        { activityName: "Preaching", activityType: "preaching", id: "preaching" },
-        { activityName: "Invitation", activityType: "invitation", id: "invitation" },
+        {
+          activityName: "Offertory",
+          activityType: "offertory",
+          id: "offertory",
+        },
+        {
+          activityName: "Preaching",
+          activityType: "preaching",
+          id: "preaching",
+        },
+        {
+          activityName: "Invitation",
+          activityType: "invitation",
+          id: "invitation",
+        },
       ],
       id: "sunday-main-service",
       typeName: "Sunday Main Service",
     },
     {
       activities: [
-        { activityName: "Congregational Hymn", activityType: "hymn", id: "evening-hymn" },
-        { activityName: "Special Music", activityType: "special_music", id: "special-music" },
-        { activityName: "Preaching", activityType: "preaching", id: "evening-preaching" },
+        {
+          activityName: "Congregational Hymn",
+          activityType: "hymn",
+          id: "evening-hymn",
+        },
+        {
+          activityName: "Special Music",
+          activityType: "special_music",
+          id: "special-music",
+        },
+        {
+          activityName: "Preaching",
+          activityType: "preaching",
+          id: "evening-preaching",
+        },
       ],
       id: "sunday-evening-service",
       typeName: "Sunday Evening Service",
@@ -202,6 +248,40 @@ CREATE TABLE IF NOT EXISTS order_email_deliveries (
 
 CREATE INDEX IF NOT EXISTS order_email_deliveries_order_idx
   ON order_email_deliveries(order_id);
+
+CREATE TABLE IF NOT EXISTS teams (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_team_id TEXT REFERENCES teams(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS teams_parent_idx ON teams(parent_team_id);
+
+CREATE TABLE IF NOT EXISTS team_members (
+  id TEXT PRIMARY KEY,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS team_members_name_idx
+  ON team_members(last_name, first_name);
+
+CREATE TABLE IF NOT EXISTS team_member_teams (
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (team_id, member_id)
+);
+
+CREATE INDEX IF NOT EXISTS team_member_teams_member_idx
+  ON team_member_teams(member_id);
 `;
 
 let databaseInitialized = false;
@@ -223,10 +303,14 @@ const getPdfBucket = (): R2Bucket => {
 };
 
 const getEmailQueue = (): Queue<OrderEmailQueueMessage> => {
-  const queue = (env as unknown as { OOS_EMAIL_SENDER?: Queue<OrderEmailQueueMessage> }).OOS_EMAIL_SENDER;
+  const queue = (
+    env as unknown as { OOS_EMAIL_SENDER?: Queue<OrderEmailQueueMessage> }
+  ).OOS_EMAIL_SENDER;
 
   if (!queue) {
-    throw new Error("Cloudflare Queue binding OOS_EMAIL_SENDER is not configured.");
+    throw new Error(
+      "Cloudflare Queue binding OOS_EMAIL_SENDER is not configured."
+    );
   }
 
   return queue;
@@ -256,6 +340,7 @@ const normalizeTemplate = (
     })),
     id: segment.id || uuidv4(),
     typeName: segment.typeName?.trim() || "Service Segment",
+    ...normalizeServiceCardTeams(segment),
   })),
 });
 
@@ -266,12 +351,17 @@ const countActivities = (template: OrderServiceTemplateJson) =>
   );
 
 const parseTemplateJson = (value: string, fallbackName: string) =>
-  normalizeTemplate(JSON.parse(value) as OrderServiceTemplateJson, fallbackName);
+  normalizeTemplate(
+    JSON.parse(value) as OrderServiceTemplateJson,
+    fallbackName
+  );
 
 const asString = (value: unknown) => (typeof value === "string" ? value : "");
 
 const asNumber = (value: unknown) =>
-  typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
+  typeof value === "number"
+    ? value
+    : Number.parseInt(String(value ?? "0"), 10) || 0;
 
 const getErrorMessage = (error: unknown, fallbackMessage: string) =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
@@ -281,10 +371,14 @@ const EMAIL_SETTINGS_KEY = "email.smtp";
 const SERVICE_PDFS_BUCKET_NAME = "vbc-order-of-service-pdfs";
 
 const getRequiredSecret = (key: string) => {
-  const value = (env as unknown as Record<string, string | undefined>)[key]?.trim();
+  const value = (env as unknown as Record<string, string | undefined>)[
+    key
+  ]?.trim();
 
   if (!value) {
-    throw new Error(`${key} is not configured. Add it as a Cloudflare Worker secret before saving email settings.`);
+    throw new Error(
+      `${key} is not configured. Add it as a Cloudflare Worker secret before saving email settings.`
+    );
   }
 
   return value;
@@ -295,13 +389,20 @@ const getEmailEncryptionKey = async () => {
   const secretBytes = new TextEncoder().encode(secret);
   const hash = await crypto.subtle.digest("SHA-256", secretBytes);
 
-  return crypto.subtle.importKey("raw", hash, "AES-GCM", false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", hash, "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
 };
 
 const encryptSetting = async (value: string) => {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encodedValue = new TextEncoder().encode(value);
-  const encrypted = await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, await getEmailEncryptionKey(), encodedValue);
+  const encrypted = await crypto.subtle.encrypt(
+    { iv, name: "AES-GCM" },
+    await getEmailEncryptionKey(),
+    encodedValue
+  );
 
   return `${Buffer.from(iv).toString("base64")}.${Buffer.from(encrypted).toString("base64")}`;
 };
@@ -319,7 +420,11 @@ const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
     throw new Error("SMTP address is required.");
   }
 
-  if (!Number.isInteger(settings.smtpPort) || settings.smtpPort < 1 || settings.smtpPort > 65_535) {
+  if (
+    !Number.isInteger(settings.smtpPort) ||
+    settings.smtpPort < 1 ||
+    settings.smtpPort > 65_535
+  ) {
     throw new Error("SMTP port must be between 1 and 65535.");
   }
 
@@ -331,7 +436,10 @@ const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
     assertValidEmail(settings.smtpUser, "SMTP user");
   }
 
-  if (settings.smtpToken !== undefined && settings.smtpToken.trim().length === 0) {
+  if (
+    settings.smtpToken !== undefined &&
+    settings.smtpToken.trim().length === 0
+  ) {
     throw new Error("SMTP token cannot be blank.");
   }
 
@@ -362,41 +470,125 @@ const ensureDatabase = async () => {
   }
 
   await db.batch([
-    db.prepare("INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)").bind("Planning", "Planning"),
-    db.prepare("INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)").bind("Published", "Published"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("living-hymns", "Living Hymns"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("other-hymn", "Other Hymn"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("song", "Song"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("majesty-hymns", "Majesty Hymns"),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("hymn", "Hymn", "Congregational hymn selected from the hymn library."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("prayer", "Prayer", "Prayer led by a selected person."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("scripture_reading", "Scripture Reading", "Bible passage read during service."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("hand_shaking", "Hand Shaking", "Fellowship greeting time."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("offertory", "Offertory", "Offering and offertory music."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("preaching", "Preaching", "Main preaching time."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("invitation", "Invitation", "Invitation following the message."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("special_music", "Special Music", "Special music selection."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("bible_preaching", "Bible Preaching", "Bible study or teaching time."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("custom", "Custom", "Custom activity."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)"
+      )
+      .bind("Planning", "Planning"),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)"
+      )
+      .bind("Published", "Published"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("living-hymns", "Living Hymns"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("other-hymn", "Other Hymn"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("song", "Song"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("majesty-hymns", "Majesty Hymns"),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        "hymn",
+        "Hymn",
+        "Congregational hymn selected from the hymn library."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("prayer", "Prayer", "Prayer led by a selected person."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        "scripture_reading",
+        "Scripture Reading",
+        "Bible passage read during service."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("hand_shaking", "Hand Shaking", "Fellowship greeting time."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("offertory", "Offertory", "Offering and offertory music."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("preaching", "Preaching", "Main preaching time."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("invitation", "Invitation", "Invitation following the message."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("special_music", "Special Music", "Special music selection."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        "bible_preaching",
+        "Bible Preaching",
+        "Bible study or teaching time."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("custom", "Custom", "Custom activity."),
   ]);
 
   const defaultServiceTypeId = "sunday-service";
   const templateId = "default-sunday-service";
   await db.batch([
-    db.prepare("INSERT OR IGNORE INTO service_types (id, name, description) VALUES (?, ?, ?)").bind(
-      defaultServiceTypeId,
-      "Sunday Service",
-      "Default Sunday service type."
-    ),
-    db.prepare(
-      "INSERT OR IGNORE INTO order_service_templates (id, name, service_type_id, template_json) VALUES (?, ?, ?, ?)"
-    ).bind(
-      templateId,
-      DEFAULT_TEMPLATE.name,
-      defaultServiceTypeId,
-      JSON.stringify(DEFAULT_TEMPLATE)
-    ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO service_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        defaultServiceTypeId,
+        "Sunday Service",
+        "Default Sunday service type."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO order_service_templates (id, name, service_type_id, template_json) VALUES (?, ?, ?, ?)"
+      )
+      .bind(
+        templateId,
+        DEFAULT_TEMPLATE.name,
+        defaultServiceTypeId,
+        JSON.stringify(DEFAULT_TEMPLATE)
+      ),
   ]);
+
+  await db.batch(
+    DEFAULT_TEAMS.map((seedTeam) =>
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO teams (id, name, parent_team_id) VALUES (?, ?, ?)"
+        )
+        .bind(seedTeam.id, seedTeam.name, seedTeam.parentId ?? null)
+    )
+  );
   databaseInitialized = true;
 };
 
@@ -496,12 +688,66 @@ const assertServiceDateAvailable = async ({
         .bind(serviceDate, excludeOrderId)
         .first<{ id: string }>()
     : await db
-        .prepare("SELECT id FROM orders_of_service WHERE service_date = ? LIMIT 1")
+        .prepare(
+          "SELECT id FROM orders_of_service WHERE service_date = ? LIMIT 1"
+        )
         .bind(serviceDate)
         .first<{ id: string }>();
 
   if (existingOrder) {
     throw new Error(buildServiceDateConflictMessage(serviceDate));
+  }
+};
+
+const mapTeamRow = (row: Record<string, unknown>): Team => {
+  const parentTeamId = asString(row.parent_team_id);
+
+  return {
+    id: asString(row.id),
+    name: asString(row.name),
+    ...(parentTeamId ? { parentTeamId } : {}),
+  };
+};
+
+const splitTeamIds = (value: unknown): string[] =>
+  asString(value)
+    .split(",")
+    .map((teamId) => teamId.trim())
+    .filter(Boolean);
+
+const mapTeamMemberRow = (row: Record<string, unknown>): TeamMember => ({
+  email: asString(row.email),
+  firstName: asString(row.first_name),
+  id: asString(row.id),
+  lastName: asString(row.last_name),
+  notes: asString(row.notes),
+  phone: asString(row.phone),
+  teamIds: splitTeamIds(row.team_ids),
+});
+
+const loadTeamsById = async (db: D1Database) => {
+  const { results } = await db
+    .prepare("SELECT id, name, parent_team_id FROM teams")
+    .all<Record<string, unknown>>();
+
+  return toTeamsById(results.map(mapTeamRow));
+};
+
+const assertRequiredTeamsStaffed = async (
+  db: D1Database,
+  order: OrderRecord
+): Promise<void> => {
+  const teamsLookup = await loadTeamsById(db);
+  const missing = findMissingRequiredTeams(order.order, teamsLookup);
+
+  if (missing.length > 0) {
+    const summary = missing
+      .map((entry) => `${entry.teamName} (${entry.cardName})`)
+      .join(", ");
+
+    throw new Error(
+      `Assign members to every required team before publishing: ${summary}.`
+    );
   }
 };
 
@@ -542,8 +788,11 @@ const RECENT_HYMN_PLAY_COUNT_SQL = `
 
 const CRAFTMYPDF_DEFAULT_API_URL = "https://api.craftmypdf.com/v1/create";
 
-const getPdfObjectKey = (order: Pick<OrderRecord, "id" | "serviceDate" | "title">): string => {
-  const serviceName = order.title.trim().replaceAll(/[\\/:*?"<>|]+/gu, "-") || "Order of Service";
+const getPdfObjectKey = (
+  order: Pick<OrderRecord, "id" | "serviceDate" | "title">
+): string => {
+  const serviceName =
+    order.title.trim().replaceAll(/[\\/:*?"<>|]+/gu, "-") || "Order of Service";
 
   return `oos/${order.id}/${order.serviceDate} - ${serviceName}.pdf`;
 };
@@ -647,7 +896,9 @@ const buildCraftMyPdfOrderPayload = async (
           const payloadActivity: CraftMyPdfOrderPayloadActivity = {
             ...activity,
           };
-          const hymn = activity.hymnId ? hymnsById.get(activity.hymnId) : undefined;
+          const hymn = activity.hymnId
+            ? hymnsById.get(activity.hymnId)
+            : undefined;
 
           if (hymn) {
             payloadActivity.hymn = hymn;
@@ -698,11 +949,15 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
 
     const [upcoming, previous, counts] = await Promise.all([
       db
-        .prepare(`${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`)
+        .prepare(
+          `${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`
+        )
         .bind(today)
         .all<Record<string, unknown>>(),
       db
-        .prepare(`${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`)
+        .prepare(
+          `${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`
+        )
         .bind(today)
         .all<Record<string, unknown>>(),
       db
@@ -774,20 +1029,29 @@ export const saveTemplate = createServerFn({ method: "POST" })
     const timestamp = nowIso();
 
     await db.batch([
-      db.prepare(
-        `INSERT INTO service_types (id, name, description, updated_at)
+      db
+        .prepare(
+          `INSERT INTO service_types (id, name, description, updated_at)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`
-      ).bind(serviceTypeId, name, `${name} order of service template.`, timestamp),
-      db.prepare(
-        `INSERT INTO order_service_templates (id, name, service_type_id, template_json, updated_at)
+        )
+        .bind(
+          serviceTypeId,
+          name,
+          `${name} order of service template.`,
+          timestamp
+        ),
+      db
+        .prepare(
+          `INSERT INTO order_service_templates (id, name, service_type_id, template_json, updated_at)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           service_type_id = excluded.service_type_id,
           template_json = excluded.template_json,
           updated_at = excluded.updated_at`
-      ).bind(id, name, serviceTypeId, JSON.stringify(template), timestamp),
+        )
+        .bind(id, name, serviceTypeId, JSON.stringify(template), timestamp),
     ]);
 
     return { id };
@@ -798,7 +1062,10 @@ export const deleteTemplate = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ success: true }> => {
     await ensureDatabase();
     const db = getDatabase();
-    await db.prepare("DELETE FROM order_service_templates WHERE id = ?").bind(data).run();
+    await db
+      .prepare("DELETE FROM order_service_templates WHERE id = ?")
+      .bind(data)
+      .run();
 
     return { success: true };
   });
@@ -855,7 +1122,9 @@ export const getOrder = createServerFn({ method: "GET" })
 export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
   .validator((data: SendOrderToCraftMyPdfInput) => data)
   .handler(
-    async ({ data }): Promise<{
+    async ({
+      data,
+    }): Promise<{
       craftMyPdfResponseBody?: string;
       craftMyPdfStatus?: number;
       dryRun: boolean;
@@ -873,7 +1142,9 @@ export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
       }
 
       const templateId =
-        data.templateId?.trim() || getEnvValue("CRAFT_PDF_ID") || getEnvValue("CRAFTMYPDF_TEMPLATE_ID");
+        data.templateId?.trim() ||
+        getEnvValue("CRAFT_PDF_ID") ||
+        getEnvValue("CRAFTMYPDF_TEMPLATE_ID");
 
       if (!templateId) {
         throw new Error(
@@ -894,13 +1165,15 @@ export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
         };
       }
 
-      const apiKey = getEnvValue("CRAFTMYPDF_API_KEY") || getEnvValue("CRAFTPDF_API_KEY");
+      const apiKey =
+        getEnvValue("CRAFTMYPDF_API_KEY") || getEnvValue("CRAFTPDF_API_KEY");
 
       if (!apiKey) {
         throw new Error("CRAFTMYPDF_API_KEY secret is not configured.");
       }
 
-      const apiUrl = getEnvValue("CRAFTMYPDF_API_URL") ?? CRAFTMYPDF_DEFAULT_API_URL;
+      const apiUrl =
+        getEnvValue("CRAFTMYPDF_API_URL") ?? CRAFTMYPDF_DEFAULT_API_URL;
       const response = await fetch(apiUrl, {
         body: JSON.stringify(requestBody),
         headers: {
@@ -1040,13 +1313,18 @@ export const publishOrder = createServerFn({ method: "POST" })
     }
 
     assertHymnActivitiesHaveSelections(order);
+    await assertRequiredTeamsStaffed(db, order);
 
     if (order.status === "Published") {
       return { id: data, pdfObjectKey: order.pdfObjectKey };
     }
 
-    const craftMyPdfResult = await postOrderToCraftMyPdf({ data: { orderId: data } });
-    const pdfUrl = getCraftMyPdfFileUrl(craftMyPdfResult.craftMyPdfResponseBody ?? "{}");
+    const craftMyPdfResult = await postOrderToCraftMyPdf({
+      data: { orderId: data },
+    });
+    const pdfUrl = getCraftMyPdfFileUrl(
+      craftMyPdfResult.craftMyPdfResponseBody ?? "{}"
+    );
     const pdfResponse = await fetch(pdfUrl);
 
     if (!pdfResponse.ok) {
@@ -1056,7 +1334,8 @@ export const publishOrder = createServerFn({ method: "POST" })
     }
 
     const pdfObjectKey = getPdfObjectKey(order);
-    const pdfFilename = pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
+    const pdfFilename =
+      pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
     await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
       httpMetadata: {
         contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
@@ -1087,7 +1366,9 @@ export const publishOrder = createServerFn({ method: "POST" })
     for (const hymnId of hymnIds) {
       statements.push(
         db
-          .prepare("INSERT INTO hymn_plays (id, hymn_id, order_id, played_on) VALUES (?, ?, ?, ?)")
+          .prepare(
+            "INSERT INTO hymn_plays (id, hymn_id, order_id, played_on) VALUES (?, ?, ?, ?)"
+          )
           .bind(uuidv4(), hymnId, data, order.serviceDate),
         db
           .prepare(
@@ -1159,7 +1440,9 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       .first<Record<string, unknown>>();
 
     if (existingDelivery) {
-      throw new Error("Email has already been queued for this order of service.");
+      throw new Error(
+        "Email has already been queued for this order of service."
+      );
     }
 
     const settingsRow = await db
@@ -1173,7 +1456,9 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
       : {};
 
-    if (!(storedSettings.smtpTokenConfigured && storedSettings.smtpUserConfigured)) {
+    if (
+      !(storedSettings.smtpTokenConfigured && storedSettings.smtpUserConfigured)
+    ) {
       throw new Error("SMTP settings are not fully configured.");
     }
 
@@ -1224,7 +1509,11 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
           SET status = 'Failed', error_message = ?, updated_at = ?
           WHERE id = ?`
         )
-        .bind(getErrorMessage(error, "Unable to queue email."), nowIso(), deliveryId)
+        .bind(
+          getErrorMessage(error, "Unable to queue email."),
+          nowIso(),
+          deliveryId
+        )
         .run();
       throw error;
     }
@@ -1258,9 +1547,18 @@ export const getEmailSettings = createServerFn({ method: "GET" }).handler(
 
     return {
       recipients: results.map((row) => row.email),
-      smtpAddress: typeof storedSettings.smtpAddress === "string" ? storedSettings.smtpAddress : "",
-      smtpPort: typeof storedSettings.smtpPort === "number" ? storedSettings.smtpPort : "",
-      smtpSenderName: typeof storedSettings.smtpSenderName === "string" ? storedSettings.smtpSenderName : "",
+      smtpAddress:
+        typeof storedSettings.smtpAddress === "string"
+          ? storedSettings.smtpAddress
+          : "",
+      smtpPort:
+        typeof storedSettings.smtpPort === "number"
+          ? storedSettings.smtpPort
+          : "",
+      smtpSenderName:
+        typeof storedSettings.smtpSenderName === "string"
+          ? storedSettings.smtpSenderName
+          : "",
       smtpTokenConfigured: Boolean(storedSettings.smtpTokenConfigured),
       smtpUserConfigured: Boolean(storedSettings.smtpUserConfigured),
     };
@@ -1274,12 +1572,16 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     assertValidEmailSettings(data);
 
     const db = getDatabase();
-    const trimmedRecipients = [...new Set(data.recipients.map((email) => email.trim().toLowerCase()))];
+    const trimmedRecipients = [
+      ...new Set(data.recipients.map((email) => email.trim().toLowerCase())),
+    ];
     const currentRow = await db
       .prepare("SELECT value FROM app_settings WHERE key = ?")
       .bind(EMAIL_SETTINGS_KEY)
       .first<{ value: string }>();
-    const currentSettings = currentRow ? (JSON.parse(currentRow.value) as Record<string, unknown>) : {};
+    const currentSettings = currentRow
+      ? (JSON.parse(currentRow.value) as Record<string, unknown>)
+      : {};
     const encryptedToken = data.smtpToken
       ? await encryptSetting(data.smtpToken.trim())
       : asString(currentSettings.smtpTokenEncrypted);
@@ -1288,11 +1590,15 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
       : asString(currentSettings.smtpUserEncrypted);
 
     if (!encryptedToken) {
-      throw new Error("SMTP token is required before email settings can be saved.");
+      throw new Error(
+        "SMTP token is required before email settings can be saved."
+      );
     }
 
     if (!encryptedUser) {
-      throw new Error("SMTP user is required before email settings can be saved.");
+      throw new Error(
+        "SMTP user is required before email settings can be saved."
+      );
     }
 
     const settingsToStore = {
@@ -1306,16 +1612,20 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     };
 
     await db.batch([
-      db.prepare(
-        `INSERT INTO app_settings (key, value, updated_at)
+      db
+        .prepare(
+          `INSERT INTO app_settings (key, value, updated_at)
         VALUES (?, ?, ?)
         ON CONFLICT(key) DO UPDATE SET
           value = excluded.value,
           updated_at = excluded.updated_at`
-      ).bind(EMAIL_SETTINGS_KEY, JSON.stringify(settingsToStore), nowIso()),
+        )
+        .bind(EMAIL_SETTINGS_KEY, JSON.stringify(settingsToStore), nowIso()),
       db.prepare("DELETE FROM email_recipients"),
       ...trimmedRecipients.map((email) =>
-        db.prepare("INSERT INTO email_recipients (id, email) VALUES (?, ?)").bind(uuidv4(), email)
+        db
+          .prepare("INSERT INTO email_recipients (id, email) VALUES (?, ?)")
+          .bind(uuidv4(), email)
       ),
     ]);
 
@@ -1330,7 +1640,9 @@ export const addEmailRecipient = createServerFn({ method: "POST" })
     const email = data.trim().toLowerCase();
     assertValidEmail(email, "Recipient");
     await db
-      .prepare("INSERT OR IGNORE INTO email_recipients (id, email) VALUES (?, ?)")
+      .prepare(
+        "INSERT OR IGNORE INTO email_recipients (id, email) VALUES (?, ?)"
+      )
       .bind(uuidv4(), email)
       .run();
 
@@ -1342,7 +1654,10 @@ export const deleteEmailRecipient = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ success: true }> => {
     await ensureDatabase();
     const db = getDatabase();
-    await db.prepare("DELETE FROM email_recipients WHERE email = ?").bind(data.trim().toLowerCase()).run();
+    await db
+      .prepare("DELETE FROM email_recipients WHERE email = ?")
+      .bind(data.trim().toLowerCase())
+      .run();
 
     return { success: true };
   });
@@ -1380,7 +1695,9 @@ export const getHymnOptions = createServerFn({ method: "GET" }).handler(
     return results.map((row) => ({
       hasLyrics: Boolean(asString(row.lyrics_markdown).trim()),
       id: asString(row.id),
-      label: [asString(row.hymn_number), asString(row.name)].filter(Boolean).join(" — "),
+      label: [asString(row.hymn_number), asString(row.name)]
+        .filter(Boolean)
+        .join(" — "),
       lastPlayed: asString(row.last_played),
       musicKey: asString(row.music_key),
       sourceName: asString(row.source_name),
@@ -1490,7 +1807,9 @@ export const renameHymnFile = createServerFn({ method: "POST" })
     }
 
     await db
-      .prepare("UPDATE hymn_files SET filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .prepare(
+        "UPDATE hymn_files SET filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      )
       .bind(filename, data.id)
       .run();
 
@@ -1599,6 +1918,290 @@ export const deleteHymn = createServerFn({ method: "POST" })
     await ensureDatabase();
     const db = getDatabase();
     await db.prepare("DELETE FROM hymns WHERE id = ?").bind(data).run();
+
+    return { success: true };
+  });
+
+const TEAM_SUMMARY_SELECT = `
+  SELECT teams.*, parent.name AS parent_name,
+    (SELECT COUNT(*) FROM team_member_teams WHERE team_id = teams.id) AS member_count
+  FROM teams
+  LEFT JOIN teams AS parent ON parent.id = teams.parent_team_id
+`;
+
+const TEAM_MEMBER_SELECT = `
+  SELECT team_members.*,
+    (SELECT GROUP_CONCAT(team_id) FROM team_member_teams WHERE member_id = team_members.id) AS team_ids
+  FROM team_members
+`;
+
+const mapTeamSummaryRow = (row: Record<string, unknown>): TeamSummary => {
+  const parentName = asString(row.parent_name);
+
+  return {
+    ...mapTeamRow(row),
+    memberCount: asNumber(row.member_count),
+    ...(parentName ? { parentName } : {}),
+  };
+};
+
+const attachTeamNames = (
+  members: TeamMember[],
+  teamsLookup: Map<string, Team>
+): TeamMemberSummary[] =>
+  members.map((member) => ({
+    ...member,
+    teamNames: memberTeamNames(member, teamsLookup),
+  }));
+
+export const getTeams = createServerFn({ method: "GET" }).handler(
+  async (): Promise<TeamSummary[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(`${TEAM_SUMMARY_SELECT} ORDER BY teams.name`)
+      .all<Record<string, unknown>>();
+
+    return results.map(mapTeamSummaryRow);
+  }
+);
+
+export const getTeam = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<TeamRecord | null> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const [teamRow, memberRows, teamsLookup] = await Promise.all([
+      db
+        .prepare(`${TEAM_SUMMARY_SELECT} WHERE teams.id = ?`)
+        .bind(data)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          `${TEAM_MEMBER_SELECT} WHERE team_members.id IN (SELECT member_id FROM team_member_teams WHERE team_id = ?) ORDER BY team_members.last_name, team_members.first_name`
+        )
+        .bind(data)
+        .all<Record<string, unknown>>(),
+      loadTeamsById(db),
+    ]);
+
+    if (!teamRow) {
+      return null;
+    }
+
+    return {
+      ...mapTeamSummaryRow(teamRow),
+      members: attachTeamNames(
+        memberRows.results.map(mapTeamMemberRow),
+        teamsLookup
+      ),
+    };
+  });
+
+export const saveTeam = createServerFn({ method: "POST" })
+  .validator((data: SaveTeamInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const name = data.name.trim();
+
+    if (!name) {
+      throw new Error("Team name is required.");
+    }
+
+    const id = data.id || uuidv4();
+    const parentTeamId = data.parentTeamId?.trim() || null;
+
+    if (parentTeamId === id) {
+      throw new Error("A team cannot be its own parent team.");
+    }
+
+    await db
+      .prepare(
+        `INSERT INTO teams (id, name, parent_team_id, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          parent_team_id = excluded.parent_team_id,
+          updated_at = excluded.updated_at`
+      )
+      .bind(id, name, parentTeamId, nowIso())
+      .run();
+
+    return { id };
+  });
+
+export const deleteTeam = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+
+    await db.batch([
+      db
+        .prepare(
+          "UPDATE teams SET parent_team_id = NULL WHERE parent_team_id = ?"
+        )
+        .bind(data),
+      db.prepare("DELETE FROM team_member_teams WHERE team_id = ?").bind(data),
+      db.prepare("DELETE FROM teams WHERE id = ?").bind(data),
+    ]);
+
+    return { success: true };
+  });
+
+export const getTeamTemplates = createServerFn({ method: "GET" })
+  .validator((teamId: string) => teamId)
+  .handler(async ({ data }): Promise<TemplateOption[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(
+        "SELECT id, name, template_json FROM order_service_templates ORDER BY name"
+      )
+      .all<Record<string, unknown>>();
+
+    return results
+      .filter((row) => {
+        const template = parseTemplateJson(
+          asString(row.template_json),
+          asString(row.name)
+        );
+
+        return template.service_type.some(
+          (card) =>
+            (card.requiredTeamIds ?? []).includes(data) ||
+            (card.optionalTeamIds ?? []).includes(data)
+        );
+      })
+      .map((row) => ({ id: asString(row.id), name: asString(row.name) }));
+  });
+
+export const getTeamMembers = createServerFn({ method: "GET" }).handler(
+  async (): Promise<TeamMemberSummary[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const [memberRows, teamsLookup] = await Promise.all([
+      db
+        .prepare(
+          `${TEAM_MEMBER_SELECT} ORDER BY team_members.last_name, team_members.first_name`
+        )
+        .all<Record<string, unknown>>(),
+      loadTeamsById(db),
+    ]);
+
+    return attachTeamNames(
+      memberRows.results.map(mapTeamMemberRow),
+      teamsLookup
+    );
+  }
+);
+
+export const getTeamMember = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<TeamMember | null> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const row = await db
+      .prepare(`${TEAM_MEMBER_SELECT} WHERE team_members.id = ?`)
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    return row ? mapTeamMemberRow(row) : null;
+  });
+
+export const saveTeamMember = createServerFn({ method: "POST" })
+  .validator((data: SaveTeamMemberInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const validationErrors = validateTeamMember(data);
+
+    if (validationErrors.length > 0) {
+      throw new Error(validationErrors[0]);
+    }
+
+    const db = getDatabase();
+    const id = data.id || uuidv4();
+    const teamIds = [...new Set(data.teamIds.filter(Boolean))];
+    const timestamp = nowIso();
+
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO team_members (id, first_name, last_name, email, phone, notes, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            first_name = excluded.first_name,
+            last_name = excluded.last_name,
+            email = excluded.email,
+            phone = excluded.phone,
+            notes = excluded.notes,
+            updated_at = excluded.updated_at`
+        )
+        .bind(
+          id,
+          data.firstName.trim(),
+          data.lastName.trim(),
+          data.email.trim(),
+          data.phone.trim(),
+          data.notes,
+          timestamp
+        ),
+      db.prepare("DELETE FROM team_member_teams WHERE member_id = ?").bind(id),
+      ...teamIds.map((teamId) =>
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO team_member_teams (team_id, member_id) VALUES (?, ?)"
+          )
+          .bind(teamId, id)
+      ),
+    ]);
+
+    return { id };
+  });
+
+export const deleteTeamMember = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+
+    await db.batch([
+      db
+        .prepare("DELETE FROM team_member_teams WHERE member_id = ?")
+        .bind(data),
+      db.prepare("DELETE FROM team_members WHERE id = ?").bind(data),
+    ]);
+
+    return { success: true };
+  });
+
+export const addMemberToTeam = createServerFn({ method: "POST" })
+  .validator((data: TeamMembershipInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO team_member_teams (team_id, member_id) VALUES (?, ?)"
+      )
+      .bind(data.teamId, data.memberId)
+      .run();
+
+    return { success: true };
+  });
+
+export const removeMemberFromTeam = createServerFn({ method: "POST" })
+  .validator((data: TeamMembershipInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    await db
+      .prepare(
+        "DELETE FROM team_member_teams WHERE team_id = ? AND member_id = ?"
+      )
+      .bind(data.teamId, data.memberId)
+      .run();
 
     return { success: true };
   });
