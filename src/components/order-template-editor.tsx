@@ -423,9 +423,10 @@ const SegmentEditor = ({
       </div>
     </CardHeader>
     <CardContent className="flex flex-col gap-4">
+    <hr></hr>
       <div className="flex items-center justify-between gap-4">
         <div>
-          <CardTitle className="text-base">Activities</CardTitle>
+          <CardTitle className="text-base">Order of Service Activities</CardTitle>
           <CardDescription>
             Drag activities to reorder them within this service card.
           </CardDescription>
