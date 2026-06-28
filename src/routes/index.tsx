@@ -1,13 +1,16 @@
-// oxlint-disable no-use-before-define
-import { Link, createFileRoute } from "@tanstack/react-router";
 import {
+  ArrowRightIcon,
   CalendarCheckIcon,
   CheckCircleIcon,
   ClockIcon,
   ListChecksIcon,
   MusicNotesIcon,
+  PencilSimpleIcon,
   PlusIcon,
+  UsersThreeIcon,
 } from "@phosphor-icons/react";
+// oxlint-disable no-use-before-define
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -15,6 +18,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
@@ -35,7 +39,7 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { getDashboardData } from "~/lib/order-service-data";
-import type { OrderSummary } from "~/lib/order-service-types";
+import type { DashboardData, OrderSummary } from "~/lib/order-service-types";
 
 const formatDate = (value: string) =>
   value
@@ -44,11 +48,145 @@ const formatDate = (value: string) =>
       }).format(new Date(`${value}T00:00:00`))
     : "Unscheduled";
 
+const formatFullDate = (value: string) =>
+  new Intl.DateTimeFormat("en", {
+    dateStyle: "full",
+  }).format(new Date(`${value}T00:00:00`));
+
 const StatusBadge = ({ status }: { status: OrderSummary["status"] }) => (
-  <Badge variant={status === "Published" ? "default" : "secondary"}>{status}</Badge>
+  <Badge variant={status === "Published" ? "default" : "secondary"}>
+    {status}
+  </Badge>
 );
 
-const OrderTable = ({ emptyText, orders }: { emptyText: string; orders: OrderSummary[] }) => {
+const UpcomingSundayCard = ({
+  nextSundayDate,
+  order,
+}: {
+  nextSundayDate: string;
+  order: OrderSummary | null;
+}) => (
+  <Card>
+    <CardHeader>
+      <CardDescription>Upcoming Sunday</CardDescription>
+      <CardTitle className="text-2xl">
+        {formatFullDate(nextSundayDate)}
+      </CardTitle>
+    </CardHeader>
+    {order ? (
+      <>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{order.title}</span>
+            <StatusBadge status={order.status} />
+            <Badge variant="outline">{order.serviceTypeName}</Badge>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {order.segmentCount} cards · {order.activityCount} activities
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button asChild>
+            <Link params={{ orderId: order.id }} to="/orders/$orderId">
+              <PencilSimpleIcon data-icon="inline-start" />
+              Edit order of service
+            </Link>
+          </Button>
+        </CardFooter>
+      </>
+    ) : (
+      <>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            No order of service has been created for this Sunday yet.
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button asChild>
+            <Link to="/orders/new">
+              <PlusIcon data-icon="inline-start" />
+              Create order of service
+            </Link>
+          </Button>
+        </CardFooter>
+      </>
+    )}
+  </Card>
+);
+
+const TeamMembersSection = ({
+  teamCount,
+  teamMemberCount,
+  teams,
+}: Pick<DashboardData, "teamCount" | "teamMemberCount" | "teams">) => (
+  <Card>
+    <CardHeader className="flex flex-row items-center justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        <CardTitle>Team members</CardTitle>
+        <CardDescription>
+          {teamMemberCount} {teamMemberCount === 1 ? "member" : "members"}{" "}
+          across {teamCount} {teamCount === 1 ? "team" : "teams"}.
+        </CardDescription>
+      </div>
+      <Button asChild size="sm" variant="outline">
+        <Link to="/members">
+          Manage
+          <ArrowRightIcon data-icon="inline-end" />
+        </Link>
+      </Button>
+    </CardHeader>
+    <CardContent>
+      {teams.length === 0 ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <UsersThreeIcon />
+            </EmptyMedia>
+            <EmptyTitle>No teams yet</EmptyTitle>
+            <EmptyDescription>
+              Create teams to organize serving volunteers.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button asChild>
+              <Link to="/teams/new">
+                <PlusIcon data-icon="inline-start" />
+                Create team
+              </Link>
+            </Button>
+          </EmptyContent>
+        </Empty>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {teams.map((team) => (
+            <Link
+              className="flex flex-col gap-1 rounded-lg border p-4 transition-colors hover:bg-muted/50"
+              key={team.id}
+              params={{ teamId: team.id }}
+              to="/teams/$teamId"
+            >
+              <span className="flex items-center justify-between gap-2 font-medium">
+                {team.name}
+                <Badge variant="secondary">{team.memberCount}</Badge>
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {team.parentName ? `Part of ${team.parentName}` : "Team"}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </CardContent>
+  </Card>
+);
+
+const OrderTable = ({
+  emptyText,
+  orders,
+}: {
+  emptyText: string;
+  orders: OrderSummary[];
+}) => {
   if (orders.length === 0) {
     return (
       <Empty>
@@ -86,7 +224,11 @@ const OrderTable = ({ emptyText, orders }: { emptyText: string; orders: OrderSum
         {orders.map((order) => (
           <TableRow key={order.id}>
             <TableCell>
-              <Link className="font-medium hover:underline" params={{ orderId: order.id }} to="/orders/$orderId">
+              <Link
+                className="font-medium hover:underline"
+                params={{ orderId: order.id }}
+                to="/orders/$orderId"
+              >
                 {order.title}
               </Link>
             </TableCell>
@@ -138,9 +280,12 @@ const Dashboard = () => {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">Order of Service Dashboard</h1>
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            Order of Service Dashboard
+          </h1>
           <p className="text-muted-foreground">
-            Create, plan, and publish church orders of service for upcoming Sundays and special meetings.
+            Create, plan, and publish church orders of service for upcoming
+            Sundays and special meetings.
           </p>
         </div>
         <Button asChild>
@@ -150,6 +295,11 @@ const Dashboard = () => {
           </Link>
         </Button>
       </div>
+
+      <UpcomingSundayCard
+        nextSundayDate={data.nextSundayDate}
+        order={data.nextSundayOrder}
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {statCards.map((card) => {
@@ -165,33 +315,20 @@ const Dashboard = () => {
                 <Icon className="text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{card.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {card.description}
+                </p>
               </CardContent>
             </Card>
           );
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming orders of service</CardTitle>
-            <CardDescription>Services scheduled today or later.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <OrderTable emptyText="Create your first upcoming service from a template." orders={data.upcomingOrders} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Previous orders of service</CardTitle>
-            <CardDescription>Recently completed or past services and their status.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <OrderTable emptyText="Past services will appear after their service date passes." orders={data.previousOrders} />
-          </CardContent>
-        </Card>
-      </div>
+      <TeamMembersSection
+        teamCount={data.teamCount}
+        teamMemberCount={data.teamMemberCount}
+        teams={data.teams}
+      />
     </div>
   );
 };

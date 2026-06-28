@@ -158,9 +158,14 @@ export interface HymnOption {
 
 export interface DashboardData {
   hymnCount: number;
+  nextSundayDate: string;
+  nextSundayOrder: OrderSummary | null;
   planningCount: number;
   previousOrders: OrderSummary[];
   publishedCount: number;
+  teamCount: number;
+  teamMemberCount: number;
+  teams: TeamSummary[];
   templateCount: number;
   upcomingOrders: OrderSummary[];
 }

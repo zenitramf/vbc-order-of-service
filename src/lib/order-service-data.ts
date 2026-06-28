@@ -936,46 +936,89 @@ export const getReferenceData = createServerFn({ method: "GET" }).handler(
   }
 );
 
+const TEAM_SUMMARY_SELECT = `
+  SELECT teams.*, parent.name AS parent_name,
+    (SELECT COUNT(*) FROM team_member_teams WHERE team_id = teams.id) AS member_count
+  FROM teams
+  LEFT JOIN teams AS parent ON parent.id = teams.parent_team_id
+`;
+
+const mapTeamSummaryRow = (row: Record<string, unknown>): TeamSummary => {
+  const parentName = asString(row.parent_name);
+
+  return {
+    ...mapTeamRow(row),
+    memberCount: asNumber(row.member_count),
+    ...(parentName ? { parentName } : {}),
+  };
+};
+
+const getUpcomingSunday = (today: string): string => {
+  const date = new Date(`${today}T00:00:00.000Z`);
+  const daysUntilSunday = (7 - date.getUTCDay()) % 7;
+  date.setUTCDate(date.getUTCDate() + daysUntilSunday);
+
+  return date.toISOString().slice(0, 10);
+};
+
 export const getDashboardData = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardData> => {
     await ensureDatabase();
     const db = getDatabase();
     const today = new Date().toISOString().slice(0, 10);
+    const nextSundayDate = getUpcomingSunday(today);
     const orderSelect = `
       SELECT orders_of_service.*, service_types.name AS service_type_name
       FROM orders_of_service
       JOIN service_types ON service_types.id = orders_of_service.service_type_id
     `;
 
-    const [upcoming, previous, counts] = await Promise.all([
-      db
-        .prepare(
-          `${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`
-        )
-        .bind(today)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare(
-          `${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`
-        )
-        .bind(today)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare(
-          `SELECT
+    const [upcoming, previous, counts, nextSunday, teamRows] =
+      await Promise.all([
+        db
+          .prepare(
+            `${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`
+          )
+          .bind(today)
+          .all<Record<string, unknown>>(),
+        db
+          .prepare(
+            `${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`
+          )
+          .bind(today)
+          .all<Record<string, unknown>>(),
+        db
+          .prepare(
+            `SELECT
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Planning') AS planning_count,
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Published') AS published_count,
             (SELECT COUNT(*) FROM order_service_templates) AS template_count,
-            (SELECT COUNT(*) FROM hymns) AS hymn_count`
-        )
-        .first<Record<string, unknown>>(),
-    ]);
+            (SELECT COUNT(*) FROM hymns) AS hymn_count,
+            (SELECT COUNT(*) FROM team_members) AS team_member_count,
+            (SELECT COUNT(*) FROM teams) AS team_count`
+          )
+          .first<Record<string, unknown>>(),
+        db
+          .prepare(`${orderSelect} WHERE service_date = ? LIMIT 1`)
+          .bind(nextSundayDate)
+          .first<Record<string, unknown>>(),
+        db
+          .prepare(
+            `${TEAM_SUMMARY_SELECT} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
+          )
+          .all<Record<string, unknown>>(),
+      ]);
 
     return {
       hymnCount: asNumber(counts?.hymn_count),
+      nextSundayDate,
+      nextSundayOrder: nextSunday ? mapOrderRow(nextSunday) : null,
       planningCount: asNumber(counts?.planning_count),
       previousOrders: previous.results.map(mapOrderRow),
       publishedCount: asNumber(counts?.published_count),
+      teamCount: asNumber(counts?.team_count),
+      teamMemberCount: asNumber(counts?.team_member_count),
+      teams: teamRows.results.map(mapTeamSummaryRow),
       templateCount: asNumber(counts?.template_count),
       upcomingOrders: upcoming.results.map(mapOrderRow),
     };
@@ -1922,28 +1965,11 @@ export const deleteHymn = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-const TEAM_SUMMARY_SELECT = `
-  SELECT teams.*, parent.name AS parent_name,
-    (SELECT COUNT(*) FROM team_member_teams WHERE team_id = teams.id) AS member_count
-  FROM teams
-  LEFT JOIN teams AS parent ON parent.id = teams.parent_team_id
-`;
-
 const TEAM_MEMBER_SELECT = `
   SELECT team_members.*,
     (SELECT GROUP_CONCAT(team_id) FROM team_member_teams WHERE member_id = team_members.id) AS team_ids
   FROM team_members
 `;
-
-const mapTeamSummaryRow = (row: Record<string, unknown>): TeamSummary => {
-  const parentName = asString(row.parent_name);
-
-  return {
-    ...mapTeamRow(row),
-    memberCount: asNumber(row.member_count),
-    ...(parentName ? { parentName } : {}),
-  };
-};
 
 const attachTeamNames = (
   members: TeamMember[],

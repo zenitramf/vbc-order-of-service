@@ -1,15 +1,44 @@
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  restrictToParentElement,
+  restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ArrowSquareOutIcon,
   DotsSixVerticalIcon,
+  DotsThreeVerticalIcon,
   PlusIcon,
   TrashIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import { v4 as uuidv4 } from "uuid";
 
 import { OrderTeamAssignment } from "~/components/order-team-assignment";
+import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -31,6 +60,21 @@ import {
   ComboboxSeparator,
 } from "~/components/ui/combobox";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -42,6 +86,14 @@ import {
   NativeSelectOption,
 } from "~/components/ui/native-select";
 import { Separator } from "~/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "~/components/ui/table";
 import { Textarea } from "~/components/ui/textarea";
 import {
   Tooltip,
@@ -110,10 +162,10 @@ const groupHymnOptionsBySource = (
   return Array.from(groups, ([value, items]) => ({ items, value }));
 };
 
-interface DragState {
-  activityId: string;
-  segmentId: string;
-}
+const activityNeedsHymn = (
+  activity: OrderActivity,
+  allowHymnSelection: boolean
+) => allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
 
 interface EditorProps {
   activityTypes: ReferenceOption[];
@@ -127,16 +179,13 @@ interface EditorProps {
   value: OrderServiceTemplateJson;
 }
 
-interface ActivityEditorProps {
+interface ActivityFormProps {
   activity: OrderActivity;
   activityTypes: ReferenceOption[];
   allowHymnSelection: boolean;
-  draggedActivity: DragState | null;
+  /** Renders the hymn popup inside this node so it scrolls within a dialog. */
+  comboboxContainer?: HTMLElement | null;
   hymnOptions: HymnOption[];
-  onDragEnd: () => void;
-  onDragStart: (activityId: string) => void;
-  onDropActivity: (targetActivityId: string) => void;
-  onRemove: () => void;
   onUpdate: (activity: OrderActivity) => void;
 }
 
@@ -145,12 +194,8 @@ interface SegmentEditorProps {
   allowHymnSelection: boolean;
   allowTeamAssignment: boolean;
   allowTeamDefinition: boolean;
-  draggedActivity: DragState | null;
   hymnOptions: HymnOption[];
   onAddActivity: () => void;
-  onDragEnd: () => void;
-  onDragStart: (activityId: string) => void;
-  onDropActivity: (targetActivityId: string) => void;
   onRemove: () => void;
   onUpdateSegment: (segment: ServiceTypeCard) => void;
   segment: ServiceTypeCard;
@@ -169,47 +214,14 @@ const updateSegment = (
   ),
 });
 
-const reorderActivity = (
-  value: OrderServiceTemplateJson,
-  dragged: DragState,
-  targetActivityId: string
-): OrderServiceTemplateJson =>
-  updateSegment(value, dragged.segmentId, (segment) => {
-    const currentIndex = segment.activities.findIndex(
-      (activity) => activity.id === dragged.activityId
-    );
-    const targetIndex = segment.activities.findIndex(
-      (activity) => activity.id === targetActivityId
-    );
-
-    if (
-      currentIndex === -1 ||
-      targetIndex === -1 ||
-      currentIndex === targetIndex
-    ) {
-      return segment;
-    }
-
-    const activities = [...segment.activities];
-    const [movedActivity] = activities.splice(currentIndex, 1);
-    activities.splice(targetIndex, 0, movedActivity);
-
-    return { ...segment, activities };
-  });
-
-const ActivityEditor = ({
+const ActivityForm = ({
   activity,
   activityTypes,
   allowHymnSelection,
-  draggedActivity,
+  comboboxContainer,
   hymnOptions,
-  onDragEnd,
-  onDragStart,
-  onDropActivity,
-  onRemove,
   onUpdate,
-}: ActivityEditorProps) => {
-  const isDragging = draggedActivity?.activityId === activity.id;
+}: ActivityFormProps) => {
   const hymnOptionGroups = React.useMemo(
     () => groupHymnOptionsBySource(hymnOptions),
     [hymnOptions]
@@ -217,8 +229,7 @@ const ActivityEditor = ({
   const selectedHymn = hymnOptionGroups
     .flatMap((group) => group.items)
     .find((hymn) => hymn.value === activity.hymnId);
-  const needsHymnSelection =
-    allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
+  const needsHymnSelection = activityNeedsHymn(activity, allowHymnSelection);
   const selectedHymnNeedsLyrics = Boolean(
     selectedHymn && !selectedHymn.hasLyrics
   );
@@ -231,174 +242,516 @@ const ActivityEditor = ({
     : [];
 
   return (
-    <div
-      className={cn(
-        "rounded-2xl border bg-background/50 p-4",
-        needsHymnSelection && "border-destructive"
-      )}
-      draggable
-      onDragEnd={onDragEnd}
-      onDragOver={(event) => event.preventDefault()}
-      onDragStart={() => onDragStart(activity.id)}
-      onDrop={() => onDropActivity(activity.id)}
-      data-dragging={isDragging}
-    >
-      <div className="flex flex-col gap-4 md:flex-row md:items-start">
-        <div className="flex items-center gap-2 text-muted-foreground md:pt-8">
-          <DotsSixVerticalIcon aria-hidden="true" />
-          <span className="sr-only">Drag to reorder activity</span>
-        </div>
-        <FieldGroup className="flex-1 md:grid md:grid-cols-2">
-          <Field>
-            <FieldLabel htmlFor={`${activity.id}-name`}>
-              Activity name
+    <FieldGroup className="md:grid md:grid-cols-2">
+      <Field>
+        <FieldLabel htmlFor={`${activity.id}-name`}>Activity name</FieldLabel>
+        <Input
+          id={`${activity.id}-name`}
+          onChange={(event) =>
+            onUpdate({ ...activity, activityName: event.target.value })
+          }
+          value={activity.activityName}
+        />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${activity.id}-type`}>Activity type</FieldLabel>
+        <NativeSelect
+          className="w-full"
+          id={`${activity.id}-type`}
+          onChange={(event) => {
+            const activityType = event.target.value;
+            onUpdate({
+              ...activity,
+              activityType,
+              hymnId: activityType === "hymn" ? activity.hymnId : undefined,
+            });
+          }}
+          value={activity.activityType}
+        >
+          {activityTypes.map((type) => (
+            <NativeSelectOption key={type.id} value={type.id}>
+              {type.name}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
+      </Field>
+      {allowHymnSelection && activity.activityType === "hymn" ? (
+        <Field className="md:col-span-2">
+          <div className="flex items-center gap-2">
+            <FieldLabel htmlFor={`${activity.id}-hymn`}>
+              Hymn selection
             </FieldLabel>
-            <Input
-              id={`${activity.id}-name`}
-              onChange={(event) =>
-                onUpdate({ ...activity, activityName: event.target.value })
-              }
-              value={activity.activityName}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${activity.id}-type`}>
-              Activity type
-            </FieldLabel>
-            <NativeSelect
-              className="w-full"
-              id={`${activity.id}-type`}
-              onChange={(event) => {
-                const activityType = event.target.value;
-                onUpdate({
-                  ...activity,
-                  activityType,
-                  hymnId: activityType === "hymn" ? activity.hymnId : undefined,
-                });
-              }}
-              value={activity.activityType}
-            >
-              {activityTypes.map((type) => (
-                <NativeSelectOption key={type.id} value={type.id}>
-                  {type.name}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </Field>
-          {allowHymnSelection && activity.activityType === "hymn" ? (
-            <Field className="md:col-span-2">
-              <div className="flex items-center gap-2">
-                <FieldLabel htmlFor={`${activity.id}-hymn`}>
-                  Hymn selection
-                </FieldLabel>
-                {selectedHymn ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Link
-                          aria-label={
-                            selectedHymnNeedsLyrics
-                              ? "Selected hymn needs lyrics"
-                              : "Update selected hymn"
-                          }
-                          className={cn(
-                            "inline-flex",
-                            selectedHymnNeedsLyrics
-                              ? "text-destructive"
-                              : "text-muted-foreground hover:text-foreground"
-                          )}
-                          params={{ hymnId: selectedHymn.value }}
-                          to="/hymns/$hymnId"
-                        >
-                          {selectedHymnNeedsLyrics ? (
-                            <WarningCircleIcon
-                              aria-hidden="true"
-                              className="size-4"
-                            />
-                          ) : (
-                            <ArrowSquareOutIcon
-                              aria-hidden="true"
-                              className="size-4"
-                            />
-                          )}
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent className="flex max-w-64 flex-col items-start gap-1">
-                        {selectedHymnNeedsLyrics ? (
-                          <span>Lyrics need to be added.</span>
-                        ) : (
-                          selectedHymnDetails.map((detail) => (
-                            <span key={detail}>{detail}</span>
-                          ))
-                        )}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : null}
-              </div>
-              <Combobox
-                isItemEqualToValue={(item, value) => item.value === value.value}
-                items={hymnOptionGroups}
-                onValueChange={(hymn) =>
-                  onUpdate({
-                    ...activity,
-                    hymnId: hymn?.value,
-                  })
-                }
-                value={selectedHymn ?? null}
-              >
-                <ComboboxInput
-                  aria-invalid={needsHymnSelection}
-                  className="w-full"
-                  id={`${activity.id}-hymn`}
-                  placeholder="Choose a hymn"
-                />
-                <ComboboxContent>
-                  <ComboboxEmpty>No hymns found.</ComboboxEmpty>
-                  <ComboboxList>
-                    {(group, index) => (
-                      <ComboboxGroup key={group.value} items={group.items}>
-                        <ComboboxLabel>{group.value}</ComboboxLabel>
-                        <ComboboxCollection>
-                          {(hymn) => (
-                            <ComboboxItem key={hymn.value} value={hymn}>
-                              {hymn.label}
-                            </ComboboxItem>
-                          )}
-                        </ComboboxCollection>
-                        {index < hymnOptionGroups.length - 1 ? (
-                          <ComboboxSeparator />
-                        ) : null}
-                      </ComboboxGroup>
+            {selectedHymn ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      aria-label={
+                        selectedHymnNeedsLyrics
+                          ? "Selected hymn needs lyrics"
+                          : "Update selected hymn"
+                      }
+                      className={cn(
+                        "inline-flex",
+                        selectedHymnNeedsLyrics
+                          ? "text-destructive"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      params={{ hymnId: selectedHymn.value }}
+                      to="/hymns/$hymnId"
+                    >
+                      {selectedHymnNeedsLyrics ? (
+                        <WarningCircleIcon
+                          aria-hidden="true"
+                          className="size-4"
+                        />
+                      ) : (
+                        <ArrowSquareOutIcon
+                          aria-hidden="true"
+                          className="size-4"
+                        />
+                      )}
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent className="flex max-w-64 flex-col items-start gap-1">
+                    {selectedHymnNeedsLyrics ? (
+                      <span>Lyrics need to be added.</span>
+                    ) : (
+                      selectedHymnDetails.map((detail) => (
+                        <span key={detail}>{detail}</span>
+                      ))
                     )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-              {needsHymnSelection ? (
-                <FieldDescription className="text-destructive">
-                  Select a hymn before publishing or sending this order.
-                </FieldDescription>
-              ) : null}
-            </Field>
-          ) : null}
-          <Field className="md:col-span-2">
-            <FieldLabel htmlFor={`${activity.id}-notes`}>Notes</FieldLabel>
-            <Textarea
-              id={`${activity.id}-notes`}
-              onChange={(event) =>
-                onUpdate({ ...activity, notes: event.target.value })
-              }
-              placeholder="Leader, scripture passage, arrangement, or reminders"
-              value={activity.notes ?? ""}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
+          </div>
+          <Combobox
+            isItemEqualToValue={(item, value) => item.value === value.value}
+            items={hymnOptionGroups}
+            onValueChange={(hymn) =>
+              onUpdate({
+                ...activity,
+                hymnId: hymn?.value,
+              })
+            }
+            value={selectedHymn ?? null}
+          >
+            <ComboboxInput
+              aria-invalid={needsHymnSelection}
+              className="w-full"
+              id={`${activity.id}-hymn`}
+              placeholder="Choose a hymn"
             />
-          </Field>
-        </FieldGroup>
-        <Button onClick={onRemove} type="button" variant="ghost">
-          <TrashIcon data-icon="inline-start" />
-          Remove
-        </Button>
+            <ComboboxContent container={comboboxContainer}>
+              <ComboboxEmpty>No hymns found.</ComboboxEmpty>
+              <ComboboxList>
+                {(group, index) => (
+                  <ComboboxGroup key={group.value} items={group.items}>
+                    <ComboboxLabel>{group.value}</ComboboxLabel>
+                    <ComboboxCollection>
+                      {(hymn) => (
+                        <ComboboxItem key={hymn.value} value={hymn}>
+                          {hymn.label}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxCollection>
+                    {index < hymnOptionGroups.length - 1 ? (
+                      <ComboboxSeparator />
+                    ) : null}
+                  </ComboboxGroup>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+          {needsHymnSelection ? (
+            <FieldDescription className="text-destructive">
+              Select a hymn before publishing or sending this order.
+            </FieldDescription>
+          ) : null}
+        </Field>
+      ) : null}
+      <Field className="md:col-span-2">
+        <FieldLabel htmlFor={`${activity.id}-notes`}>Notes</FieldLabel>
+        <Textarea
+          id={`${activity.id}-notes`}
+          onChange={(event) =>
+            onUpdate({ ...activity, notes: event.target.value })
+          }
+          placeholder="Leader, scripture passage, arrangement, or reminders"
+          value={activity.notes ?? ""}
+        />
+      </Field>
+    </FieldGroup>
+  );
+};
+
+interface ActivityManageDialogProps {
+  activity: OrderActivity;
+  activityTypes: ReferenceOption[];
+  allowHymnSelection: boolean;
+  hymnOptions: HymnOption[];
+  onClose: () => void;
+  onUpdate: (activity: OrderActivity) => void;
+}
+
+const ActivityManageDialog = ({
+  activity,
+  activityTypes,
+  allowHymnSelection,
+  hymnOptions,
+  onClose,
+  onUpdate,
+}: ActivityManageDialogProps) => {
+  const [container, setContainer] = React.useState<HTMLElement | null>(null);
+
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+      open
+    >
+      <DialogContent className="sm:max-w-2xl" ref={setContainer}>
+        <DialogHeader>
+          <DialogTitle>Manage activity</DialogTitle>
+          <DialogDescription>
+            Update the details for this activity.
+          </DialogDescription>
+        </DialogHeader>
+        <ActivityForm
+          activity={activity}
+          activityTypes={activityTypes}
+          allowHymnSelection={allowHymnSelection}
+          comboboxContainer={container}
+          hymnOptions={hymnOptions}
+          onUpdate={onUpdate}
+        />
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button">Done</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+type SortableRowHandle = Pick<
+  ReturnType<typeof useSortable>,
+  "attributes" | "listeners" | "setActivatorNodeRef"
+>;
+
+const SortableRowContext = React.createContext<SortableRowHandle | null>(null);
+
+const DragHandleCell = () => {
+  const handle = React.useContext(SortableRowContext);
+
+  return (
+    <button
+      aria-label="Drag to reorder activity"
+      className="flex cursor-grab items-center text-muted-foreground active:cursor-grabbing"
+      onClick={(event) => event.stopPropagation()}
+      ref={handle?.setActivatorNodeRef}
+      type="button"
+      {...handle?.attributes}
+      {...handle?.listeners}
+    >
+      <DotsSixVerticalIcon aria-hidden="true" />
+    </button>
+  );
+};
+
+interface ActivityColumnsOptions {
+  activityTypeNames: Map<string, string>;
+  allowHymnSelection: boolean;
+  onManage: (activityId: string) => void;
+  onRemove: (activityId: string) => void;
+}
+
+const createActivityColumns = ({
+  activityTypeNames,
+  allowHymnSelection,
+  onManage,
+  onRemove,
+}: ActivityColumnsOptions): ColumnDef<OrderActivity>[] => [
+  {
+    cell: () => <DragHandleCell />,
+    header: () => <span className="sr-only">Reorder</span>,
+    id: "drag",
+  },
+  {
+    accessorKey: "activityName",
+    cell: ({ row }) => {
+      const needsHymn = activityNeedsHymn(row.original, allowHymnSelection);
+
+      return (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{row.original.activityName}</span>
+          {needsHymn ? (
+            <WarningCircleIcon
+              aria-label="Needs a hymn"
+              className="size-4 text-destructive"
+            />
+          ) : null}
+        </div>
+      );
+    },
+    header: "Activity",
+  },
+  {
+    accessorKey: "activityType",
+    cell: ({ row }) => (
+      <Badge variant="secondary">
+        {activityTypeNames.get(row.original.activityType) ??
+          row.original.activityType}
+      </Badge>
+    ),
+    header: "Type",
+  },
+  {
+    accessorKey: "notes",
+    cell: ({ row }) => {
+      const notes = row.original.notes?.trim();
+
+      if (!notes) {
+        return <span className="text-muted-foreground text-sm">—</span>;
+      }
+
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="block max-w-[16rem] truncate text-muted-foreground text-sm">
+                {notes}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs whitespace-pre-wrap">
+              {notes}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+    header: "Notes",
+  },
+  {
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label="Activity actions"
+              onClick={(event) => event.stopPropagation()}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <DotsThreeVerticalIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => onManage(row.original.id)}>
+              Manage
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={() => onRemove(row.original.id)}
+            >
+              <TrashIcon data-icon="inline-start" />
+              Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-    </div>
+    ),
+    header: () => <span className="sr-only">Actions</span>,
+    id: "actions",
+  },
+];
+
+interface SortableActivityRowProps {
+  onManage: (activityId: string) => void;
+  row: Row<OrderActivity>;
+}
+
+const SortableActivityRow = ({ onManage, row }: SortableActivityRowProps) => {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: row.original.id });
+
+  const handle = React.useMemo<SortableRowHandle>(
+    () => ({ attributes, listeners, setActivatorNodeRef }),
+    [attributes, listeners, setActivatorNodeRef]
+  );
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <SortableRowContext.Provider value={handle}>
+      <TableRow
+        className={cn("cursor-pointer", isDragging && "relative z-10 bg-muted")}
+        data-dragging={isDragging}
+        onClick={() => onManage(row.original.id)}
+        ref={setNodeRef}
+        style={style}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+    </SortableRowContext.Provider>
+  );
+};
+
+interface SegmentActivitiesTableProps {
+  activities: OrderActivity[];
+  activityTypes: ReferenceOption[];
+  allowHymnSelection: boolean;
+  hymnOptions: HymnOption[];
+  onRemove: (activityId: string) => void;
+  onReorder: (activeId: string, overId: string) => void;
+  onUpdate: (activity: OrderActivity) => void;
+  segmentId: string;
+}
+
+const SegmentActivitiesTable = ({
+  activities,
+  activityTypes,
+  allowHymnSelection,
+  hymnOptions,
+  onRemove,
+  onReorder,
+  onUpdate,
+  segmentId,
+}: SegmentActivitiesTableProps) => {
+  const [manageActivityId, setManageActivityId] = React.useState<string | null>(
+    null
+  );
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const activityTypeNames = React.useMemo(
+    () => new Map(activityTypes.map((type) => [type.id, type.name])),
+    [activityTypes]
+  );
+
+  const columns = React.useMemo(
+    () =>
+      createActivityColumns({
+        activityTypeNames,
+        allowHymnSelection,
+        onManage: setManageActivityId,
+        onRemove,
+      }),
+    [activityTypeNames, allowHymnSelection, onRemove]
+  );
+
+  const table = useReactTable({
+    columns,
+    data: activities,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.id,
+  });
+
+  const activityIds = React.useMemo(
+    () => activities.map((activity) => activity.id),
+    [activities]
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      onReorder(String(active.id), String(over.id));
+    }
+  };
+
+  const manageActivity = activities.find(
+    (activity) => activity.id === manageActivityId
+  );
+
+  return (
+    <>
+      <DndContext
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+        onDragEnd={handleDragEnd}
+        sensors={sensors}
+      >
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext()
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  className="text-muted-foreground"
+                  colSpan={columns.length}
+                >
+                  No activities yet. Use “Add activity” to build this card.
+                </TableCell>
+              </TableRow>
+            ) : (
+              <SortableContext
+                items={activityIds}
+                strategy={verticalListSortingStrategy}
+              >
+                {table.getRowModel().rows.map((row) => (
+                  <SortableActivityRow
+                    key={row.id}
+                    onManage={setManageActivityId}
+                    row={row}
+                  />
+                ))}
+              </SortableContext>
+            )}
+          </TableBody>
+        </Table>
+      </DndContext>
+
+      {manageActivity ? (
+        <ActivityManageDialog
+          activity={manageActivity}
+          activityTypes={activityTypes}
+          allowHymnSelection={allowHymnSelection}
+          hymnOptions={hymnOptions}
+          key={`${segmentId}-${manageActivity.id}`}
+          onClose={() => setManageActivityId(null)}
+          onUpdate={onUpdate}
+        />
+      ) : null}
+    </>
   );
 };
 
@@ -496,12 +849,8 @@ const SegmentEditor = ({
   allowHymnSelection,
   allowTeamAssignment,
   allowTeamDefinition,
-  draggedActivity,
   hymnOptions,
   onAddActivity,
-  onDragEnd,
-  onDragStart,
-  onDropActivity,
   onRemove,
   onUpdateSegment,
   segment,
@@ -543,7 +892,7 @@ const SegmentEditor = ({
             Order of Service Activities
           </CardTitle>
           <CardDescription>
-            Drag activities to reorder them within this service card.
+            Drag rows to reorder activities, or click a row to edit it.
           </CardDescription>
         </div>
         <Button onClick={onAddActivity} type="button" variant="secondary">
@@ -551,35 +900,46 @@ const SegmentEditor = ({
           Add activity
         </Button>
       </div>
-      {segment.activities.map((activity) => (
-        <ActivityEditor
-          activity={activity}
-          activityTypes={activityTypes}
-          allowHymnSelection={allowHymnSelection}
-          draggedActivity={draggedActivity}
-          hymnOptions={hymnOptions}
-          key={activity.id}
-          onDragEnd={onDragEnd}
-          onDragStart={onDragStart}
-          onDropActivity={onDropActivity}
-          onRemove={() =>
-            onUpdateSegment({
-              ...segment,
-              activities: segment.activities.filter(
-                (item) => item.id !== activity.id
-              ),
-            })
+      <SegmentActivitiesTable
+        activities={segment.activities}
+        activityTypes={activityTypes}
+        allowHymnSelection={allowHymnSelection}
+        hymnOptions={hymnOptions}
+        onRemove={(activityId) =>
+          onUpdateSegment({
+            ...segment,
+            activities: segment.activities.filter(
+              (item) => item.id !== activityId
+            ),
+          })
+        }
+        onReorder={(activeId, overId) => {
+          const oldIndex = segment.activities.findIndex(
+            (item) => item.id === activeId
+          );
+          const newIndex = segment.activities.findIndex(
+            (item) => item.id === overId
+          );
+
+          if (oldIndex === -1 || newIndex === -1) {
+            return;
           }
-          onUpdate={(updatedActivity) =>
-            onUpdateSegment({
-              ...segment,
-              activities: segment.activities.map((item) =>
-                item.id === activity.id ? updatedActivity : item
-              ),
-            })
-          }
-        />
-      ))}
+
+          onUpdateSegment({
+            ...segment,
+            activities: arrayMove(segment.activities, oldIndex, newIndex),
+          });
+        }}
+        onUpdate={(updatedActivity) =>
+          onUpdateSegment({
+            ...segment,
+            activities: segment.activities.map((item) =>
+              item.id === updatedActivity.id ? updatedActivity : item
+            ),
+          })
+        }
+        segmentId={segment.id}
+      />
       {allowTeamDefinition && teams.length > 0 ? (
         <>
           <hr />
@@ -619,80 +979,62 @@ export const OrderTemplateEditor = ({
   teamMembers = EMPTY_TEAM_MEMBERS,
   teams = EMPTY_TEAMS,
   value,
-}: EditorProps) => {
-  const [draggedActivity, setDraggedActivity] =
-    React.useState<DragState | null>(null);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="font-heading text-xl font-semibold">Service cards</h2>
-          <p className="text-sm text-muted-foreground">
-            Add cards for the main service segments, then add activities to each
-            card.
-          </p>
-        </div>
-        <Button
-          onClick={() =>
-            onChange({
-              ...value,
-              service_type: [...value.service_type, createSegment()],
-            })
-          }
-          type="button"
-          variant="outline"
-        >
-          <PlusIcon data-icon="inline-start" />
-          Add card
-        </Button>
+}: EditorProps) => (
+  <div className="flex flex-col gap-4">
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-heading text-xl font-semibold">Service cards</h2>
+        <p className="text-sm text-muted-foreground">
+          Add cards for the main service segments, then add activities to each
+          card.
+        </p>
       </div>
-
-      {value.service_type.map((segment) => (
-        <SegmentEditor
-          activityTypes={activityTypes}
-          allowHymnSelection={allowHymnSelection}
-          allowTeamAssignment={allowTeamAssignment}
-          allowTeamDefinition={allowTeamDefinition}
-          draggedActivity={draggedActivity}
-          hymnOptions={hymnOptions}
-          key={segment.id}
-          teamMembers={teamMembers}
-          teams={teams}
-          onAddActivity={() =>
-            onChange(
-              updateSegment(value, segment.id, (currentSegment) => ({
-                ...currentSegment,
-                activities: [...currentSegment.activities, createActivity()],
-              }))
-            )
-          }
-          onDragEnd={() => setDraggedActivity(null)}
-          onDragStart={(activityId) =>
-            setDraggedActivity({ activityId, segmentId: segment.id })
-          }
-          onDropActivity={(targetActivityId) => {
-            if (!draggedActivity || draggedActivity.segmentId !== segment.id) {
-              return;
-            }
-
-            onChange(reorderActivity(value, draggedActivity, targetActivityId));
-            setDraggedActivity(null);
-          }}
-          onRemove={() =>
-            onChange({
-              ...value,
-              service_type: value.service_type.filter(
-                (item) => item.id !== segment.id
-              ),
-            })
-          }
-          onUpdateSegment={(updatedSegment) =>
-            onChange(updateSegment(value, segment.id, () => updatedSegment))
-          }
-          segment={segment}
-        />
-      ))}
+      <Button
+        onClick={() =>
+          onChange({
+            ...value,
+            service_type: [...value.service_type, createSegment()],
+          })
+        }
+        type="button"
+        variant="outline"
+      >
+        <PlusIcon data-icon="inline-start" />
+        Add card
+      </Button>
     </div>
-  );
-};
+
+    {value.service_type.map((segment) => (
+      <SegmentEditor
+        activityTypes={activityTypes}
+        allowHymnSelection={allowHymnSelection}
+        allowTeamAssignment={allowTeamAssignment}
+        allowTeamDefinition={allowTeamDefinition}
+        hymnOptions={hymnOptions}
+        key={segment.id}
+        onAddActivity={() =>
+          onChange(
+            updateSegment(value, segment.id, (currentSegment) => ({
+              ...currentSegment,
+              activities: [...currentSegment.activities, createActivity()],
+            }))
+          )
+        }
+        onRemove={() =>
+          onChange({
+            ...value,
+            service_type: value.service_type.filter(
+              (item) => item.id !== segment.id
+            ),
+          })
+        }
+        onUpdateSegment={(updatedSegment) =>
+          onChange(updateSegment(value, segment.id, () => updatedSegment))
+        }
+        segment={segment}
+        teamMembers={teamMembers}
+        teams={teams}
+      />
+    ))}
+  </div>
+);
