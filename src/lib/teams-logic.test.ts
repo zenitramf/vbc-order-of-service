@@ -10,6 +10,7 @@ import {
   DEFAULT_TEAMS,
   addTeamAssignment,
   buildTeamTree,
+  filterTeamMembers,
   findMissingRequiredTeams,
   getAssignmentMemberIds,
   getCardTeamIds,
@@ -304,6 +305,35 @@ describe("addTeamAssignment / removeTeamAssignment", () => {
 
   it("tolerates an undefined assignment list", () => {
     expect(removeTeamAssignment(undefined, "musicians")).toEqual([]);
+  });
+});
+
+describe("filterTeamMembers", () => {
+  const members = [
+    { email: "ann@vbc.org", firstName: "Ann", lastName: "Smith" },
+    { email: "bob@vbc.org", firstName: "Bob", lastName: "Jones" },
+    { email: "carol@example.com", firstName: "Carol", lastName: "Ann" },
+  ];
+
+  it("returns every member for an empty query", () => {
+    expect(filterTeamMembers(members, "   ")).toBe(members);
+  });
+
+  it("matches on first or last name, case-insensitively", () => {
+    expect(filterTeamMembers(members, "ann").map((m) => m.firstName)).toEqual([
+      "Ann",
+      "Carol",
+    ]);
+  });
+
+  it("matches on email", () => {
+    expect(
+      filterTeamMembers(members, "example.com").map((m) => m.firstName)
+    ).toEqual(["Carol"]);
+  });
+
+  it("returns an empty list when nothing matches", () => {
+    expect(filterTeamMembers(members, "zzz")).toEqual([]);
   });
 });
 

@@ -183,6 +183,29 @@ export const removeTeamAssignment = (
 ): TeamAssignment[] =>
   (assignments ?? []).filter((assignment) => assignment.teamId !== teamId);
 
+/**
+ * Filter team members by a free-text query matched against their name and
+ * email (case-insensitive). An empty query returns the list unchanged.
+ */
+export const filterTeamMembers = <
+  T extends { email: string; firstName: string; lastName: string },
+>(
+  members: T[],
+  query: string
+): T[] => {
+  const normalized = query.trim().toLowerCase();
+
+  if (!normalized) {
+    return members;
+  }
+
+  return members.filter((member) =>
+    `${member.firstName} ${member.lastName} ${member.email}`
+      .toLowerCase()
+      .includes(normalized)
+  );
+};
+
 /** Two-letter initials for an avatar fallback. */
 export const getInitials = (firstName: string, lastName: string): string => {
   const initials =

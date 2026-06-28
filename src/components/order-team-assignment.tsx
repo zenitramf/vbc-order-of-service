@@ -28,6 +28,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
+import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
   Table,
@@ -45,6 +46,7 @@ import type {
 import {
   REQUIRED_TEAM_MINIMUM,
   addTeamAssignment,
+  filterTeamMembers,
   getAssignmentMemberIds,
   getCardTeamIds,
   getInitials,
@@ -183,79 +185,103 @@ const TeamMemberDialog = ({
   onToggleMember,
   required,
   teamName,
-}: TeamMemberDialogProps) => (
-  <Dialog
-    onOpenChange={(open) => {
-      if (!open) {
-        onClose();
-      }
-    }}
-    open
-  >
-    <DialogContent>
-      <DialogHeader>
-        <div className="flex items-center gap-2">
-          <DialogTitle>{teamName}</DialogTitle>
-          <Badge
-            variant={requirementBadgeVariant(
-              required,
-              assignedMemberIds.length
-            )}
-          >
-            {requirementBadgeLabel(required, assignedMemberIds.length)}
-          </Badge>
-        </div>
-        <DialogDescription>
-          Add or remove members for {cardName}.
-        </DialogDescription>
-      </DialogHeader>
-      <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+}: TeamMemberDialogProps) => {
+  const [search, setSearch] = React.useState("");
+  const visibleMembers = filterTeamMembers(members, search);
+
+  return (
+    <Dialog
+      onOpenChange={(open) => {
+        if (!open) {
+          onClose();
+        }
+      }}
+      open
+    >
+      <DialogContent>
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <DialogTitle>{teamName}</DialogTitle>
+            <Badge
+              variant={requirementBadgeVariant(
+                required,
+                assignedMemberIds.length
+              )}
+            >
+              {requirementBadgeLabel(required, assignedMemberIds.length)}
+            </Badge>
+          </div>
+          <DialogDescription>
+            Add or remove members for {cardName}.
+          </DialogDescription>
+        </DialogHeader>
         {members.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             No members on this team yet. Add members in Team Management.
           </p>
         ) : (
-          members.map((member) => {
-            const checked = assignedMemberIds.includes(member.id);
+          <>
+            <Input
+              aria-label="Search members"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by name or email"
+              type="search"
+              value={search}
+            />
+            <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+              {visibleMembers.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No members match “{search}”.
+                </p>
+              ) : (
+                visibleMembers.map((member) => {
+                  const checked = assignedMemberIds.includes(member.id);
 
-            return (
-              <Label
-                className={cn(
-                  "flex items-center gap-3 rounded-xl border p-2 font-normal",
-                  checked && "border-primary bg-primary/5"
-                )}
-                key={member.id}
-              >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(value) =>
-                    onToggleMember(member.id, value === true)
-                  }
-                />
-                <MemberAvatar member={member} />
-                <span className="flex flex-col">
-                  <span className="text-sm">
-                    {member.firstName} {member.lastName}
-                  </span>
-                  {member.email ? (
-                    <span className="text-muted-foreground text-xs">
-                      {member.email}
-                    </span>
-                  ) : null}
-                </span>
-              </Label>
-            );
-          })
+                  return (
+                    <Label
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl border p-2 font-normal",
+                        checked && "border-primary bg-primary/5"
+                      )}
+                      key={member.id}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(value) =>
+                          onToggleMember(member.id, value === true)
+                        }
+                      />
+                      <MemberAvatar member={member} />
+                      <span className="flex flex-col">
+                        <span className="text-sm">
+                          {member.firstName} {member.lastName}
+                        </span>
+                        {member.email ? (
+                          <span className="text-muted-foreground text-xs">
+                            {member.email}
+                          </span>
+                        ) : null}
+                      </span>
+                    </Label>
+                  );
+                })
+              )}
+            </div>
+            <p className="text-muted-foreground text-xs">
+              {assignedMemberIds.length} selected · {visibleMembers.length} of{" "}
+              {members.length} shown
+            </p>
+          </>
         )}
-      </div>
-      <DialogFooter>
-        <DialogClose asChild>
-          <Button type="button">Done</Button>
-        </DialogClose>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-);
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button">Done</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 interface OrderTeamAssignmentProps {
   onUpdateSegment: (segment: ServiceTypeCard) => void;
