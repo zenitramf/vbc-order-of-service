@@ -110,8 +110,10 @@ const uniqueStrings = (values: string[]): string[] => [
 
 /**
  * Normalize the team-related fields of a service card so persisted data stays
- * tidy: dedupe team ids, drop optional teams that are also required, and remove
- * assignments for teams the card no longer references or with no members.
+ * tidy: dedupe team ids, drop optional teams that are also required, and merge
+ * duplicate assignments while deduping their members. Empty assignments are
+ * kept so a team the planner added to a card survives a save even before any
+ * member has been chosen.
  */
 export const normalizeServiceCardTeams = (
   card: ServiceTypeCard
@@ -123,16 +125,70 @@ export const normalizeServiceCardTeams = (
   const optionalTeamIds = uniqueStrings(card.optionalTeamIds ?? []).filter(
     (teamId) => !requiredTeamIds.includes(teamId)
   );
-  const knownTeamIds = new Set([...requiredTeamIds, ...optionalTeamIds]);
-  const teamAssignments = (card.teamAssignments ?? [])
-    .filter((assignment) => knownTeamIds.has(assignment.teamId))
-    .map((assignment) => ({
-      memberIds: uniqueStrings(assignment.memberIds),
-      teamId: assignment.teamId,
-    }))
-    .filter((assignment) => assignment.memberIds.length > 0);
+  const memberIdsByTeam = new Map<string, string[]>();
+
+  for (const assignment of card.teamAssignments ?? []) {
+    const existing = memberIdsByTeam.get(assignment.teamId) ?? [];
+    memberIdsByTeam.set(assignment.teamId, [
+      ...existing,
+      ...assignment.memberIds,
+    ]);
+  }
+
+  const teamAssignments = [...memberIdsByTeam].map(([teamId, memberIds]) => ({
+    memberIds: uniqueStrings(memberIds),
+    teamId,
+  }));
 
   return { optionalTeamIds, requiredTeamIds, teamAssignments };
+};
+
+/** Minimum members a required team needs before an order can be published. */
+export const REQUIRED_TEAM_MINIMUM = 1;
+
+/** Whether a team is marked required on a service card. */
+export const isTeamRequired = (
+  card: ServiceTypeCard,
+  teamId: string
+): boolean => (card.requiredTeamIds ?? []).includes(teamId);
+
+/**
+ * The teams shown for a service card during assignment: every required team
+ * (always visible, even unstaffed) plus any team the planner has added.
+ */
+export const getCardTeamIds = (card: ServiceTypeCard): string[] =>
+  uniqueStrings([
+    ...(card.requiredTeamIds ?? []),
+    ...(card.teamAssignments ?? []).map((assignment) => assignment.teamId),
+  ]);
+
+/** Add an empty assignment for a team if it is not already present. */
+export const addTeamAssignment = (
+  assignments: TeamAssignment[] | undefined,
+  teamId: string
+): TeamAssignment[] => {
+  const current = assignments ?? [];
+
+  if (current.some((assignment) => assignment.teamId === teamId)) {
+    return current;
+  }
+
+  return [...current, { memberIds: [], teamId }];
+};
+
+/** Remove a team's assignment entirely (used when the planner drops a team). */
+export const removeTeamAssignment = (
+  assignments: TeamAssignment[] | undefined,
+  teamId: string
+): TeamAssignment[] =>
+  (assignments ?? []).filter((assignment) => assignment.teamId !== teamId);
+
+/** Two-letter initials for an avatar fallback. */
+export const getInitials = (firstName: string, lastName: string): string => {
+  const initials =
+    `${firstName.trim().charAt(0)}${lastName.trim().charAt(0)}`.toUpperCase();
+
+  return initials || "?";
 };
 
 /** Member ids currently assigned to a team on a given service card. */

@@ -8,13 +8,18 @@ import type {
 } from "~/lib/order-service-types";
 import {
   DEFAULT_TEAMS,
+  addTeamAssignment,
   buildTeamTree,
   findMissingRequiredTeams,
   getAssignmentMemberIds,
+  getCardTeamIds,
+  getInitials,
   hasMissingRequiredTeams,
+  isTeamRequired,
   isValidEmail,
   memberTeamNames,
   normalizeServiceCardTeams,
+  removeTeamAssignment,
   setAssignmentMemberIds,
   teamsById,
   validateTeamMember,
@@ -178,21 +183,22 @@ describe("normalizeServiceCardTeams", () => {
     expect(result.optionalTeamIds).toEqual(["singers"]);
   });
 
-  it("drops assignments for unknown teams and empty member lists", () => {
+  it("merges duplicate teams, dedupes members, and keeps empty assignments", () => {
     const result = normalizeServiceCardTeams(
       card({
         optionalTeamIds: ["singers"],
         requiredTeamIds: ["musicians"],
         teamAssignments: [
           { memberIds: ["m1", "m1"], teamId: "musicians" },
+          { memberIds: ["m2"], teamId: "musicians" },
           { memberIds: [], teamId: "singers" },
-          { memberIds: ["x"], teamId: "ghost" },
         ],
       })
     );
 
     expect(result.teamAssignments).toEqual([
-      { memberIds: ["m1"], teamId: "musicians" },
+      { memberIds: ["m1", "m2"], teamId: "musicians" },
+      { memberIds: [], teamId: "singers" },
     ]);
   });
 
@@ -242,6 +248,76 @@ describe("assignment helpers", () => {
     expect(setAssignmentMemberIds(undefined, "musicians", ["m1"])).toEqual([
       { memberIds: ["m1"], teamId: "musicians" },
     ]);
+  });
+});
+
+describe("getCardTeamIds", () => {
+  it("returns required teams plus any added teams without duplicates", () => {
+    const value = card({
+      requiredTeamIds: ["musicians", "ushers"],
+      teamAssignments: [
+        { memberIds: ["m1"], teamId: "ushers" },
+        { memberIds: [], teamId: "singers" },
+      ],
+    });
+
+    expect(getCardTeamIds(value)).toEqual(["musicians", "ushers", "singers"]);
+  });
+
+  it("returns an empty list when no teams are configured", () => {
+    expect(getCardTeamIds(card())).toEqual([]);
+  });
+});
+
+describe("isTeamRequired", () => {
+  it("reflects whether a team is in the required list", () => {
+    const value = card({ requiredTeamIds: ["musicians"] });
+
+    expect(isTeamRequired(value, "musicians")).toBe(true);
+    expect(isTeamRequired(value, "singers")).toBe(false);
+  });
+});
+
+describe("addTeamAssignment / removeTeamAssignment", () => {
+  it("adds an empty assignment for a new team", () => {
+    expect(addTeamAssignment([], "musicians")).toEqual([
+      { memberIds: [], teamId: "musicians" },
+    ]);
+  });
+
+  it("does not duplicate an existing team", () => {
+    const existing = [{ memberIds: ["m1"], teamId: "musicians" }];
+
+    expect(addTeamAssignment(existing, "musicians")).toBe(existing);
+  });
+
+  it("removes a team's assignment", () => {
+    const existing = [
+      { memberIds: ["m1"], teamId: "musicians" },
+      { memberIds: [], teamId: "singers" },
+    ];
+
+    expect(removeTeamAssignment(existing, "musicians")).toEqual([
+      { memberIds: [], teamId: "singers" },
+    ]);
+  });
+
+  it("tolerates an undefined assignment list", () => {
+    expect(removeTeamAssignment(undefined, "musicians")).toEqual([]);
+  });
+});
+
+describe("getInitials", () => {
+  it("builds uppercase two-letter initials", () => {
+    expect(getInitials("ann", "smith")).toBe("AS");
+  });
+
+  it("handles a missing last name", () => {
+    expect(getInitials("Ann", "")).toBe("A");
+  });
+
+  it("falls back to a placeholder when empty", () => {
+    expect(getInitials("", "")).toBe("?");
   });
 });
 

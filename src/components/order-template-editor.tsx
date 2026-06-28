@@ -9,7 +9,7 @@ import { Link } from "@tanstack/react-router";
 import * as React from "react";
 import { v4 as uuidv4 } from "uuid";
 
-import { Badge } from "~/components/ui/badge";
+import { OrderTeamAssignment } from "~/components/order-team-assignment";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -18,7 +18,6 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
-import { Checkbox } from "~/components/ui/checkbox";
 import {
   Combobox,
   ComboboxCollection,
@@ -38,7 +37,6 @@ import {
   FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import {
   NativeSelect,
   NativeSelectOption,
@@ -59,10 +57,6 @@ import type {
   TeamMemberSummary,
   TeamSummary,
 } from "~/lib/order-service-types";
-import {
-  getAssignmentMemberIds,
-  setAssignmentMemberIds,
-} from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
 
 interface HymnComboboxOption {
@@ -496,105 +490,6 @@ const SegmentTeamDefinition = ({
   </div>
 );
 
-const SegmentTeamAssignment = ({
-  onUpdateSegment,
-  segment,
-  teamMembers,
-  teams,
-}: {
-  onUpdateSegment: (segment: ServiceTypeCard) => void;
-  segment: ServiceTypeCard;
-  teamMembers: TeamMemberSummary[];
-  teams: TeamSummary[];
-}) => {
-  const teamsById = new Map(teams.map((team) => [team.id, team]));
-  const requiredTeamIds = segment.requiredTeamIds ?? [];
-  const assignedTeamIds = [
-    ...requiredTeamIds,
-    ...(segment.optionalTeamIds ?? []),
-  ];
-
-  if (assignedTeamIds.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div>
-        <CardTitle className="text-base">Team assignments</CardTitle>
-        <CardDescription>
-          Choose who serves on each team for this service card.
-        </CardDescription>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        {assignedTeamIds.map((teamId) => {
-          const isRequired = requiredTeamIds.includes(teamId);
-          const selectedMemberIds = getAssignmentMemberIds(segment, teamId);
-          const membersForTeam = teamMembers.filter((member) =>
-            member.teamIds.includes(teamId)
-          );
-          const isMissing = isRequired && selectedMemberIds.length === 0;
-
-          return (
-            <div
-              className={cn(
-                "flex flex-col gap-2 rounded-xl border bg-background/50 p-3",
-                isMissing && "border-destructive"
-              )}
-              key={teamId}
-            >
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">
-                  {teamsById.get(teamId)?.name ?? teamId}
-                </span>
-                <Badge variant={isRequired ? "default" : "secondary"}>
-                  {isRequired ? "Required" : "Optional"}
-                </Badge>
-              </div>
-              {membersForTeam.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No members on this team yet. Add members in Team Management.
-                </p>
-              ) : (
-                membersForTeam.map((member) => (
-                  <Label
-                    className="flex items-center gap-2 font-normal"
-                    key={member.id}
-                  >
-                    <Checkbox
-                      checked={selectedMemberIds.includes(member.id)}
-                      onCheckedChange={(checked) =>
-                        onUpdateSegment({
-                          ...segment,
-                          teamAssignments: setAssignmentMemberIds(
-                            segment.teamAssignments,
-                            teamId,
-                            checked === true
-                              ? [...selectedMemberIds, member.id]
-                              : selectedMemberIds.filter(
-                                  (id) => id !== member.id
-                                )
-                          ),
-                        })
-                      }
-                    />
-                    {member.firstName} {member.lastName}
-                  </Label>
-                ))
-              )}
-              {isMissing ? (
-                <FieldDescription className="text-destructive">
-                  Assign at least one member before publishing.
-                </FieldDescription>
-              ) : null}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
 const SegmentEditor = ({
   activityTypes,
   allowHymnSelection,
@@ -695,7 +590,7 @@ const SegmentEditor = ({
         </>
       ) : null}
       {allowTeamAssignment ? (
-        <SegmentTeamAssignment
+        <OrderTeamAssignment
           onUpdateSegment={onUpdateSegment}
           segment={segment}
           teamMembers={teamMembers}
