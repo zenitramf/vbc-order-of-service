@@ -1,4 +1,3 @@
-// oxlint-disable no-use-before-define
 import { PlusIcon, TrashIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import * as React from "react";
 

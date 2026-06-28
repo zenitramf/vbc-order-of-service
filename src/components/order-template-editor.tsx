@@ -41,6 +41,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "~/components/ui/native-select";
+import { Separator } from "~/components/ui/separator";
 import { Textarea } from "~/components/ui/textarea";
 import {
   Tooltip,
@@ -535,7 +536,7 @@ const SegmentEditor = ({
       </div>
     </CardHeader>
     <CardContent className="flex flex-col gap-4">
-      <hr></hr>
+      <Separator />
       <div className="flex items-center justify-between gap-4">
         <div>
           <CardTitle className="text-base">
@@ -590,12 +591,15 @@ const SegmentEditor = ({
         </>
       ) : null}
       {allowTeamAssignment ? (
-        <OrderTeamAssignment
-          onUpdateSegment={onUpdateSegment}
-          segment={segment}
-          teamMembers={teamMembers}
-          teams={teams}
-        />
+        <>
+          <Separator />
+          <OrderTeamAssignment
+            onUpdateSegment={onUpdateSegment}
+            segment={segment}
+            teamMembers={teamMembers}
+            teams={teams}
+          />
+        </>
       ) : null}
     </CardContent>
   </Card>
