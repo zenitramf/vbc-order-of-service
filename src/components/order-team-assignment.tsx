@@ -392,7 +392,7 @@ export const OrderTeamAssignment = ({
               disabled={availableTeams.length === 0}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               <PlusIcon data-icon="inline-start" />
               Add team
