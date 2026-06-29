@@ -18,6 +18,12 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+} from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -54,8 +60,18 @@ import type {
   MonthScheduleCard,
   TeamMemberSummary,
 } from "~/lib/order-service-types";
-import { filterTeamMembers } from "~/lib/teams-logic";
+import { filterTeamMembers, getInitials } from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
+
+const MAX_VISIBLE_AVATARS = 4;
+
+const MemberAvatar = ({ member }: { member: TeamMemberSummary }) => (
+  <Avatar size="sm">
+    <AvatarFallback>
+      {getInitials(member.firstName, member.lastName)}
+    </AvatarFallback>
+  </Avatar>
+);
 
 const WEEKDAY_NAMES = [
   "Sunday",
@@ -171,6 +187,7 @@ const MemberPickerDialog = ({
                           onToggleMember(member.id, value === true)
                         }
                       />
+                      <MemberAvatar member={member} />
                       <span className="flex flex-col">
                         <span className="text-sm">
                           {member.firstName} {member.lastName}
@@ -403,17 +420,24 @@ const MonthScheduleDialog = ({
     }
 
     return (
-      <span className="text-sm">
-        {ids
-          .map((id) => {
-            const member = membersById.get(id);
+      <AvatarGroup>
+        {ids.slice(0, MAX_VISIBLE_AVATARS).map((id) => {
+          const member = membersById.get(id);
 
-            return member
-              ? `${member.firstName} ${member.lastName}`.trim()
-              : "Former member";
-          })
-          .join(", ")}
-      </span>
+          return member ? (
+            <MemberAvatar key={id} member={member} />
+          ) : (
+            <Avatar key={id} size="sm">
+              <AvatarFallback>?</AvatarFallback>
+            </Avatar>
+          );
+        })}
+        {ids.length > MAX_VISIBLE_AVATARS ? (
+          <AvatarGroupCount>
+            +{ids.length - MAX_VISIBLE_AVATARS}
+          </AvatarGroupCount>
+        ) : null}
+      </AvatarGroup>
     );
   };
 
