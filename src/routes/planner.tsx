@@ -451,7 +451,7 @@ const MonthPlannerPage = () => {
   const [openTeamId, setOpenTeamId] = React.useState<string | null>(null);
 
   const goToMonth = (next: string) => {
-    void navigate({ search: { month: next }, to: "/orders/month" });
+    void navigate({ search: { month: next }, to: "/planner" });
   };
 
   const handlePlanMonth = async () => {
@@ -669,7 +669,7 @@ const MonthPlannerPage = () => {
   );
 };
 
-export const Route = createFileRoute("/orders/month")({
+export const Route = createFileRoute("/planner")({
   component: MonthPlannerPage,
   loader: ({ deps }) => getMonthPlan({ data: deps.month ?? "" }),
   loaderDeps: ({ search }: { search: { month?: string } }) => ({

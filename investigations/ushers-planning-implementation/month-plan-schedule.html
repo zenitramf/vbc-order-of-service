@@ -52,7 +52,7 @@
           </li>
           <li>
             <strong>Month Planner route</strong> at
-            <code>/orders/month</code> &mdash; starts on the current month, with
+            <code>/planner</code> &mdash; starts on the current month, with
             previous/next arrows, a month picker, a
             <strong>Plan Month</strong> button when configured dates are
             missing, a table of configured service dates, and a
@@ -77,11 +77,13 @@
             deleted; the Templates UI surfaces the blocking reason.
           </li>
           <li>
-            <strong>Default navigation</strong> &mdash; the sidebar
-            &ldquo;Orders&rdquo; entry now opens the Month Planner, which is the
-            default way to create and schedule orders. The legacy
-            <code>/orders</code> list is marked <em>Deprecated</em> (kept for
-            reference, with a banner pointing to the Month Planner).
+            <strong>Navigation</strong> &mdash; the sidebar &ldquo;Month
+            Planner&rdquo; entry opens <code>/planner</code>, the primary way to
+            create and schedule orders. The standalone <code>/orders</code> list
+            was removed (no backward compatibility); the order editor
+            (<code>/orders/$orderId</code>) and new-order
+            (<code>/orders/new</code>) routes remain and are reached from the
+            planner.
           </li>
         </ul>
 
@@ -115,11 +117,11 @@
             </tr>
             <tr>
               <td>Month Planner route + schedule dialog</td>
-              <td><code>src/routes/orders/month.tsx</code></td>
+              <td><code>src/routes/planner.tsx</code></td>
             </tr>
             <tr>
-              <td>Orders list entry point</td>
-              <td><code>src/routes/orders/index.tsx</code></td>
+              <td>Navigation + breadcrumb</td>
+              <td><code>src/routes/__root.tsx</code></td>
             </tr>
             <tr>
               <td>Template delete error surfacing</td>

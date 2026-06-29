@@ -58,9 +58,9 @@ const navigationItems = [
   { icon: HouseIcon, label: "Dashboard", to: "/" },
   {
     icon: CalendarCheckIcon,
-    label: "Orders",
+    label: "Month Planner",
     match: "/orders",
-    to: "/orders/month",
+    to: "/planner",
   },
   { icon: ListChecksIcon, label: "Templates", to: "/templates" },
   { icon: MusicNotesIcon, label: "Hymns", to: "/hymns" },
@@ -72,8 +72,8 @@ const teamManagementItems = [
 ] as const;
 
 const routeLabels = new Map([
-  ["orders", "Orders"],
-  ["month", "Month Planner"],
+  ["orders", "Month Planner"],
+  ["planner", "Month Planner"],
   ["new", "New"],
   ["templates", "Templates"],
   ["hymns", "Hymns"],
@@ -114,6 +114,9 @@ const AppBreadcrumb = () => {
         </BreadcrumbItem>
         {segments.map((segment, index) => {
           const href = `/${segments.slice(0, index + 1).join("/")}`;
+          // The standalone /orders list was removed; its sub-routes (new,
+          // editor) now belong under the Month Planner.
+          const linkHref = href === "/orders" ? "/planner" : href;
           const label = routeLabels.get(segment) ?? "Edit";
           const isLast = index === segments.length - 1;
 
@@ -125,7 +128,7 @@ const AppBreadcrumb = () => {
                   <BreadcrumbPage>{label}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link to={href}>{label}</Link>
+                    <Link to={linkHref}>{label}</Link>
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>
@@ -163,12 +166,18 @@ const AppSidebar = () => {
             <SidebarMenu>
               {navigationItems.map((item) => {
                 const Icon = item.icon;
-                const matchPath = "match" in item ? item.match : item.to;
+                const matchPaths = [
+                  item.to,
+                  ...("match" in item ? [item.match] : []),
+                ];
                 const isActive =
                   item.to === "/"
                     ? pathname === "/"
-                    : pathname === matchPath ||
-                      pathname.startsWith(`${matchPath}/`);
+                    : matchPaths.some(
+                        (matchPath) =>
+                          pathname === matchPath ||
+                          pathname.startsWith(`${matchPath}/`)
+                      );
 
                 return (
                   <SidebarMenuItem key={item.to}>
