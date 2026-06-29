@@ -49,6 +49,8 @@ import {
   getAssignmentMemberIds,
   getCardTeamIds,
   getInitials,
+  isTeamConfigured,
+  isTeamOptional,
   isTeamRequired,
   removeTeamAssignment,
   setAssignmentMemberIds,
@@ -90,6 +92,8 @@ interface TeamAssignmentRowProps {
   assignedMembers: TeamMemberSummary[];
   onManage: () => void;
   onRemove: () => void;
+  optional: boolean;
+  removable: boolean;
   required: boolean;
   teamName: string;
 }
@@ -98,6 +102,8 @@ const TeamAssignmentRow = ({
   assignedMembers,
   onManage,
   onRemove,
+  optional,
+  removable,
   required,
   teamName,
 }: TeamAssignmentRowProps) => {
@@ -116,6 +122,7 @@ const TeamAssignmentRow = ({
             {teamName}
           </button>
           {required ? <Badge variant="secondary">Required</Badge> : null}
+          {optional ? <Badge variant="outline">Optional</Badge> : null}
           {isMissing ? (
             <WarningCircleIcon
               aria-label="Needs a member"
@@ -151,7 +158,7 @@ const TeamAssignmentRow = ({
             Manage
           </Button>
           <Button
-            disabled={required}
+            disabled={!removable}
             onClick={onRemove}
             size="sm"
             type="button"
@@ -311,12 +318,23 @@ export const OrderTeamAssignment = ({
   const cardTeamIds = getCardTeamIds(segment);
   const shownTeamIds = new Set(cardTeamIds);
   const availableTeams = teams.filter((team) => !shownTeamIds.has(team.id));
-  const membersForTeam = (teamId: string) =>
-    teamMembers.filter((member) => member.teamIds.includes(teamId));
   const assignedMembersForTeam = (teamId: string) =>
     getAssignmentMemberIds(segment, teamId)
       .map((memberId) => membersById.get(memberId))
       .filter((member) => member !== undefined);
+  // Show current team members plus anyone still assigned who has since left the
+  // team, so stale assignments stay visible and can be unchecked.
+  const membersForTeam = (teamId: string) => {
+    const current = teamMembers.filter((member) =>
+      member.teamIds.includes(teamId)
+    );
+    const currentIds = new Set(current.map((member) => member.id));
+    const staleAssigned = assignedMembersForTeam(teamId).filter(
+      (member) => !currentIds.has(member.id)
+    );
+
+    return [...current, ...staleAssigned];
+  };
 
   const updateTeamAssignments = (
     teamAssignments: ServiceTypeCard["teamAssignments"]
@@ -363,7 +381,11 @@ export const OrderTeamAssignment = ({
             {availableTeams.length === 0 ? (
               <DropdownMenuLabel>All teams added</DropdownMenuLabel>
             ) : (
-              availableTeams.map((team) => (
+              <DropdownMenuLabel>Other teams</DropdownMenuLabel>
+            )}
+            {availableTeams.length === 0
+              ? null
+              : availableTeams.map((team) => (
                 <DropdownMenuItem
                   key={team.id}
                   onSelect={() =>
@@ -374,8 +396,7 @@ export const OrderTeamAssignment = ({
                 >
                   {team.name}
                 </DropdownMenuItem>
-              ))
-            )}
+              ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -407,6 +428,8 @@ export const OrderTeamAssignment = ({
                     removeTeamAssignment(segment.teamAssignments, teamId)
                   )
                 }
+                optional={isTeamOptional(segment, teamId)}
+                removable={!isTeamConfigured(segment, teamId)}
                 required={isTeamRequired(segment, teamId)}
                 teamName={teamsById.get(teamId)?.name ?? teamId}
               />

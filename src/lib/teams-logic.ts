@@ -93,6 +93,45 @@ export const buildTeamTree = (teams: TeamSummary[]): TeamTreeNode[] => {
   }));
 };
 
+/**
+ * Validate a proposed parent for a team against the two-level hierarchy
+ * invariant. Returns a human-readable error, or null when the parent is
+ * allowed. Because the tree is only ever two levels deep, requiring the parent
+ * to be a root and the team itself to have no children makes cycles impossible
+ * without walking the graph.
+ */
+export const validateTeamParent = (input: {
+  id: string;
+  parentTeamId: string | null;
+  teams: Pick<TeamSummary, "id" | "parentTeamId">[];
+}): string | null => {
+  const { id, parentTeamId, teams } = input;
+
+  if (!parentTeamId) {
+    return null;
+  }
+
+  if (parentTeamId === id) {
+    return "A team cannot be its own parent team.";
+  }
+
+  const parent = teams.find((candidate) => candidate.id === parentTeamId);
+
+  if (!parent) {
+    return "Parent team does not exist.";
+  }
+
+  if (parent.parentTeamId) {
+    return "Teams can only nest one level deep.";
+  }
+
+  if (teams.some((candidate) => candidate.parentTeamId === id)) {
+    return "A team with sub-teams cannot become a sub-team.";
+  }
+
+  return null;
+};
+
 /** Resolve the display names of the teams a member belongs to. */
 export const memberTeamNames = (
   member: Pick<TeamMember, "teamIds">,
@@ -152,13 +191,31 @@ export const isTeamRequired = (
   teamId: string
 ): boolean => (card.requiredTeamIds ?? []).includes(teamId);
 
+/** Whether a team is marked optional (template-suggested) on a service card. */
+export const isTeamOptional = (
+  card: ServiceTypeCard,
+  teamId: string
+): boolean => (card.optionalTeamIds ?? []).includes(teamId);
+
+/**
+ * Whether a team is configured on the template (required or optional) rather
+ * than added ad-hoc by the planner. Template teams stay on the card and so are
+ * not removable from the order editor.
+ */
+export const isTeamConfigured = (
+  card: ServiceTypeCard,
+  teamId: string
+): boolean => isTeamRequired(card, teamId) || isTeamOptional(card, teamId);
+
 /**
  * The teams shown for a service card during assignment: every required team
- * (always visible, even unstaffed) plus any team the planner has added.
+ * and every optional team from the template (always visible, even unstaffed)
+ * plus any team the planner has added ad-hoc.
  */
 export const getCardTeamIds = (card: ServiceTypeCard): string[] =>
   uniqueStrings([
     ...(card.requiredTeamIds ?? []),
+    ...(card.optionalTeamIds ?? []),
     ...(card.teamAssignments ?? []).map((assignment) => assignment.teamId),
   ]);
 
@@ -246,19 +303,44 @@ export interface MissingRequiredTeam {
   teamName: string;
 }
 
+/** Count the assigned members of a team, ignoring stale ids when a live
+ * membership lookup is supplied. Without the lookup every assigned id counts. */
+const countValidAssignedMembers = (
+  card: ServiceTypeCard,
+  teamId: string,
+  membersByTeam?: Map<string, Set<string>>
+): number => {
+  const assigned = getAssignmentMemberIds(card, teamId);
+
+  if (!membersByTeam) {
+    return assigned.length;
+  }
+
+  const current = membersByTeam.get(teamId);
+
+  return assigned.filter((memberId) => current?.has(memberId)).length;
+};
+
 /**
- * Find every required team on every service card that has no member assigned.
- * Used to gate publishing of an order of service.
+ * Find every required team on every service card that is not staffed by enough
+ * members. Used to gate publishing of an order of service. When
+ * `membersByTeam` is supplied, only members who currently belong to the team
+ * count toward the requirement, so stale ids left in `order_json` cannot
+ * satisfy the gate.
  */
 export const findMissingRequiredTeams = (
   order: OrderServiceTemplateJson,
-  teamsById: Map<string, Team>
+  teamsById: Map<string, Team>,
+  membersByTeam?: Map<string, Set<string>>
 ): MissingRequiredTeam[] => {
   const missing: MissingRequiredTeam[] = [];
 
   for (const card of order.service_type) {
     for (const teamId of card.requiredTeamIds ?? []) {
-      if (getAssignmentMemberIds(card, teamId).length === 0) {
+      if (
+        countValidAssignedMembers(card, teamId, membersByTeam) <
+        REQUIRED_TEAM_MINIMUM
+      ) {
         missing.push({
           cardId: card.id,
           cardName: card.typeName,
@@ -274,8 +356,39 @@ export const findMissingRequiredTeams = (
 
 export const hasMissingRequiredTeams = (
   order: OrderServiceTemplateJson,
-  teamsById: Map<string, Team>
-): boolean => findMissingRequiredTeams(order, teamsById).length > 0;
+  teamsById: Map<string, Team>,
+  membersByTeam?: Map<string, Set<string>>
+): boolean =>
+  findMissingRequiredTeams(order, teamsById, membersByTeam).length > 0;
+
+/**
+ * Drop assigned member ids that no longer belong to their team. Returns a
+ * cleaned copy of the cards so stale ids never persist into `order_json`.
+ */
+export const pruneStaleAssignments = (
+  order: OrderServiceTemplateJson,
+  membersByTeam: Map<string, Set<string>>
+): OrderServiceTemplateJson => ({
+  ...order,
+  service_type: order.service_type.map((card) => {
+    if (!card.teamAssignments?.length) {
+      return card;
+    }
+
+    const teamAssignments = card.teamAssignments.map((assignment) => {
+      const current = membersByTeam.get(assignment.teamId);
+
+      return {
+        ...assignment,
+        memberIds: assignment.memberIds.filter((memberId) =>
+          current?.has(memberId)
+        ),
+      };
+    });
+
+    return { ...card, teamAssignments };
+  }),
+});
 
 export const teamsById = (teams: Team[]): Map<string, Team> =>
   new Map(teams.map((team) => [team.id, team]));

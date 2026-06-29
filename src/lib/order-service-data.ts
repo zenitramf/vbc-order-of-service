@@ -47,8 +47,10 @@ import {
   findMissingRequiredTeams,
   memberTeamNames,
   normalizeServiceCardTeams,
+  pruneStaleAssignments,
   teamsById as toTeamsById,
   validateTeamMember,
+  validateTeamParent,
 } from "~/lib/teams-logic";
 
 const DEFAULT_TEMPLATE: OrderServiceTemplateJson = {
@@ -733,12 +735,39 @@ const loadTeamsById = async (db: D1Database) => {
   return toTeamsById(results.map(mapTeamRow));
 };
 
+/** Live team memberships keyed by team id, for validating order assignments. */
+const loadTeamMemberIds = async (
+  db: D1Database
+): Promise<Map<string, Set<string>>> => {
+  const { results } = await db
+    .prepare("SELECT team_id, member_id FROM team_member_teams")
+    .all<Record<string, unknown>>();
+  const byTeam = new Map<string, Set<string>>();
+
+  for (const row of results) {
+    const teamId = asString(row.team_id);
+    const memberId = asString(row.member_id);
+    const members = byTeam.get(teamId) ?? new Set<string>();
+    members.add(memberId);
+    byTeam.set(teamId, members);
+  }
+
+  return byTeam;
+};
+
 const assertRequiredTeamsStaffed = async (
   db: D1Database,
   order: OrderRecord
 ): Promise<void> => {
-  const teamsLookup = await loadTeamsById(db);
-  const missing = findMissingRequiredTeams(order.order, teamsLookup);
+  const [teamsLookup, membersByTeam] = await Promise.all([
+    loadTeamsById(db),
+    loadTeamMemberIds(db),
+  ]);
+  const missing = findMissingRequiredTeams(
+    order.order,
+    teamsLookup,
+    membersByTeam
+  );
 
   if (missing.length > 0) {
     const summary = missing
@@ -1313,7 +1342,11 @@ export const saveOrder = createServerFn({ method: "POST" })
     });
 
     const timestamp = nowIso();
-    const order = normalizeTemplate(data.order, data.title);
+    const membersByTeam = await loadTeamMemberIds(db);
+    const order = pruneStaleAssignments(
+      normalizeTemplate(data.order, data.title),
+      membersByTeam
+    );
 
     try {
       await db
@@ -2038,8 +2071,22 @@ export const saveTeam = createServerFn({ method: "POST" })
     const id = data.id || uuidv4();
     const parentTeamId = data.parentTeamId?.trim() || null;
 
-    if (parentTeamId === id) {
-      throw new Error("A team cannot be its own parent team.");
+    if (parentTeamId) {
+      const { results } = await db
+        .prepare("SELECT id, parent_team_id FROM teams")
+        .all<Record<string, unknown>>();
+      const parentError = validateTeamParent({
+        id,
+        parentTeamId,
+        teams: results.map((row) => ({
+          id: asString(row.id),
+          parentTeamId: asString(row.parent_team_id) || undefined,
+        })),
+      });
+
+      if (parentError) {
+        throw new Error(parentError);
+      }
     }
 
     await db
@@ -2057,11 +2104,78 @@ export const saveTeam = createServerFn({ method: "POST" })
     return { id };
   });
 
+const cardReferencesTeam = (
+  card: { optionalTeamIds?: string[]; requiredTeamIds?: string[]; teamAssignments?: { teamId: string }[] },
+  teamId: string
+): boolean =>
+  (card.requiredTeamIds ?? []).includes(teamId) ||
+  (card.optionalTeamIds ?? []).includes(teamId) ||
+  (card.teamAssignments ?? []).some(
+    (assignment) => assignment.teamId === teamId
+  );
+
+/**
+ * Find templates and orders whose JSON still references a team. Team ids live
+ * inside `template_json`/`order_json`, beyond the reach of D1 foreign keys, so
+ * deletion must consult this before removing the team row.
+ */
+const findTeamReferences = async (
+  db: D1Database,
+  teamId: string
+): Promise<{ orders: string[]; templates: string[] }> => {
+  const [templateRows, orderRows] = await Promise.all([
+    db
+      .prepare("SELECT name, template_json FROM order_service_templates")
+      .all<Record<string, unknown>>(),
+    db
+      .prepare("SELECT title, service_date, order_json FROM orders_of_service")
+      .all<Record<string, unknown>>(),
+  ]);
+
+  const templates = templateRows.results
+    .filter((row) =>
+      parseTemplateJson(
+        asString(row.template_json),
+        asString(row.name)
+      ).service_type.some((card) => cardReferencesTeam(card, teamId))
+    )
+    .map((row) => asString(row.name));
+
+  const orders = orderRows.results
+    .filter((row) =>
+      parseTemplateJson(
+        asString(row.order_json),
+        asString(row.title)
+      ).service_type.some((card) => cardReferencesTeam(card, teamId))
+    )
+    .map((row) => asString(row.title) || asString(row.service_date));
+
+  return { orders, templates };
+};
+
 export const deleteTeam = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     await ensureDatabase();
     const db = getDatabase();
+
+    const { orders, templates } = await findTeamReferences(db, data);
+
+    if (templates.length > 0 || orders.length > 0) {
+      const parts: string[] = [];
+
+      if (templates.length > 0) {
+        parts.push(`${templates.length} template(s): ${templates.join(", ")}`);
+      }
+
+      if (orders.length > 0) {
+        parts.push(`${orders.length} order(s): ${orders.join(", ")}`);
+      }
+
+      throw new Error(
+        `Remove this team from ${parts.join(" and ")} before deleting it.`
+      );
+    }
 
     await db.batch([
       db

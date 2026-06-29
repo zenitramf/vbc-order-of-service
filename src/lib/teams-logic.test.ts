@@ -16,14 +16,18 @@ import {
   getCardTeamIds,
   getInitials,
   hasMissingRequiredTeams,
+  isTeamConfigured,
+  isTeamOptional,
   isTeamRequired,
   isValidEmail,
   memberTeamNames,
   normalizeServiceCardTeams,
+  pruneStaleAssignments,
   removeTeamAssignment,
   setAssignmentMemberIds,
   teamsById,
   validateTeamMember,
+  validateTeamParent,
 } from "~/lib/teams-logic";
 
 const team = (
@@ -265,8 +269,36 @@ describe("getCardTeamIds", () => {
     expect(getCardTeamIds(value)).toEqual(["musicians", "ushers", "singers"]);
   });
 
+  it("includes template optional teams as visible rows", () => {
+    const value = card({
+      optionalTeamIds: ["singers"],
+      requiredTeamIds: ["musicians"],
+    });
+
+    expect(getCardTeamIds(value)).toEqual(["musicians", "singers"]);
+  });
+
   it("returns an empty list when no teams are configured", () => {
     expect(getCardTeamIds(card())).toEqual([]);
+  });
+});
+
+describe("isTeamOptional / isTeamConfigured", () => {
+  const value = card({
+    optionalTeamIds: ["singers"],
+    requiredTeamIds: ["musicians"],
+    teamAssignments: [{ memberIds: ["m1"], teamId: "ushers" }],
+  });
+
+  it("flags optional teams", () => {
+    expect(isTeamOptional(value, "singers")).toBe(true);
+    expect(isTeamOptional(value, "musicians")).toBe(false);
+  });
+
+  it("treats required and optional teams as configured, ad-hoc teams as not", () => {
+    expect(isTeamConfigured(value, "musicians")).toBe(true);
+    expect(isTeamConfigured(value, "singers")).toBe(true);
+    expect(isTeamConfigured(value, "ushers")).toBe(false);
   });
 });
 
@@ -408,5 +440,129 @@ describe("findMissingRequiredTeams", () => {
 
   it("ignores cards without required teams", () => {
     expect(findMissingRequiredTeams(order([card()]), lookup)).toEqual([]);
+  });
+
+  it("ignores assigned members who no longer belong to the team", () => {
+    const value = order([
+      card({
+        id: "main",
+        requiredTeamIds: ["musicians"],
+        teamAssignments: [{ memberIds: ["stale"], teamId: "musicians" }],
+      }),
+    ]);
+    const membersByTeam = new Map([["musicians", new Set(["current"])]]);
+
+    expect(findMissingRequiredTeams(value, lookup, membersByTeam)).toEqual([
+      {
+        cardId: "main",
+        cardName: "Sunday Main Service",
+        teamId: "musicians",
+        teamName: "Musicians",
+      },
+    ]);
+    expect(hasMissingRequiredTeams(value, lookup, membersByTeam)).toBe(true);
+  });
+
+  it("counts assigned members who still belong to the team", () => {
+    const value = order([
+      card({
+        requiredTeamIds: ["musicians"],
+        teamAssignments: [{ memberIds: ["m1"], teamId: "musicians" }],
+      }),
+    ]);
+    const membersByTeam = new Map([["musicians", new Set(["m1"])]]);
+
+    expect(findMissingRequiredTeams(value, lookup, membersByTeam)).toEqual([]);
+  });
+});
+
+describe("pruneStaleAssignments", () => {
+  it("drops member ids that no longer belong to their team", () => {
+    const value = order([
+      card({
+        requiredTeamIds: ["musicians"],
+        teamAssignments: [
+          { memberIds: ["m1", "stale"], teamId: "musicians" },
+          { memberIds: ["gone"], teamId: "singers" },
+        ],
+      }),
+    ]);
+    const membersByTeam = new Map([
+      ["musicians", new Set(["m1"])],
+      ["singers", new Set<string>()],
+    ]);
+
+    const pruned = pruneStaleAssignments(value, membersByTeam);
+
+    expect(pruned.service_type[0].teamAssignments).toEqual([
+      { memberIds: ["m1"], teamId: "musicians" },
+      { memberIds: [], teamId: "singers" },
+    ]);
+  });
+
+  it("leaves cards without assignments untouched", () => {
+    const value = order([card({ requiredTeamIds: ["musicians"] })]);
+
+    expect(pruneStaleAssignments(value, new Map())).toEqual(value);
+  });
+});
+
+describe("validateTeamParent", () => {
+  const teams = [
+    team("pastors", "Pastors"),
+    team("senior-pastor", "Senior Pastor", "pastors"),
+    team("musicians", "Musicians"),
+  ];
+
+  it("allows clearing the parent", () => {
+    expect(
+      validateTeamParent({ id: "musicians", parentTeamId: null, teams })
+    ).toBeNull();
+  });
+
+  it("allows a root team as a parent", () => {
+    expect(
+      validateTeamParent({
+        id: "musicians",
+        parentTeamId: "pastors",
+        teams,
+      })
+    ).toBeNull();
+  });
+
+  it("rejects a team as its own parent", () => {
+    expect(
+      validateTeamParent({
+        id: "musicians",
+        parentTeamId: "musicians",
+        teams,
+      })
+    ).toBe("A team cannot be its own parent team.");
+  });
+
+  it("rejects a missing parent", () => {
+    expect(
+      validateTeamParent({ id: "musicians", parentTeamId: "ghost", teams })
+    ).toBe("Parent team does not exist.");
+  });
+
+  it("rejects nesting more than one level deep", () => {
+    expect(
+      validateTeamParent({
+        id: "musicians",
+        parentTeamId: "senior-pastor",
+        teams,
+      })
+    ).toBe("Teams can only nest one level deep.");
+  });
+
+  it("rejects re-parenting a team that already has sub-teams (would cycle)", () => {
+    expect(
+      validateTeamParent({
+        id: "pastors",
+        parentTeamId: "musicians",
+        teams,
+      })
+    ).toBe("A team with sub-teams cannot become a sub-team.");
   });
 });
