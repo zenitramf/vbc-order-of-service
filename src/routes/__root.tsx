@@ -56,7 +56,12 @@ import appCss from "~/styles/app.css?url";
 
 const navigationItems = [
   { icon: HouseIcon, label: "Dashboard", to: "/" },
-  { icon: CalendarCheckIcon, label: "Orders", to: "/orders" },
+  {
+    icon: CalendarCheckIcon,
+    label: "Orders",
+    match: "/orders",
+    to: "/orders/month",
+  },
   { icon: ListChecksIcon, label: "Templates", to: "/templates" },
   { icon: MusicNotesIcon, label: "Hymns", to: "/hymns" },
 ] as const;
@@ -158,11 +163,12 @@ const AppSidebar = () => {
             <SidebarMenu>
               {navigationItems.map((item) => {
                 const Icon = item.icon;
+                const matchPath = "match" in item ? item.match : item.to;
                 const isActive =
                   item.to === "/"
                     ? pathname === "/"
-                    : pathname === item.to ||
-                      pathname.startsWith(`${item.to}/`);
+                    : pathname === matchPath ||
+                      pathname.startsWith(`${matchPath}/`);
 
                 return (
                   <SidebarMenuItem key={item.to}>

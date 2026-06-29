@@ -16,6 +16,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -223,21 +224,25 @@ const OrdersPage = () => {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="font-heading text-3xl font-semibold tracking-tight">
-            Orders of Service
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">
+              Orders of Service
+            </h1>
+            <Badge variant="outline">Deprecated</Badge>
+          </div>
           <p className="text-muted-foreground">
-            Review previous services and continue planning upcoming services.
+            This full list is kept for reference. Use the Month Planner to plan
+            and schedule services.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
+          <Button asChild>
             <Link to="/orders/month">
               <CalendarDotsIcon data-icon="inline-start" />
               Month planner
             </Link>
           </Button>
-          <Button asChild>
+          <Button asChild variant="outline">
             <Link to="/orders/new">
               <PlusIcon data-icon="inline-start" />
               New order
@@ -245,6 +250,20 @@ const OrdersPage = () => {
           </Button>
         </div>
       </div>
+
+      <Alert>
+        <CalendarDotsIcon />
+        <AlertTitle>The Orders list is deprecated</AlertTitle>
+        <AlertDescription>
+          <span>
+            The{" "}
+            <Link className="underline" to="/orders/month">
+              Month Planner
+            </Link>{" "}
+            is now the default way to create and schedule orders of service.
+          </span>
+        </AlertDescription>
+      </Alert>
 
       <Card>
         <CardHeader>
