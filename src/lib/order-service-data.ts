@@ -1387,7 +1387,6 @@ const planMonthInternal = async (
     results.map((row) => asString(row.service_date))
   );
   const statements: D1PreparedStatement[] = [];
-  const createdIds: string[] = [];
   const timestamp = nowIso();
 
   for (const { date, dayConfig } of configuredDates) {
@@ -1401,7 +1400,6 @@ const planMonthInternal = async (
       continue;
     }
 
-    const id = uuidv4();
     const order = normalizeTemplate(template.template, template.name);
     const title =
       dayConfig.defaultTitle.trim() || `${template.name} Order of Service`;
@@ -1410,10 +1408,12 @@ const planMonthInternal = async (
         .prepare(
           `INSERT INTO orders_of_service
             (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
-          VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)`
+          VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)
+          ON CONFLICT(service_date) DO NOTHING
+          RETURNING id`
         )
         .bind(
-          id,
+          uuidv4(),
           title,
           template.serviceTypeId,
           date,
@@ -1422,11 +1422,18 @@ const planMonthInternal = async (
           timestamp
         )
     );
-    createdIds.push(id);
   }
 
+  const createdIds: string[] = [];
+
   if (statements.length > 0) {
-    await db.batch(statements);
+    const batchResults = await db.batch<{ id: string }>(statements);
+
+    for (const result of batchResults) {
+      for (const row of result.results) {
+        createdIds.push(row.id);
+      }
+    }
   }
 
   return { createdIds };

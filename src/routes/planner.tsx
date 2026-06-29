@@ -91,7 +91,8 @@ const WEEKDAY_NAMES = [
 
 const getCurrentMonth = () => new Date().toISOString().slice(0, 7);
 
-const isValidMonth = (value: string) => /^\d{4}-\d{2}$/u.test(value);
+const isValidMonth = (value: string) =>
+  /^\d{4}-(0[1-9]|1[0-2])$/u.test(value);
 
 /** Shift a YYYY-MM month by the given number of months. */
 const shiftMonth = (month: string, delta: number): string => {
