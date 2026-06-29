@@ -1,8 +1,14 @@
-import * as React from "react"
+/* eslint-disable func-style */
 
-import { cn } from "~/lib/utils"
-import { Button } from "~/components/ui/button"
-import { CaretLeftIcon, CaretRightIcon, DotsThreeIcon } from "@phosphor-icons/react"
+import {
+  CaretLeftIcon,
+  CaretRightIcon,
+  DotsThreeIcon,
+} from "@phosphor-icons/react";
+import * as React from "react";
+
+import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
@@ -13,7 +19,7 @@ function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
       className={cn("mx-auto flex w-full justify-center", className)}
       {...props}
     />
-  )
+  );
 }
 
 function PaginationContent({
@@ -26,17 +32,17 @@ function PaginationContent({
       className={cn("flex items-center gap-1", className)}
       {...props}
     />
-  )
+  );
 }
 
 function PaginationItem({ ...props }: React.ComponentProps<"li">) {
-  return <li data-slot="pagination-item" {...props} />
+  return <li data-slot="pagination-item" {...props} />;
 }
 
 type PaginationLinkProps = {
-  isActive?: boolean
+  isActive?: boolean;
 } & Pick<React.ComponentProps<typeof Button>, "size"> &
-  React.ComponentProps<"a">
+  React.ComponentProps<"a">;
 
 function PaginationLink({
   className,
@@ -58,7 +64,7 @@ function PaginationLink({
         {...props}
       />
     </Button>
-  )
+  );
 }
 
 function PaginationPrevious({
@@ -76,7 +82,7 @@ function PaginationPrevious({
       <CaretLeftIcon data-icon="inline-start" />
       <span className="hidden sm:block">{text}</span>
     </PaginationLink>
-  )
+  );
 }
 
 function PaginationNext({
@@ -94,7 +100,7 @@ function PaginationNext({
       <span className="hidden sm:block">{text}</span>
       <CaretRightIcon data-icon="inline-end" />
     </PaginationLink>
-  )
+  );
 }
 
 function PaginationEllipsis({
@@ -111,11 +117,10 @@ function PaginationEllipsis({
       )}
       {...props}
     >
-      <DotsThreeIcon
-      />
+      <DotsThreeIcon />
       <span className="sr-only">More pages</span>
     </span>
-  )
+  );
 }
 
 export {
@@ -126,4 +131,4 @@ export {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-}
+};

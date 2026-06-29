@@ -7,12 +7,17 @@ export { OrderEmailStatusDurableObject };
 
 export default {
   async fetch(request: Request): Promise<Response> {
-    return serverEntry.fetch(request);
+    return await serverEntry.fetch(request);
   },
-  async queue(batch: MessageBatch<OrderEmailQueueMessage>, env: Env): Promise<void> {
-    for (const message of batch.messages) {
-      const stub = env.ORDER_EMAIL_STATUS.getByName(message.body.orderId);
-      await stub.processEmail(message.body);
-    }
+  async queue(
+    batch: MessageBatch<OrderEmailQueueMessage>,
+    env: Env
+  ): Promise<void> {
+    await Promise.all(
+      batch.messages.map((message) => {
+        const stub = env.ORDER_EMAIL_STATUS.getByName(message.body.orderId);
+        return stub.processEmail(message.body);
+      })
+    );
   },
 } satisfies ExportedHandler<Env, OrderEmailQueueMessage>;

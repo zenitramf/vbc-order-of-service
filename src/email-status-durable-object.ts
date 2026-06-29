@@ -1,6 +1,7 @@
+import { Buffer } from "node:buffer";
+
 import { DurableObject } from "cloudflare:workers";
 import nodemailer from "nodemailer";
-import { Buffer } from "node:buffer";
 
 import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
 
@@ -19,7 +20,9 @@ const getErrorMessage = (error: unknown, fallbackMessage: string) =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
 
 const getRequiredSecret = (env: Env, key: string) => {
-  const value = (env as unknown as Record<string, string | undefined>)[key]?.trim();
+  const value = (env as unknown as Record<string, string | undefined>)[
+    key
+  ]?.trim();
 
   if (!value) {
     throw new Error(`${key} is not configured.`);
@@ -55,7 +58,9 @@ const decryptSetting = async (env: Env, encryptedValue: string) => {
 };
 
 const getStoredEmailSettings = async (env: Env, key: string) => {
-  const row = await env.DB.prepare("SELECT value FROM app_settings WHERE key = ?")
+  const row = await env.DB.prepare(
+    "SELECT value FROM app_settings WHERE key = ?"
+  )
     .bind(key)
     .first<{ value: string }>();
 
@@ -65,7 +70,14 @@ const getStoredEmailSettings = async (env: Env, key: string) => {
 
   const settings = JSON.parse(row.value) as StoredEmailSettings;
 
-  if (!(settings.smtpAddress && settings.smtpPort && settings.smtpTokenEncrypted && settings.smtpUserEncrypted)) {
+  if (
+    !(
+      settings.smtpAddress &&
+      settings.smtpPort &&
+      settings.smtpTokenEncrypted &&
+      settings.smtpUserEncrypted
+    )
+  ) {
     throw new Error("SMTP settings are incomplete.");
   }
 
@@ -92,7 +104,14 @@ const updateDeliveryStatus = async (
       error_message = ?, updated_at = ?
     WHERE id = ?`
   )
-    .bind(status, status, timestamp, errorMessage ?? null, timestamp, deliveryId)
+    .bind(
+      status,
+      status,
+      timestamp,
+      errorMessage ?? null,
+      timestamp,
+      deliveryId
+    )
     .run();
 };
 
@@ -111,7 +130,10 @@ export class OrderEmailStatusDurableObject extends DurableObject<Env> {
     try {
       await updateDeliveryStatus(this.env, message.deliveryId, "Sending");
 
-      const settings = await getStoredEmailSettings(this.env, message.smtpSettingsKey);
+      const settings = await getStoredEmailSettings(
+        this.env,
+        message.smtpSettingsKey
+      );
       const [smtpUser, smtpToken, object] = await Promise.all([
         decryptSetting(this.env, settings.smtpUserEncrypted),
         decryptSetting(this.env, settings.smtpTokenEncrypted),

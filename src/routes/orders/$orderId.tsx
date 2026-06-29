@@ -465,17 +465,17 @@ const OrderRoute = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1
-              className="font-heading text-3xl font-semibold tracking-tight"
-              onDoubleClick={
-                canPublish
-                  ? () => {
-                      void handleCopyCraftMyPdfData();
-                    }
-                  : undefined
-              }
-            >
-              Edit Order of Service
+            <h1>
+              <button
+                type="button"
+                className="font-heading text-left text-3xl font-semibold tracking-tight disabled:cursor-default"
+                disabled={!canPublish}
+                onDoubleClick={() => {
+                  void handleCopyCraftMyPdfData();
+                }}
+              >
+                Edit Order of Service
+              </button>
             </h1>
             <Badge variant={status === "Published" ? "default" : "secondary"}>
               {status}

@@ -1,7 +1,7 @@
+import { CalendarPlusIcon, PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarPlusIcon, PlusIcon } from "@phosphor-icons/react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -20,9 +20,17 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "~/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "~/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "~/components/ui/native-select";
 import { createOrder, getOrders, getTemplates } from "~/lib/order-service-data";
 
 const getNextSunday = () => {
@@ -74,8 +82,13 @@ const NewOrderPage = () => {
     setSubmitError(null);
 
     try {
-      const result = await createOrderFn({ data: { serviceDate, templateId, title } });
-      await navigate({ params: { orderId: result.id }, to: "/orders/$orderId" });
+      const result = await createOrderFn({
+        data: { serviceDate, templateId, title },
+      });
+      await navigate({
+        params: { orderId: result.id },
+        to: "/orders/$orderId",
+      });
     } catch (error) {
       const errorMessage = getErrorMessage(
         error,
@@ -93,7 +106,9 @@ const NewOrderPage = () => {
       <Empty>
         <EmptyHeader>
           <EmptyTitle>Create a template first</EmptyTitle>
-          <EmptyDescription>Orders are created from reusable templates.</EmptyDescription>
+          <EmptyDescription>
+            Orders are created from reusable templates.
+          </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
@@ -110,23 +125,35 @@ const NewOrderPage = () => {
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-2">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">Create Order of Service</h1>
-        <p className="text-muted-foreground">Choose a template and service date to start planning.</p>
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">
+          Create Order of Service
+        </h1>
+        <p className="text-muted-foreground">
+          Choose a template and service date to start planning.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Service details</CardTitle>
-          <CardDescription>The new order starts in Planning status.</CardDescription>
+          <CardDescription>
+            The new order starts in Planning status.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="order-title">Title</FieldLabel>
-              <Input id="order-title" onChange={(event) => setTitle(event.target.value)} value={title} />
+              <Input
+                id="order-title"
+                onChange={(event) => setTitle(event.target.value)}
+                value={title}
+              />
             </Field>
             <Field>
-              <FieldLabel htmlFor="order-date">Order of service date</FieldLabel>
+              <FieldLabel htmlFor="order-date">
+                Order of service date
+              </FieldLabel>
               <Input
                 id="order-date"
                 onChange={(event) => {
@@ -160,7 +187,8 @@ const NewOrderPage = () => {
                 ))}
               </NativeSelect>
               <FieldDescription>
-                The selected template supplies the service type, cards, and default activities.
+                The selected template supplies the service type, cards, and
+                default activities.
               </FieldDescription>
             </Field>
           </FieldGroup>

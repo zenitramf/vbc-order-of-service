@@ -24,11 +24,11 @@ declare module "nodemailer" {
   }
 
   interface Transporter {
-    sendMail(options: SendMailOptions): Promise<unknown>;
+    sendMail: (options: SendMailOptions) => Promise<unknown>;
   }
 
   const nodemailer: {
-    createTransport(options: TransportOptions): Transporter;
+    createTransport: (options: TransportOptions) => Transporter;
   };
 
   export default nodemailer;

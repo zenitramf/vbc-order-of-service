@@ -1,6 +1,5 @@
 import {
   ArrowRightIcon,
-  CalendarCheckIcon,
   CheckCircleIcon,
   ClockIcon,
   ListChecksIcon,
@@ -30,23 +29,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "~/components/ui/table";
 import { getDashboardData } from "~/lib/order-service-data";
 import type { DashboardData, OrderSummary } from "~/lib/order-service-types";
-
-const formatDate = (value: string) =>
-  value
-    ? new Intl.DateTimeFormat("en", {
-        dateStyle: "medium",
-      }).format(new Date(`${value}T00:00:00`))
-    : "Unscheduled";
 
 const formatFullDate = (value: string) =>
   new Intl.DateTimeFormat("en", {
@@ -179,73 +163,6 @@ const TeamMembersSection = ({
     </CardContent>
   </Card>
 );
-
-const OrderTable = ({
-  emptyText,
-  orders,
-}: {
-  emptyText: string;
-  orders: OrderSummary[];
-}) => {
-  if (orders.length === 0) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <CalendarCheckIcon />
-          </EmptyMedia>
-          <EmptyTitle>No services yet</EmptyTitle>
-          <EmptyDescription>{emptyText}</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button asChild>
-            <Link to="/orders/new">
-              <PlusIcon data-icon="inline-start" />
-              Create order
-            </Link>
-          </Button>
-        </EmptyContent>
-      </Empty>
-    );
-  }
-
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Service</TableHead>
-          <TableHead>Date</TableHead>
-          <TableHead>Type</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Plan</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {orders.map((order) => (
-          <TableRow key={order.id}>
-            <TableCell>
-              <Link
-                className="font-medium hover:underline"
-                params={{ orderId: order.id }}
-                to="/orders/$orderId"
-              >
-                {order.title}
-              </Link>
-            </TableCell>
-            <TableCell>{formatDate(order.serviceDate)}</TableCell>
-            <TableCell>{order.serviceTypeName}</TableCell>
-            <TableCell>
-              <StatusBadge status={order.status} />
-            </TableCell>
-            <TableCell>
-              {order.segmentCount} cards · {order.activityCount} activities
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-};
 
 const Dashboard = () => {
   const data = Route.useLoaderData();

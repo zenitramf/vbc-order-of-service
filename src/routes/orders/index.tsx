@@ -98,7 +98,9 @@ const createOrderColumns = ({
   {
     accessorKey: "status",
     cell: ({ row }) => (
-      <Badge variant={row.original.status === "Published" ? "default" : "secondary"}>
+      <Badge
+        variant={row.original.status === "Published" ? "default" : "secondary"}
+      >
         {row.original.status}
       </Badge>
     ),
@@ -107,7 +109,8 @@ const createOrderColumns = ({
   {
     cell: ({ row }) => (
       <span>
-        {row.original.segmentCount} cards · {row.original.activityCount} activities
+        {row.original.segmentCount} cards · {row.original.activityCount}{" "}
+        activities
       </span>
     ),
     header: "Plan",
@@ -141,7 +144,9 @@ const createOrderColumns = ({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 disabled={isDeleting}
                 onClick={async () => {
