@@ -335,3 +335,83 @@ export interface TemplateOption {
   id: string;
   name: string;
 }
+
+/** A pre-populatable weekday and the template used to create its orders. */
+export interface MonthPlanningDayConfig {
+  /** Title applied to orders generated for this weekday. */
+  defaultTitle: string;
+  /** Template used to create orders for this weekday. */
+  templateId: string;
+  /** Day of week, Sunday = 0 ... Saturday = 6. */
+  weekday: number;
+}
+
+/** Month Planner configuration stored under the `monthPlanning` settings key. */
+export interface MonthPlanningSettings {
+  prepopulateDays: MonthPlanningDayConfig[];
+}
+
+/** A configured service date within a month and its planning state. */
+export interface MonthPlanServiceDate {
+  /** ISO date (YYYY-MM-DD). */
+  date: string;
+  dayConfig: MonthPlanningDayConfig;
+  /** The existing order for this date, when one has been created. */
+  order?: OrderSummary;
+  /** Whether an order should exist for this date per the configuration. */
+  shouldExist: boolean;
+  /** The template assigned to this date's weekday, when it still exists. */
+  templateName: string;
+}
+
+/** A service card in the month that can be staffed for a given team. */
+export interface MonthScheduleTarget {
+  teamId: string;
+  teamName: string;
+}
+
+/** A single staffable card on a planned order for the schedule dialog. */
+export interface MonthScheduleCard {
+  cardId: string;
+  cardName: string;
+  date: string;
+  memberIds: string[];
+  optional: boolean;
+  orderId: string;
+  orderTitle: string;
+  required: boolean;
+  requiredCount: number;
+}
+
+/** Everything the month planner route needs to render a month. */
+export interface MonthPlanData {
+  /** Selected month as YYYY-MM. */
+  month: string;
+  /** Number of configured dates still missing an order. */
+  missingCount: number;
+  /** Staffable cards for existing orders, keyed by team id. */
+  scheduleCards: Record<string, MonthScheduleCard[]>;
+  scheduleTargets: MonthScheduleTarget[];
+  serviceDates: MonthPlanServiceDate[];
+  settings: MonthPlanningSettings;
+  /** Settings weekdays enabled but missing a valid template. */
+  unconfiguredWeekdays: number[];
+  teamMembers: TeamMemberSummary[];
+  teams: TeamSummary[];
+}
+
+export interface PlanMonthInput {
+  month: string;
+}
+
+/** One card's new member ids for a team, used by the monthly scheduler. */
+export interface MonthScheduleAssignmentInput {
+  cardId: string;
+  memberIds: string[];
+  orderId: string;
+}
+
+export interface SaveMonthScheduleInput {
+  assignments: MonthScheduleAssignmentInput[];
+  teamId: string;
+}

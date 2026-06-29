@@ -5,6 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { MonthPlannerSettings } from "~/components/month-planner-settings";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -25,13 +26,15 @@ import {
   addEmailRecipient,
   deleteEmailRecipient,
   getEmailSettings,
+  getMonthPlanningSettings,
+  getTemplates,
   saveEmailSettings,
 } from "~/lib/order-service-data";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 const SettingsPage = () => {
-  const settings = Route.useLoaderData();
+  const { monthPlanning, settings, templates } = Route.useLoaderData();
   const router = useRouter();
   const addRecipient = useServerFn(addEmailRecipient);
   const deleteRecipient = useServerFn(deleteEmailRecipient);
@@ -334,11 +337,21 @@ const SettingsPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <MonthPlannerSettings settings={monthPlanning} templates={templates} />
     </div>
   );
 };
 
 export const Route = createFileRoute("/settings/")({
   component: SettingsPage,
-  loader: () => getEmailSettings(),
+  loader: async () => {
+    const [settings, templates, monthPlanning] = await Promise.all([
+      getEmailSettings(),
+      getTemplates(),
+      getMonthPlanningSettings(),
+    ]);
+
+    return { monthPlanning, settings, templates };
+  },
 });

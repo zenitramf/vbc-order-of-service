@@ -21,6 +21,7 @@ import { Route as TemplatesTemplateIdRouteImport } from './routes/templates/$tem
 import { Route as TeamsNewRouteImport } from './routes/teams/new'
 import { Route as TeamsTeamIdRouteImport } from './routes/teams/$teamId'
 import { Route as OrdersNewRouteImport } from './routes/orders/new'
+import { Route as OrdersMonthRouteImport } from './routes/orders/month'
 import { Route as OrdersOrderIdRouteImport } from './routes/orders/$orderId'
 import { Route as MembersNewRouteImport } from './routes/members/new'
 import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
@@ -87,6 +88,11 @@ const OrdersNewRoute = OrdersNewRouteImport.update({
   path: '/orders/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OrdersMonthRoute = OrdersMonthRouteImport.update({
+  id: '/orders/month',
+  path: '/orders/month',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersOrderIdRoute = OrdersOrderIdRouteImport.update({
   id: '/orders/$orderId',
   path: '/orders/$orderId',
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/new': typeof MembersNewRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/month': typeof OrdersMonthRoute
   '/orders/new': typeof OrdersNewRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/teams/new': typeof TeamsNewRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/new': typeof MembersNewRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/month': typeof OrdersMonthRoute
   '/orders/new': typeof OrdersNewRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/teams/new': typeof TeamsNewRoute
@@ -159,6 +167,7 @@ export interface FileRoutesById {
   '/members/$memberId': typeof MembersMemberIdRoute
   '/members/new': typeof MembersNewRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/month': typeof OrdersMonthRoute
   '/orders/new': typeof OrdersNewRoute
   '/teams/$teamId': typeof TeamsTeamIdRoute
   '/teams/new': typeof TeamsNewRoute
@@ -180,6 +189,7 @@ export interface FileRouteTypes {
     | '/members/$memberId'
     | '/members/new'
     | '/orders/$orderId'
+    | '/orders/month'
     | '/orders/new'
     | '/teams/$teamId'
     | '/teams/new'
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/members/$memberId'
     | '/members/new'
     | '/orders/$orderId'
+    | '/orders/month'
     | '/orders/new'
     | '/teams/$teamId'
     | '/teams/new'
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/members/$memberId'
     | '/members/new'
     | '/orders/$orderId'
+    | '/orders/month'
     | '/orders/new'
     | '/teams/$teamId'
     | '/teams/new'
@@ -238,6 +250,7 @@ export interface RootRouteChildren {
   MembersMemberIdRoute: typeof MembersMemberIdRoute
   MembersNewRoute: typeof MembersNewRoute
   OrdersOrderIdRoute: typeof OrdersOrderIdRoute
+  OrdersMonthRoute: typeof OrdersMonthRoute
   OrdersNewRoute: typeof OrdersNewRoute
   TeamsTeamIdRoute: typeof TeamsTeamIdRoute
   TeamsNewRoute: typeof TeamsNewRoute
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrdersNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/orders/month': {
+      id: '/orders/month'
+      path: '/orders/month'
+      fullPath: '/orders/month'
+      preLoaderRoute: typeof OrdersMonthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/orders/$orderId': {
       id: '/orders/$orderId'
       path: '/orders/$orderId'
@@ -382,6 +402,7 @@ const rootRouteChildren: RootRouteChildren = {
   MembersMemberIdRoute: MembersMemberIdRoute,
   MembersNewRoute: MembersNewRoute,
   OrdersOrderIdRoute: OrdersOrderIdRoute,
+  OrdersMonthRoute: OrdersMonthRoute,
   OrdersNewRoute: OrdersNewRoute,
   TeamsTeamIdRoute: TeamsTeamIdRoute,
   TeamsNewRoute: TeamsNewRoute,

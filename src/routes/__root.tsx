@@ -68,6 +68,7 @@ const teamManagementItems = [
 
 const routeLabels = new Map([
   ["orders", "Orders"],
+  ["month", "Month Planner"],
   ["new", "New"],
   ["templates", "Templates"],
   ["hymns", "Hymns"],

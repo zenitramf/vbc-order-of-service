@@ -1,0 +1,1134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Month Planner Schedule Implementation Plan</title>
+    <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css" />
+    <style>
+      body {
+        grid-template-columns: 1fr min(90%, 90%) 1fr;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Month Planner Schedule Implementation Plan</h1>
+      <p>
+        Plan for categorizing Orders of Service by month, pre-populating monthly
+        services, and quickly scheduling teams such as ushers and counters.
+      </p>
+      <nav>
+        <a href="#implementation-summary">Implementation Summary</a>
+        <a href="#summary">Summary</a>
+        <a href="#requirements">Requirements</a>
+        <a href="#current-state">Current State</a>
+        <a href="#experience">User Experience</a>
+        <a href="#data-model">Data Model</a>
+        <a href="#implementation">Implementation</a>
+        <a href="#acceptance">Acceptance Criteria</a>
+      </nav>
+    </header>
+
+    <main>
+      <section id="implementation-summary">
+        <h2>Implementation Summary</h2>
+        <p>
+          <mark>Status: Implemented</mark> on branch
+          <code>feat/month-planner</code> (branched off PR&nbsp;1,
+          <code>feat/teams-and-team-members</code>). The plan below was
+          delivered in full; this section records exactly what shipped and where
+          to find it.
+        </p>
+
+        <h3>What shipped</h3>
+        <ul>
+          <li>
+            <strong>Month Planner settings</strong> &mdash; a new section on the
+            existing <code>/settings</code> page lets users pick which weekdays
+            are pre-populated and the template each uses. Sunday is enabled by
+            default and assigned the seeded Sunday template. Saving is blocked
+            (client and server) when an enabled weekday has no template.
+          </li>
+          <li>
+            <strong>Month Planner route</strong> at
+            <code>/orders/month</code> &mdash; starts on the current month, with
+            previous/next arrows, a month picker, a
+            <strong>Plan Month</strong> button when configured dates are
+            missing, a table of configured service dates, and a
+            <strong>Schedule</strong> team button bar.
+          </li>
+          <li>
+            <strong>Automatic current-month backfill</strong> &mdash; visiting
+            the current month creates any missing configured services (e.g. all
+            June 2026 Sundays) without overwriting existing orders.
+          </li>
+          <li>
+            <strong>Template-driven schedule targets</strong> &mdash; the team
+            button bar and the monthly schedule dialog are derived from the
+            required and optional teams on each assigned template's service
+            cards. The dialog shows every matching card across the month and
+            supports adding <em>and modifying</em> existing assignments, saved
+            in a single batched update of the affected orders' JSON.
+          </li>
+          <li>
+            <strong>Template delete protection</strong> &mdash; templates
+            referenced by existing orders or by Month Planner settings cannot be
+            deleted; the Templates UI surfaces the blocking reason.
+          </li>
+          <li>
+            <strong>Entry points</strong> &mdash; a &ldquo;Month planner&rdquo;
+            button on the Orders list and a breadcrumb label for the route.
+          </li>
+        </ul>
+
+        <h3>Key files</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Area</th>
+              <th>File</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Types</td>
+              <td><code>src/lib/order-service-types.ts</code></td>
+            </tr>
+            <tr>
+              <td>
+                Server fns (settings, plan, schedule, delete protection) and the
+                date helper
+              </td>
+              <td><code>src/lib/order-service-data.ts</code></td>
+            </tr>
+            <tr>
+              <td>Month Planner settings UI</td>
+              <td><code>src/components/month-planner-settings.tsx</code></td>
+            </tr>
+            <tr>
+              <td>Settings page wiring</td>
+              <td><code>src/routes/settings/index.tsx</code></td>
+            </tr>
+            <tr>
+              <td>Month Planner route + schedule dialog</td>
+              <td><code>src/routes/orders/month.tsx</code></td>
+            </tr>
+            <tr>
+              <td>Orders list entry point</td>
+              <td><code>src/routes/orders/index.tsx</code></td>
+            </tr>
+            <tr>
+              <td>Template delete error surfacing</td>
+              <td><code>src/routes/templates/index.tsx</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Server functions added</h3>
+        <ul>
+          <li>
+            <code>getMonthPlanningSettings</code> /
+            <code>saveMonthPlanningSettings</code>
+          </li>
+          <li>
+            <code>getMonthPlan</code> (loads dates, targets, schedule cards,
+            teams, members; auto-backfills the current month)
+          </li>
+          <li>
+            <code>planMonth</code> (creates missing configured orders, skipping
+            existing dates)
+          </li>
+          <li>
+            <code>saveMonthSchedule</code> (batched per-team assignment updates)
+          </li>
+          <li>
+            <code>deleteTemplate</code> hardened to reject in-use templates
+          </li>
+        </ul>
+
+        <h3>Decisions &amp; notes</h3>
+        <ul>
+          <li>
+            Settings stored as JSON under the <code>monthPlanning</code> key in
+            <code>app_settings</code>; no new tables, as recommended.
+          </li>
+          <li>
+            Schedule targets come purely from templates and existing orders, not
+            a separate quick-add team list. Out of the box the seeded Sunday
+            template carries no team configuration, so the schedule bar is empty
+            until teams are marked required/optional on its cards (configurable
+            via the template editor delivered in PR&nbsp;1).
+          </li>
+          <li>
+            Verified with <code>npm run build</code>, <code>tsc --noEmit</code>,
+            <code>npm run check</code>, and <code>npm test</code> (57 passing).
+          </li>
+        </ul>
+      </section>
+
+      <section id="summary">
+        <h2>Executive Summary</h2>
+        <p>
+          Orders of Service are currently created and planned one at a time. The
+          new Month Planner will add a month-first planning workflow that can
+          pre-populate all configured service days for a selected month and then
+          schedule teams across those services in one place.
+        </p>
+        <blockquote>
+          <p>
+            <strong>Primary goal:</strong> make schedules that are planned a
+            month ahead, especially ushers and counters, easy to create and
+            revise without opening each Order of Service individually.
+          </p>
+        </blockquote>
+        <p>
+          The first delivery should focus on Sunday services, because Sunday is
+          pre-populated by default, must be associated to the Sunday service
+          template, and the current month must be populated with every Sunday
+          order.
+        </p>
+      </section>
+
+      <section id="requirements">
+        <h2>Captured Requirements</h2>
+
+        <article>
+          <h3>Current Implementation</h3>
+          <ul>
+            <li>Orders of Service are currently planned per Sunday.</li>
+            <li>
+              Orders can be generated ahead of time, but generation is currently
+              one by one.
+            </li>
+            <li>
+              Some schedules, such as ushers and counters, are planned a month
+              ahead and need a monthly workflow.
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>Month Planner</h3>
+          <ul>
+            <li>Orders of Service need to be categorized per month.</li>
+            <li>
+              For each month that is planned, all Orders of Service should be
+              pre-populated according to the configured weekday selection in the
+              <strong>Month Planner</strong> section on the existing
+              <strong>Settings</strong> page.
+            </li>
+            <li>
+              Every pre-populated weekday must have an associated template.
+              Pre-population cannot be finalized for a weekday until a template
+              is selected for that weekday.
+            </li>
+            <li>
+              Sunday must be pre-selected and pre-populated by default with the
+              configured Sunday service template.
+            </li>
+            <li>
+              If other weekdays become pre-populatable, each of those weekdays
+              must also be assigned a template before monthly planning can use
+              them.
+            </li>
+            <li>
+              Navigating to a month that has not been planned presents a
+              <strong>Plan Month</strong> button.
+            </li>
+            <li>
+              Selecting <strong>Plan Month</strong> pre-populates services for
+              that month.
+            </li>
+            <li>
+              Each month needs a <strong>Schedule</strong> button bar that lets
+              users quick-add team members to Orders of Service for the month.
+            </li>
+            <li>
+              Templates are the source of truth for scheduling targets. The
+              quick-add workflow should target every service card in the
+              associated template that requires or allows scheduling through
+              required or optional teams.
+            </li>
+            <li>
+              The quick-add workflow should support teams whose schedule is
+              planned monthly, especially ushers and counters, by reading those
+              teams from the template associated to each pre-populated service
+              day.
+            </li>
+            <li>
+              Selecting a team from the schedule button bar must allow users to
+              add and modify members already assigned to schedules.
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>Month Selection</h3>
+          <ul>
+            <li>Always start on the current month.</li>
+            <li>Provide arrows to navigate to the previous and next month.</li>
+            <li>
+              Provide a calendar button with a date picker for direct month
+              selection.
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>Current Month Rule</h3>
+          <p>
+            The current month must be pre-populated for all Sundays in the
+            month. With the current development date of <time>2026-06-29</time>,
+            the Sunday services for June 2026 are:
+          </p>
+          <ul>
+            <li><time>2026-06-07</time></li>
+            <li><time>2026-06-14</time></li>
+            <li><time>2026-06-21</time></li>
+            <li><time>2026-06-28</time></li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="current-state">
+        <h2>Current Codebase Findings</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Area</th>
+              <th>Current behavior / file</th>
+              <th>Impact on month planning</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Orders list</td>
+              <td><code>src/routes/orders/index.tsx</code></td>
+              <td>
+                Lists all orders sorted by service date. Add a month planner
+                entry point here.
+              </td>
+            </tr>
+            <tr>
+              <td>New order</td>
+              <td><code>src/routes/orders/new.tsx</code></td>
+              <td>Defaults to next Sunday and creates one order at a time.</td>
+            </tr>
+            <tr>
+              <td>Order editor</td>
+              <td><code>src/routes/orders/$orderId.tsx</code></td>
+              <td>
+                Already loads teams and team members and supports team
+                assignment through <code>OrderTemplateEditor</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Team assignment UI</td>
+              <td><code>src/components/order-team-assignment.tsx</code></td>
+              <td>
+                Existing add/manage/remove patterns can be reused for monthly
+                bulk assignment.
+              </td>
+            </tr>
+            <tr>
+              <td>Server data functions</td>
+              <td><code>src/lib/order-service-data.ts</code></td>
+              <td>
+                Has <code>getOrders</code>, <code>createOrder</code>,
+                <code>saveOrder</code>, <code>getTeams</code>, and
+                <code>getTeamMembers</code>.
+              </td>
+            </tr>
+            <tr>
+              <td>Order uniqueness</td>
+              <td><code>orders_of_service.service_date</code> unique index</td>
+              <td>
+                Month planning must skip existing dates and avoid duplicate
+                creates.
+              </td>
+            </tr>
+            <tr>
+              <td>Settings storage</td>
+              <td><code>app_settings</code> key/value table</td>
+              <td>
+                Can store Month Planning settings as JSON, including
+                weekday-to-template assignments, without adding many tables.
+              </td>
+            </tr>
+            <tr>
+              <td>Teams</td>
+              <td><code>migrations/0008_add_teams.sql</code></td>
+              <td>
+                Default teams include <code>ushers</code> and
+                <code>counters</code>; counters are a child team under ushers.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <figure>
+          <img
+            src="manual-ushers-schedule.png"
+            alt="Manual ushers schedule reference"
+          />
+          <figcaption>
+            Existing manual monthly usher schedule reference. The new schedule
+            workflow should reduce this spreadsheet/manual-planning friction.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section id="experience">
+        <h2>Proposed User Experience</h2>
+
+        <article>
+          <h3>Orders Month View</h3>
+          <p>
+            Add a route such as <code>/orders/month</code> for a month-first
+            planning page. The page starts on the current month and includes:
+          </p>
+          <ul>
+            <li>Previous month arrow button.</li>
+            <li>
+              Current selected month heading, for example
+              <strong>June 2026</strong>.
+            </li>
+            <li>Next month arrow button.</li>
+            <li>Calendar/month picker button.</li>
+            <li>
+              <strong>Plan Month</strong> button when configured service dates
+              are missing.
+            </li>
+            <li>
+              <strong>Schedule</strong> button bar populated from teams found in
+              the selected month's associated templates.
+            </li>
+            <li>A table of service dates in the selected month.</li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>Plan Month Flow</h3>
+          <ol>
+            <li>User navigates to a month.</li>
+            <li>
+              The loader computes all configured weekday/template pairs for that
+              month.
+            </li>
+            <li>
+              If a configured weekday is missing a template, block planning and
+              show a settings error.
+            </li>
+            <li>
+              If one or more configured dates are missing, show
+              <strong>Plan Month</strong>.
+            </li>
+            <li>User selects <strong>Plan Month</strong>.</li>
+            <li>
+              The server creates missing Orders of Service from each date's
+              assigned template.
+            </li>
+            <li>Existing orders are left unchanged.</li>
+            <li>
+              The page refreshes and displays all services for that month.
+            </li>
+          </ol>
+          <p>
+            For the current month, the app should ensure Sunday services are
+            present automatically or prominently require one click to create
+            them. The preferred implementation is automatic current-month Sunday
+            pre-population on first visit to the month planner, using the
+            configured Sunday template.
+          </p>
+        </article>
+
+        <article>
+          <h3>Schedule Button Bar</h3>
+          <p>
+            The button bar should be generated from the templates associated to
+            the selected month's pre-populated service days. If the Sunday
+            template has service cards that require or allow Ushers and
+            Counters, those teams appear automatically.
+          </p>
+          <p>
+            <button>Ushers</button>
+            <button>Counters</button>
+          </p>
+          <p>
+            Selecting a team opens a monthly assignment dialog or drawer with a
+            row for every service card in the month where that team is required
+            or optional. Users can add, remove, and modify assigned members
+            across the entire month.
+          </p>
+        </article>
+
+        <article>
+          <h3>Monthly Assignment Dialog</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Service</th>
+                <th>Card</th>
+                <th>Assigned members</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Sun, Jun 7</td>
+                <td>Sunday Order of Service</td>
+                <td>Sunday Main Service</td>
+                <td>Member A, Member B</td>
+                <td><button>Manage</button></td>
+              </tr>
+              <tr>
+                <td>Sun, Jun 7</td>
+                <td>Sunday Order of Service</td>
+                <td>Sunday Evening Service</td>
+                <td>Member C, Member D</td>
+                <td><button>Manage</button></td>
+              </tr>
+              <tr>
+                <td>Sun, Jun 14</td>
+                <td>Sunday Order of Service</td>
+                <td>Sunday Main Service</td>
+                <td>No one assigned</td>
+                <td><button>Manage</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            The dialog must not be add-only. It must show existing assignments
+            and allow modification because schedules often change after the
+            first monthly plan is entered.
+          </p>
+        </article>
+      </section>
+
+      <section id="data-model">
+        <h2>Data Model and Settings</h2>
+
+        <article>
+          <h3>Recommended Settings Shape</h3>
+          <p>
+            Store Month Planning settings in the existing
+            <code>app_settings</code> table under a new key such as
+            <code>monthPlanning</code>. The key setting is a list of
+            pre-populatable days. Each day must point to the template used to
+            create orders for that weekday.
+          </p>
+          <pre><code>{
+  "prepopulateDays": [
+    {
+      "weekday": 0,
+      "templateId": "default-sunday-service",
+      "defaultTitle": "Sunday Order of Service"
+    }
+  ]
+}</code></pre>
+          <ul>
+            <li>
+              <code>prepopulateDays</code>: configured weekday/template pairs.
+            </li>
+            <li>
+              <code>weekday</code>: number where Sunday is <code>0</code>.
+            </li>
+            <li>
+              <code>templateId</code>: required template used when creating
+              orders for that weekday.
+            </li>
+            <li>
+              <code>defaultTitle</code>: title used for generated services for
+              that weekday.
+            </li>
+            <li>
+              Quick-add schedule buttons are derived from required and optional
+              teams in the templates assigned to the configured weekdays. This
+              replaces a separate <code>quickAddTeamIds</code> setting.
+            </li>
+          </ul>
+          <form>
+            <fieldset>
+              <legend>Mockup: Month Planner settings</legend>
+              <p>
+                <label for="sunday-template">Sunday template</label>
+                <select id="sunday-template" name="sunday-template" required>
+                  <option>Sunday Service</option>
+                  <option>Special Service</option>
+                </select>
+              </p>
+              <p>
+                <label for="wednesday-template">Wednesday template</label>
+                <select id="wednesday-template" name="wednesday-template">
+                  <option value="">Not pre-populated</option>
+                  <option>Wednesday Prayer Meeting</option>
+                </select>
+              </p>
+              <p>
+                <button type="button">Save Month Planner settings</button>
+              </p>
+            </fieldset>
+          </form>
+          <p>
+            If a weekday is enabled but no template is selected, the save action
+            should fail and explain that pre-population cannot be finalized
+            without an associated template.
+          </p>
+        </article>
+
+        <article>
+          <h3>TypeScript Interfaces</h3>
+          <pre><code>export interface MonthPlanningDayConfig {
+  defaultTitle: string;
+  templateId: string;
+  weekday: number;
+}
+
+export interface MonthPlanningSettings {
+  prepopulateDays: MonthPlanningDayConfig[];
+}
+
+export interface MonthPlanServiceDate {
+  date: string;
+  dayConfig: MonthPlanningDayConfig;
+  order?: OrderRecord;
+  shouldExist: boolean;
+  template: TemplateRecord;
+}
+
+export interface MonthScheduleTarget {
+  cardId: string;
+  cardName: string;
+  teamId: string;
+  templateId: string;
+  templateName: string;
+}
+
+export interface MonthPlanData {
+  month: string;
+  scheduleTargets: MonthScheduleTarget[];
+  serviceDates: MonthPlanServiceDate[];
+  settings: MonthPlanningSettings;
+  teamMembers: TeamMemberSummary[];
+}</code></pre>
+        </article>
+
+        <article>
+          <h3>Do We Need New Tables?</h3>
+          <p>
+            Not for the first implementation. Team assignments already live in
+            each order's <code>order_json.service_type[].teamAssignments</code>.
+            The month planner can update those JSON assignments in batches.
+          </p>
+          <p>
+            A future analytics/reporting implementation could normalize team
+            schedule assignments into tables, but that is not necessary to
+            satisfy the current monthly planning workflow.
+          </p>
+          <p>
+            Template usage does need enforcement. A template is considered
+            in-use when it is referenced by existing Orders of Service or by a
+            Month Planner pre-population day. In-use templates must be
+            undeletable until those references are removed or changed.
+          </p>
+        </article>
+      </section>
+
+      <section id="implementation">
+        <h2>Implementation Plan</h2>
+
+        <article>
+          <h3>Phase 1: Month Planning Settings</h3>
+          <ol>
+            <li>
+              Add <code>MonthPlanningSettings</code> types in
+              <code>src/lib/order-service-types.ts</code>.
+            </li>
+            <li>
+              Add default settings in
+              <code>src/lib/order-service-data.ts</code> with Sunday selected
+              and assigned to the default Sunday service template.
+            </li>
+            <li>
+              Add <code>getMonthPlanningSettings</code> and
+              <code>saveMonthPlanningSettings</code> server functions.
+            </li>
+            <li>
+              Add a <strong>Month Planner</strong> section to the existing
+              <code>/settings</code> page. Do not create a separate settings
+              route for this feature.
+            </li>
+            <li>Allow users to select pre-populate weekdays.</li>
+            <li>
+              Require a template selection for every selected pre-populate
+              weekday.
+            </li>
+            <li>
+              Prevent saving/finalizing pre-population settings when any
+              selected weekday has no template.
+            </li>
+            <li>
+              Derive quick-add teams and schedule targets from the selected
+              templates rather than a separate quick-add team list.
+            </li>
+          </ol>
+        </article>
+
+        <article>
+          <h3>Phase 2: Month Generation Server Functions</h3>
+          <ol>
+            <li>
+              Add a date helper to calculate all dates in a month matching
+              configured weekday/template pairs.
+            </li>
+            <li>
+              Add <code>getMonthPlan</code> to load orders, settings, assigned
+              templates, schedule targets, and team members for a selected
+              month.
+            </li>
+            <li>
+              Add <code>planMonth</code> to create missing orders for configured
+              dates using each date's assigned template.
+            </li>
+            <li>
+              Reject month planning if a configured pre-populate day has no
+              valid template.
+            </li>
+            <li>
+              Use the existing uniqueness check to avoid duplicate service
+              dates.
+            </li>
+            <li>
+              Batch inserts for efficiency and return the created order ids.
+            </li>
+            <li>
+              Skip dates that already have an order instead of failing the
+              entire month.
+            </li>
+          </ol>
+        </article>
+
+        <article>
+          <h3>Phase 3: Month Planner Route</h3>
+          <ol>
+            <li>Create <code>src/routes/orders/month.tsx</code>.</li>
+            <li>Default the selected month to the current month.</li>
+            <li>
+              Support previous and next month navigation with query state, for
+              example <code>?month=2026-06</code>.
+            </li>
+            <li>Add a calendar/month picker for direct month selection.</li>
+            <li>
+              Show <strong>Plan Month</strong> when configured service dates are
+              missing.
+            </li>
+            <li>Show existing orders and missing dates in a clear table.</li>
+            <li>Link each planned order to its existing order editor.</li>
+          </ol>
+        </article>
+
+        <article>
+          <h3>Phase 4: Quick Schedule Teams</h3>
+          <ol>
+            <li>
+              Render quick-add team buttons from the required and optional teams
+              found in the templates assigned to the month's pre-populated days.
+            </li>
+            <li>Create a monthly team schedule dialog component.</li>
+            <li>
+              For each order in the month, show every service card where the
+              selected team is required or optional by that order's source
+              template.
+            </li>
+            <li>
+              Allow users to modify assigned members using existing team member
+              selection patterns.
+            </li>
+            <li>
+              Persist changes by updating the affected orders'
+              <code>order_json</code>.
+            </li>
+            <li>
+              Invalidate the route after save so the month view reflects
+              changes.
+            </li>
+          </ol>
+        </article>
+
+        <article>
+          <h3>Phase 5: Current Month Sunday Backfill</h3>
+          <ol>
+            <li>
+              On first visit to the month planner, detect the current month.
+            </li>
+            <li>
+              Ensure every Sunday in the current month has an Order of Service.
+            </li>
+            <li>Do not overwrite existing orders.</li>
+            <li>Use the configured Sunday template and title.</li>
+            <li>
+              For June 2026, ensure <time>2026-06-07</time>,
+              <time>2026-06-14</time>, <time>2026-06-21</time>, and
+              <time>2026-06-28</time>.
+            </li>
+          </ol>
+        </article>
+
+        <article>
+          <h3>Phase 6: Template Delete Protection</h3>
+          <ol>
+            <li>
+              Update <code>deleteTemplate</code> to check existing Orders of
+              Service and Month Planner day settings before deletion.
+            </li>
+            <li>
+              If a template is referenced by any order or pre-populate day,
+              block deletion with a clear error message.
+            </li>
+            <li>
+              In the Templates UI, show an "In use" indicator and disable or
+              confirm-block deletion for referenced templates.
+            </li>
+            <li>
+              Allow deletion only after the user moves those weekdays/orders to
+              a different template or removes the pre-populate day.
+            </li>
+          </ol>
+        </article>
+
+        <article>
+          <h3>Core Date Helper Pseudocode</h3>
+          <pre><code>const getMonthDatesForDayConfigs = (
+  month: string,
+  dayConfigs: MonthPlanningDayConfig[]
+): Array&lt;{ date: string; dayConfig: MonthPlanningDayConfig }&gt; =&gt; {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const dates: Array&lt;{ date: string; dayConfig: MonthPlanningDayConfig }&gt; = [];
+
+  while (date.getUTCMonth() === monthNumber - 1) {
+    const dayConfig = dayConfigs.find(
+      (config) =&gt; config.weekday === date.getUTCDay()
+    );
+
+    if (dayConfig) {
+      dates.push({ date: date.toISOString().slice(0, 10), dayConfig });
+    }
+
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+
+  return dates;
+};</code></pre>
+        </article>
+
+        <article>
+          <h3>Batch Update Strategy for Team Assignments</h3>
+          <p>
+            The monthly scheduler should update only the selected team's
+            assignments and preserve every other part of the order JSON,
+            including hymns, activities, and other teams.
+          </p>
+          <ol>
+            <li>Load affected orders by id.</li>
+            <li>
+              For each order, locate the configured card or cards that support
+              the selected team.
+            </li>
+            <li>
+              Replace that team's <code>memberIds</code> with the submitted
+              member ids.
+            </li>
+            <li>Normalize using existing team helpers where possible.</li>
+            <li>Save all changed orders in a D1 batch.</li>
+          </ol>
+        </article>
+      </section>
+
+      <section id="acceptance">
+        <h2>Acceptance Criteria</h2>
+        <ul>
+          <li>Opening the month planner starts on the current month.</li>
+          <li>
+            Current month Sundays are pre-populated with Orders of Service.
+          </li>
+          <li>Sunday is selected by default in Month Planning settings.</li>
+          <li>Sunday has an associated Sunday service template by default.</li>
+          <li>
+            Users can select additional weekdays for future month
+            pre-population.
+          </li>
+          <li>
+            Every selected pre-populate weekday requires an associated template.
+          </li>
+          <li>
+            Month Planner settings cannot be saved/finalized while a selected
+            weekday is missing a template.
+          </li>
+          <li>Users can navigate to previous and next months.</li>
+          <li>
+            Users can open a calendar/month picker and jump to a chosen month.
+          </li>
+          <li>Unplanned months show a <strong>Plan Month</strong> button.</li>
+          <li>
+            <strong>Plan Month</strong> creates missing configured service dates
+            using each weekday's assigned template and does not duplicate
+            existing orders.
+          </li>
+          <li>
+            The month view displays all planned orders for the selected month.
+          </li>
+          <li>
+            The Schedule button bar is derived from required and optional teams
+            in the templates assigned to the selected month.
+          </li>
+          <li>
+            Selecting a team opens a monthly schedule UI for every service card
+            where that team is required or optional.
+          </li>
+          <li>
+            Users can add team members to each Order of Service in the month.
+          </li>
+          <li>
+            Users can modify existing team assignments from the monthly schedule
+            UI.
+          </li>
+          <li>
+            Existing one-by-one order creation and editing continues to work.
+          </li>
+          <li>
+            Team assignment requirements for publishing remain enforced in the
+            existing order editor.
+          </li>
+          <li>
+            Templates referenced by existing orders or Month Planner
+            pre-populate settings cannot be deleted.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Decisions and Remaining Questions</h2>
+        <details open>
+          <summary>
+            Decision made: templates are the source of truth for monthly
+            scheduling targets
+          </summary>
+          <p>
+            The monthly quick-add scheduler should not use a hard-coded service
+            card and should not rely on a separate quick-add team mapping. The
+            template assigned to each pre-populated weekday determines which
+            service cards need scheduling. If the Sunday service is
+            pre-populated from the Sunday Service template, then that Sunday
+            template feeds the schedule targets for Sunday orders. If another
+            weekday becomes pre-populatable, that weekday must also have a
+            template, and that template feeds its schedule targets.
+          </p>
+
+          <article>
+            <h3>Resolved targeting rule</h3>
+            <ol>
+              <li>Settings define which weekdays can be pre-populated.</li>
+              <li>Every pre-populated weekday must be assigned a template.</li>
+              <li>The template creates the Order of Service for that date.</li>
+              <li>
+                Required and optional teams on that template's service cards
+                become monthly schedule targets.
+              </li>
+              <li>
+                Quick-add can assign members to all matching service cards, not
+                just one card.
+              </li>
+            </ol>
+          </article>
+
+          <article>
+            <h3>Mockup: weekday-to-template settings</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Pre-populate?</th>
+                  <th>Weekday</th>
+                  <th>Template</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input checked type="checkbox" /></td>
+                  <td>Sunday</td>
+                  <td>
+                    <select aria-label="Sunday template">
+                      <option>Sunday Service</option>
+                    </select>
+                  </td>
+                  <td><mark>Ready</mark></td>
+                </tr>
+                <tr>
+                  <td><input checked type="checkbox" /></td>
+                  <td>Wednesday</td>
+                  <td>
+                    <select aria-label="Wednesday template">
+                      <option value="">Select a template...</option>
+                      <option>Wednesday Prayer Meeting</option>
+                    </select>
+                  </td>
+                  <td>Cannot finalize until a template is selected</td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" /></td>
+                  <td>Friday</td>
+                  <td>Not pre-populated</td>
+                  <td>Ignored</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              <button>Save Month Planner settings</button>
+            </p>
+          </article>
+
+          <article>
+            <h3>Mockup: Sunday template feeds schedule targets</h3>
+            <table>
+              <caption>
+                Sunday Service template
+              </caption>
+              <thead>
+                <tr>
+                  <th>Service card</th>
+                  <th>Required / optional teams</th>
+                  <th>Monthly schedule target?</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Sunday School</td>
+                  <td>Teachers</td>
+                  <td>Yes, when scheduling Teachers</td>
+                </tr>
+                <tr>
+                  <td>Sunday Main Service</td>
+                  <td>Ushers, Counters</td>
+                  <td>Yes, when scheduling Ushers or Counters</td>
+                </tr>
+                <tr>
+                  <td>Sunday Evening Service</td>
+                  <td>Ushers</td>
+                  <td>Yes, when scheduling Ushers</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              The generated Schedule bar for the month would include the teams
+              discovered from the template: <button>Teachers</button>
+              <button>Ushers</button> <button>Counters</button>.
+            </p>
+          </article>
+
+          <article>
+            <h3>Mockup: quick-add targets all matching service cards</h3>
+            <p>
+              If <strong>Ushers</strong> appear on more than one service card in
+              the template, selecting <strong>Ushers</strong> should show all of
+              those cards for every planned service in the month.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Order template</th>
+                  <th>Service card requiring Ushers</th>
+                  <th>Assigned members</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Sun, Jun 7</td>
+                  <td>Sunday Service</td>
+                  <td>Sunday Main Service</td>
+                  <td>Member A, Member B</td>
+                  <td><button>Manage</button></td>
+                </tr>
+                <tr>
+                  <td>Sun, Jun 7</td>
+                  <td>Sunday Service</td>
+                  <td>Sunday Evening Service</td>
+                  <td>Member C, Member D</td>
+                  <td><button>Manage</button></td>
+                </tr>
+                <tr>
+                  <td>Sun, Jun 14</td>
+                  <td>Sunday Service</td>
+                  <td>Sunday Main Service</td>
+                  <td>No one assigned</td>
+                  <td><button>Manage</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+
+          <article>
+            <h3>Template deletion rule</h3>
+            <p>
+              A template becomes protected when it is used by existing Orders of
+              Service or by Month Planner pre-population settings. The user must
+              first move those references to another template or remove the
+              weekday from pre-population before the template can be deleted.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Template</th>
+                  <th>Used by</th>
+                  <th>Delete action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Sunday Service</td>
+                  <td>Month Planner Sunday + existing orders</td>
+                  <td><button disabled>Delete disabled</button></td>
+                </tr>
+                <tr>
+                  <td>Special Service</td>
+                  <td>No references</td>
+                  <td><button>Delete</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </article>
+        </details>
+        <details>
+          <summary>Should planning happen automatically or by button?</summary>
+          <p>
+            Future months should use the explicit <strong>Plan Month</strong>
+            button. The current month has a special requirement to be
+            pre-populated for all Sundays; automatic current-month Sunday
+            backfill is recommended.
+          </p>
+        </details>
+        <details>
+          <summary>Where should Month Planner settings live?</summary>
+          <p>
+            Decision made: Month Planner settings should be a section on the
+            existing <code>/settings</code> page, not a separate route. The
+            section should sit alongside the email configuration and recipient
+            settings sections.
+          </p>
+        </details>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Planning artifact for <code>vbc-order-of-service</code>: monthly Orders
+        of Service generation and usher/counter schedule quick assignment.
+      </p>
+    </footer>
+  </body>
+</html>

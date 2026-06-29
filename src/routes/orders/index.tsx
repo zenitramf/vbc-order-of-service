@@ -1,4 +1,9 @@
-import { CalendarCheckIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  CalendarCheckIcon,
+  CalendarDotsIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -225,12 +230,20 @@ const OrdersPage = () => {
             Review previous services and continue planning upcoming services.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/orders/new">
-            <PlusIcon data-icon="inline-start" />
-            New order
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to="/orders/month">
+              <CalendarDotsIcon data-icon="inline-start" />
+              Month planner
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/orders/new">
+              <PlusIcon data-icon="inline-start" />
+              New order
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
