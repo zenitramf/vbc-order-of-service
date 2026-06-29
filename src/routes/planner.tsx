@@ -332,6 +332,7 @@ const MonthScheduleSheet = ({
   );
   const [manageKey, setManageKey] = React.useState<string | null>(null);
   const [isSaving, setIsSaving] = React.useState(false);
+  const dirtyRef = React.useRef(false);
 
   const membersById = React.useMemo(
     () => new Map(teamMembers.map((member) => [member.id, member])),
@@ -370,6 +371,7 @@ const MonthScheduleSheet = ({
   };
 
   const toggleMember = (key: string, memberId: string, checked: boolean) => {
+    dirtyRef.current = true;
     setAssignments((current) => {
       const next = new Map(current);
       const existing = next.get(key) ?? [];
@@ -415,7 +417,14 @@ const MonthScheduleSheet = ({
     );
   };
 
-  const handleSave = async () => {
+  // Persist the whole team schedule. Selections save automatically when the
+  // member picker closes or the sheet is dismissed, so there is no explicit
+  // save button. The dirty guard avoids redundant writes when nothing changed.
+  const persist = async () => {
+    if (!dirtyRef.current) {
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -429,9 +438,9 @@ const MonthScheduleSheet = ({
           teamId,
         },
       });
+      dirtyRef.current = false;
       toast.success(`${teamName} schedule saved.`);
       await onSaved();
-      onClose();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Schedule could not be saved."
@@ -439,6 +448,11 @@ const MonthScheduleSheet = ({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const closePicker = async () => {
+    setManageKey(null);
+    await persist();
   };
 
   const manageCard = manageKey
@@ -473,15 +487,16 @@ const MonthScheduleSheet = ({
 
   return (
     <Sheet
-      onOpenChange={(open) => {
+      onOpenChange={async (open) => {
         if (!open) {
+          await persist();
           onClose();
         }
       }}
       open
     >
       <SheetContent
-        className="flex w-full flex-col gap-0 p-0 sm:max-w-xl"
+        className="flex w-full flex-col gap-0 p-0 sm:w-1/2 sm:max-w-none"
         side="right"
       >
         <SheetHeader className="border-b">
@@ -489,7 +504,7 @@ const MonthScheduleSheet = ({
             <>
               <button
                 className="flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
-                onClick={() => setManageKey(null)}
+                onClick={closePicker}
                 type="button"
               >
                 <CaretLeftIcon className="size-4" />
@@ -506,7 +521,8 @@ const MonthScheduleSheet = ({
               <SheetTitle>Schedule {teamName}</SheetTitle>
               <SheetDescription>
                 Add or modify {teamName} members for every service card in the
-                month where the team is required or optional.
+                month where the team is required or optional. Changes save
+                automatically.
               </SheetDescription>
             </>
           )}
@@ -526,25 +542,15 @@ const MonthScheduleSheet = ({
           )}
         </div>
 
-        <SheetFooter className="border-t">
+        <SheetFooter className="flex-row items-center justify-between border-t">
+          <span className="text-muted-foreground text-xs">
+            {isSaving ? "Saving…" : "Changes save automatically"}
+          </span>
           {manageCard ? (
-            <Button onClick={() => setManageKey(null)} type="button">
+            <Button disabled={isSaving} onClick={closePicker} type="button">
               Done
             </Button>
-          ) : (
-            <div className="flex justify-end gap-2">
-              <Button onClick={onClose} type="button" variant="outline">
-                Cancel
-              </Button>
-              <Button
-                disabled={cards.length === 0 || isSaving}
-                onClick={handleSave}
-                type="button"
-              >
-                {isSaving ? "Saving…" : "Save schedule"}
-              </Button>
-            </div>
-          )}
+          ) : null}
         </SheetFooter>
       </SheetContent>
     </Sheet>
