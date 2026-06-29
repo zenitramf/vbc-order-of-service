@@ -59,12 +59,6 @@ const getDaysRemaining = (value: string) => {
 const formatDaysRemaining = (daysRemaining: number) =>
   daysRemaining === 1 ? "1 day remaining" : `${daysRemaining} days remaining`;
 
-const StatusBadge = ({ status }: { status: OrderSummary["status"] }) => (
-  <Badge variant={status === "Published" ? "default" : "secondary"}>
-    {status}
-  </Badge>
-);
-
 const UpcomingSundayCard = ({
   nextSundayDate,
   order,
@@ -87,16 +81,6 @@ const UpcomingSundayCard = ({
       </CardHeader>
       {order ? (
         <>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{order.title}</span>
-              <StatusBadge status={order.status} />
-              <Badge variant="outline">{order.serviceTypeName}</Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {order.segmentCount} cards · {order.activityCount} activities
-            </p>
-          </CardContent>
           <CardFooter>
             <Button asChild>
               <Link params={{ orderId: order.id }} to="/orders/$orderId">

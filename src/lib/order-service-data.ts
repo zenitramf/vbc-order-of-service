@@ -14,17 +14,25 @@ import type {
   HymnFileRecord,
   HymnOption,
   HymnRecord,
+  MonthPlanData,
+  MonthPlanningDayConfig,
+  MonthPlanningSettings,
+  MonthPlanServiceDate,
+  MonthScheduleCard,
+  MonthScheduleTarget,
   OrderEmailDeliveryRecord,
   OrderEmailQueueMessage,
   OrderEmailStatus,
   OrderRecord,
   OrderServiceTemplateJson,
   OrderSummary,
+  PlanMonthInput,
   ReferenceData,
   ReferenceOption,
   RenameHymnFileInput,
   SaveEmailSettingsInput,
   SaveHymnInput,
+  SaveMonthScheduleInput,
   SaveOrderInput,
   SaveTemplateInput,
   SaveTeamInput,
@@ -45,9 +53,14 @@ import type {
 import {
   DEFAULT_TEAMS,
   findMissingRequiredTeams,
+  getAssignmentMemberIds,
+  getRequiredTeamCount,
+  isTeamOptional,
+  isTeamRequired,
   memberTeamNames,
   normalizeServiceCardTeams,
   pruneStaleAssignments,
+  setAssignmentMemberIds,
   teamsById as toTeamsById,
   validateTeamMember,
   validateTeamParent,
@@ -370,7 +383,20 @@ const getErrorMessage = (error: unknown, fallbackMessage: string) =>
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const EMAIL_SETTINGS_KEY = "email.smtp";
+const MONTH_PLANNING_KEY = "monthPlanning";
+const DEFAULT_SUNDAY_TEMPLATE_ID = "default-sunday-service";
 const SERVICE_PDFS_BUCKET_NAME = "vbc-order-of-service-pdfs";
+
+/** Sunday is pre-selected and assigned the seeded Sunday template by default. */
+const DEFAULT_MONTH_PLANNING_SETTINGS: MonthPlanningSettings = {
+  prepopulateDays: [
+    {
+      defaultTitle: "Sunday Order of Service",
+      templateId: DEFAULT_SUNDAY_TEMPLATE_ID,
+      weekday: 0,
+    },
+  ],
+};
 
 const getRequiredSecret = (key: string) => {
   const value = (env as unknown as Record<string, string | undefined>)[
@@ -1129,15 +1155,591 @@ export const saveTemplate = createServerFn({ method: "POST" })
     return { id };
   });
 
+const parseMonthPlanningSettings = (value: string): MonthPlanningSettings => {
+  try {
+    const parsed = JSON.parse(value) as Partial<MonthPlanningSettings>;
+    const prepopulateDays = Array.isArray(parsed.prepopulateDays)
+      ? parsed.prepopulateDays
+          .map((day) => ({
+            defaultTitle: asString(day?.defaultTitle).trim(),
+            templateId: asString(day?.templateId).trim(),
+            weekday: asNumber(day?.weekday),
+          }))
+          .filter(
+            (day) =>
+              Number.isInteger(day.weekday) &&
+              day.weekday >= 0 &&
+              day.weekday <= 6
+          )
+      : [];
+
+    return { prepopulateDays };
+  } catch {
+    return { prepopulateDays: [] };
+  }
+};
+
+/** Read Month Planner settings, falling back to the Sunday default. */
+const loadMonthPlanningSettings = async (
+  db: D1Database
+): Promise<MonthPlanningSettings> => {
+  const row = await db
+    .prepare("SELECT value FROM app_settings WHERE key = ?")
+    .bind(MONTH_PLANNING_KEY)
+    .first<{ value: string }>();
+
+  if (!row) {
+    return DEFAULT_MONTH_PLANNING_SETTINGS;
+  }
+
+  return parseMonthPlanningSettings(row.value);
+};
+
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+/** Validate a YYYY-MM string and return its numeric year/month. */
+const parseMonth = (month: string): { monthNumber: number; year: number } => {
+  const match = /^(?<year>\d{4})-(?<month>\d{2})$/u.exec(month.trim());
+
+  if (!match?.groups) {
+    throw new Error("Month must be in YYYY-MM format.");
+  }
+
+  const year = Number(match.groups.year);
+  const monthNumber = Number(match.groups.month);
+
+  if (monthNumber < 1 || monthNumber > 12) {
+    throw new Error("Month must be between 01 and 12.");
+  }
+
+  return { monthNumber, year };
+};
+
+interface MonthDateEntry {
+  date: string;
+  dayConfig: MonthPlanningDayConfig;
+}
+
+/** Every date in the month whose weekday has a configured day, with its config. */
+const getMonthDatesForDayConfigs = (
+  month: string,
+  dayConfigs: MonthPlanningDayConfig[]
+): MonthDateEntry[] => {
+  const { monthNumber, year } = parseMonth(month);
+  const date = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const dates: MonthDateEntry[] = [];
+
+  while (date.getUTCMonth() === monthNumber - 1) {
+    const dayConfig = dayConfigs.find(
+      (config) => config.weekday === date.getUTCDay()
+    );
+
+    if (dayConfig) {
+      dates.push({ date: date.toISOString().slice(0, 10), dayConfig });
+    }
+
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+
+  return dates;
+};
+
+/** First day of the month after the given YYYY-MM, as YYYY-MM-DD. */
+const getNextMonthStart = (month: string): string => {
+  const { monthNumber, year } = parseMonth(month);
+
+  return new Date(Date.UTC(year, monthNumber, 1)).toISOString().slice(0, 10);
+};
+
+/** Templates referenced by a month-planning configuration, keyed by id. */
+const findTemplateMonthPlanReferences = (
+  settings: MonthPlanningSettings,
+  templateId: string
+): boolean =>
+  settings.prepopulateDays.some((day) => day.templateId === templateId);
+
 export const deleteTemplate = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     await ensureDatabase();
     const db = getDatabase();
+
+    const [orderRow, settings] = await Promise.all([
+      db
+        .prepare(
+          "SELECT COUNT(*) AS order_count FROM orders_of_service WHERE template_id = ?"
+        )
+        .bind(data)
+        .first<{ order_count: number }>(),
+      loadMonthPlanningSettings(db),
+    ]);
+
+    const orderCount = asNumber(orderRow?.order_count);
+    const monthPlanRef = findTemplateMonthPlanReferences(settings, data);
+
+    if (orderCount > 0 || monthPlanRef) {
+      const parts: string[] = [];
+
+      if (monthPlanRef) {
+        parts.push("the Month Planner pre-populate settings");
+      }
+
+      if (orderCount > 0) {
+        parts.push(`${orderCount} order(s)`);
+      }
+
+      throw new Error(
+        `This template is in use by ${parts.join(" and ")}. Reassign or remove those references before deleting it.`
+      );
+    }
+
     await db
       .prepare("DELETE FROM order_service_templates WHERE id = ?")
       .bind(data)
       .run();
+
+    return { success: true };
+  });
+
+const getCurrentMonth = (): string => new Date().toISOString().slice(0, 7);
+
+const toOrderSummary = (order: OrderRecord): OrderSummary => ({
+  activityCount: order.activityCount,
+  id: order.id,
+  segmentCount: order.segmentCount,
+  serviceDate: order.serviceDate,
+  serviceTypeName: order.serviceTypeName,
+  status: order.status,
+  title: order.title,
+  updatedAt: order.updatedAt,
+});
+
+const loadTemplatesById = async (
+  db: D1Database,
+  ids: string[]
+): Promise<Map<string, TemplateRecord>> => {
+  const unique = [...new Set(ids.filter(Boolean))];
+
+  if (unique.length === 0) {
+    return new Map();
+  }
+
+  const placeholders = unique.map(() => "?").join(", ");
+  const { results } = await db
+    .prepare(
+      `SELECT order_service_templates.*, service_types.name AS service_type_name
+      FROM order_service_templates
+      JOIN service_types ON service_types.id = order_service_templates.service_type_id
+      WHERE order_service_templates.id IN (${placeholders})`
+    )
+    .bind(...unique)
+    .all<Record<string, unknown>>();
+
+  return new Map(
+    results.map((row) => {
+      const template = mapTemplateRow(row);
+
+      return [template.id, template] as const;
+    })
+  );
+};
+
+/**
+ * Create orders for every configured date in the month that does not already
+ * have one. Existing dates are skipped, and configured weekdays whose template
+ * is missing are left untouched so a stray config never blocks the whole month.
+ */
+const planMonthInternal = async (
+  db: D1Database,
+  month: string,
+  settings: MonthPlanningSettings
+): Promise<{ createdIds: string[] }> => {
+  const configuredDates = getMonthDatesForDayConfigs(
+    month,
+    settings.prepopulateDays
+  );
+
+  if (configuredDates.length === 0) {
+    return { createdIds: [] };
+  }
+
+  const templatesById = await loadTemplatesById(
+    db,
+    settings.prepopulateDays.map((day) => day.templateId)
+  );
+  const start = `${month}-01`;
+  const end = getNextMonthStart(month);
+  const { results } = await db
+    .prepare(
+      "SELECT service_date FROM orders_of_service WHERE service_date >= ? AND service_date < ?"
+    )
+    .bind(start, end)
+    .all<Record<string, unknown>>();
+  const existingDates = new Set(
+    results.map((row) => asString(row.service_date))
+  );
+  const statements: D1PreparedStatement[] = [];
+  const timestamp = nowIso();
+
+  for (const { date, dayConfig } of configuredDates) {
+    if (existingDates.has(date)) {
+      continue;
+    }
+
+    const template = templatesById.get(dayConfig.templateId);
+
+    if (!template) {
+      continue;
+    }
+
+    const order = normalizeTemplate(template.template, template.name);
+    const title =
+      dayConfig.defaultTitle.trim() || `${template.name} Order of Service`;
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO orders_of_service
+            (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
+          VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)
+          ON CONFLICT(service_date) DO NOTHING
+          RETURNING id`
+        )
+        .bind(
+          uuidv4(),
+          title,
+          template.serviceTypeId,
+          date,
+          template.id,
+          JSON.stringify(order),
+          timestamp
+        )
+    );
+  }
+
+  const createdIds: string[] = [];
+
+  if (statements.length > 0) {
+    const batchResults = await db.batch<{ id: string }>(statements);
+
+    for (const result of batchResults) {
+      for (const row of result.results) {
+        createdIds.push(row.id);
+      }
+    }
+  }
+
+  return { createdIds };
+};
+
+export const getMonthPlanningSettings = createServerFn({
+  method: "GET",
+}).handler(async (): Promise<MonthPlanningSettings> => {
+  await ensureDatabase();
+
+  return loadMonthPlanningSettings(getDatabase());
+});
+
+export const saveMonthPlanningSettings = createServerFn({ method: "POST" })
+  .validator((data: MonthPlanningSettings) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const seen = new Set<number>();
+    const prepopulateDays: MonthPlanningDayConfig[] = [];
+
+    for (const day of data.prepopulateDays ?? []) {
+      const weekday = asNumber(day.weekday);
+
+      if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+        continue;
+      }
+
+      if (seen.has(weekday)) {
+        continue;
+      }
+
+      seen.add(weekday);
+      const templateId = asString(day.templateId).trim();
+
+      if (!templateId) {
+        throw new Error(
+          `Select a template for ${WEEKDAY_NAMES[weekday]} before saving. Pre-population cannot be finalized without an associated template.`
+        );
+      }
+
+      prepopulateDays.push({
+        defaultTitle:
+          asString(day.defaultTitle).trim() ||
+          `${WEEKDAY_NAMES[weekday]} Order of Service`,
+        templateId,
+        weekday,
+      });
+    }
+
+    const templatesById = await loadTemplatesById(
+      db,
+      prepopulateDays.map((day) => day.templateId)
+    );
+
+    for (const day of prepopulateDays) {
+      if (!templatesById.has(day.templateId)) {
+        throw new Error(
+          `The template for ${WEEKDAY_NAMES[day.weekday]} no longer exists. Choose another template.`
+        );
+      }
+    }
+
+    await db
+      .prepare(
+        `INSERT INTO app_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at`
+      )
+      .bind(MONTH_PLANNING_KEY, JSON.stringify({ prepopulateDays }), nowIso())
+      .run();
+
+    return { success: true };
+  });
+
+export const planMonth = createServerFn({ method: "POST" })
+  .validator((data: PlanMonthInput) => data)
+  .handler(
+    async ({
+      data,
+    }): Promise<{ createdCount: number; createdIds: string[] }> => {
+      await ensureDatabase();
+      const db = getDatabase();
+      const month = (data.month ?? "").trim();
+      parseMonth(month);
+      const settings = await loadMonthPlanningSettings(db);
+      const { createdIds } = await planMonthInternal(db, month, settings);
+
+      return { createdCount: createdIds.length, createdIds };
+    }
+  );
+
+export const getMonthPlan = createServerFn({ method: "GET" })
+  .validator((month?: string) => month ?? "")
+  .handler(async ({ data }): Promise<MonthPlanData> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const month = data.trim() || getCurrentMonth();
+    parseMonth(month);
+    const settings = await loadMonthPlanningSettings(db);
+
+    // Phase 5: pre-populate the current month automatically on first visit.
+    if (month === getCurrentMonth()) {
+      await planMonthInternal(db, month, settings);
+    }
+
+    const configTemplateIds = settings.prepopulateDays.map(
+      (day) => day.templateId
+    );
+    const start = `${month}-01`;
+    const end = getNextMonthStart(month);
+    const [templatesById, orderRows, teamRows, teamMembers] = await Promise.all(
+      [
+        loadTemplatesById(db, configTemplateIds),
+        db
+          .prepare(
+            `SELECT orders_of_service.*, service_types.name AS service_type_name
+          FROM orders_of_service
+          JOIN service_types ON service_types.id = orders_of_service.service_type_id
+          WHERE service_date >= ? AND service_date < ?
+          ORDER BY service_date`
+          )
+          .bind(start, end)
+          .all<Record<string, unknown>>(),
+        db
+          .prepare(`${TEAM_SUMMARY_SELECT} ORDER BY teams.name`)
+          .all<Record<string, unknown>>(),
+        // oxlint-disable-next-line no-use-before-define -- getTeamMembers is a server fn defined later in this module.
+        getTeamMembers(),
+      ]
+    );
+
+    const teams = teamRows.results.map(mapTeamSummaryRow);
+    const teamNamesById = new Map(teams.map((team) => [team.id, team.name]));
+    const orders = orderRows.results.map(mapOrderRow);
+    const ordersByDate = new Map(
+      orders.map((order) => [order.serviceDate, order])
+    );
+
+    const configuredDates = getMonthDatesForDayConfigs(
+      month,
+      settings.prepopulateDays
+    );
+    const serviceDates: MonthPlanServiceDate[] = configuredDates.map(
+      ({ date, dayConfig }) => {
+        const order = ordersByDate.get(date);
+        const template = templatesById.get(dayConfig.templateId);
+
+        return {
+          date,
+          dayConfig,
+          ...(order ? { order: toOrderSummary(order) } : {}),
+          shouldExist: true,
+          templateName: template?.name ?? "",
+        };
+      }
+    );
+    const missingCount = serviceDates.filter((entry) => !entry.order).length;
+    const unconfiguredWeekdays = settings.prepopulateDays
+      .filter((day) => !templatesById.has(day.templateId))
+      .map((day) => day.weekday);
+
+    // Schedule cards from existing orders: teams the order's cards staff.
+    const scheduleCards: Record<string, MonthScheduleCard[]> = {};
+    const targetTeamIds = new Set<string>();
+
+    for (const order of orders) {
+      for (const card of order.order.service_type) {
+        const teamIds = new Set([
+          ...(card.requiredTeamIds ?? []),
+          ...(card.optionalTeamIds ?? []),
+        ]);
+
+        for (const teamId of teamIds) {
+          targetTeamIds.add(teamId);
+          const list = scheduleCards[teamId] ?? [];
+          list.push({
+            cardId: card.id,
+            cardName: card.typeName,
+            date: order.serviceDate,
+            memberIds: getAssignmentMemberIds(card, teamId),
+            optional: isTeamOptional(card, teamId),
+            orderId: order.id,
+            orderTitle: order.title,
+            required: isTeamRequired(card, teamId),
+            requiredCount: getRequiredTeamCount(card, teamId),
+          });
+          scheduleCards[teamId] = list;
+        }
+      }
+    }
+
+    // Also surface teams configured on the assigned templates, so the schedule
+    // bar lists them even before any order in the month has been planned.
+    for (const day of settings.prepopulateDays) {
+      const template = templatesById.get(day.templateId);
+
+      if (!template) {
+        continue;
+      }
+
+      for (const card of template.template.service_type) {
+        for (const teamId of [
+          ...(card.requiredTeamIds ?? []),
+          ...(card.optionalTeamIds ?? []),
+        ]) {
+          targetTeamIds.add(teamId);
+        }
+      }
+    }
+
+    const scheduleTargets: MonthScheduleTarget[] = [...targetTeamIds]
+      .map((teamId) => ({
+        teamId,
+        teamName: teamNamesById.get(teamId) ?? teamId,
+      }))
+      // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target lacks toSorted.
+      .sort((first, second) => first.teamName.localeCompare(second.teamName));
+
+    return {
+      missingCount,
+      month,
+      scheduleCards,
+      scheduleTargets,
+      serviceDates,
+      settings,
+      teamMembers,
+      teams,
+      unconfiguredWeekdays,
+    };
+  });
+
+export const saveMonthSchedule = createServerFn({ method: "POST" })
+  .validator((data: SaveMonthScheduleInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const byOrder = new Map<string, Map<string, string[]>>();
+
+    for (const assignment of data.assignments) {
+      const cards = byOrder.get(assignment.orderId) ?? new Map();
+      cards.set(assignment.cardId, assignment.memberIds);
+      byOrder.set(assignment.orderId, cards);
+    }
+
+    const orderIds = [...byOrder.keys()];
+
+    if (orderIds.length === 0) {
+      return { success: true };
+    }
+
+    const placeholders = orderIds.map(() => "?").join(", ");
+    const [{ results }, membersByTeam] = await Promise.all([
+      db
+        .prepare(
+          `SELECT id, title, order_json FROM orders_of_service WHERE id IN (${placeholders})`
+        )
+        .bind(...orderIds)
+        .all<Record<string, unknown>>(),
+      loadTeamMemberIds(db),
+    ]);
+    const timestamp = nowIso();
+    const statements: D1PreparedStatement[] = [];
+
+    for (const row of results) {
+      const id = asString(row.id);
+      const title = asString(row.title);
+      const order = parseTemplateJson(asString(row.order_json), title);
+      const updatesByCard = byOrder.get(id);
+
+      if (!updatesByCard) {
+        continue;
+      }
+
+      const service_type = order.service_type.map((card) => {
+        if (!updatesByCard.has(card.id)) {
+          return card;
+        }
+
+        return {
+          ...card,
+          teamAssignments: setAssignmentMemberIds(
+            card.teamAssignments,
+            data.teamId,
+            updatesByCard.get(card.id) ?? []
+          ),
+        };
+      });
+      const normalized = pruneStaleAssignments(
+        normalizeTemplate({ ...order, service_type }, title),
+        membersByTeam
+      );
+      statements.push(
+        db
+          .prepare(
+            "UPDATE orders_of_service SET order_json = ?, updated_at = ? WHERE id = ?"
+          )
+          .bind(JSON.stringify(normalized), timestamp, id)
+      );
+    }
+
+    if (statements.length > 0) {
+      await db.batch(statements);
+    }
 
     return { success: true };
   });

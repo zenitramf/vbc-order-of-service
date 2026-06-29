@@ -391,7 +391,7 @@ const OrderRoute = () => {
     }
   };
 
-  const publishButtonLabel = isPublishing ? "Publishing…" : "Publish and Send";
+  const publishButtonLabel = isPublishing ? "Publishing…" : "Publish";
   const emailStatusLabel = emailDelivery?.status ?? "Not Sent";
   const sendEmailButtonLabel = isSendingEmail ? "Queueing…" : "Send Email";
   const downloadButtonLabel = isDownloading

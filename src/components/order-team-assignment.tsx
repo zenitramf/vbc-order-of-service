@@ -311,6 +311,7 @@ const TeamMemberDialog = ({
 };
 
 interface OrderTeamAssignmentProps {
+  headingHidden?: boolean;
   onUpdateSegment: (segment: ServiceTypeCard) => void;
   segment: ServiceTypeCard;
   teamMembers: TeamMemberSummary[];
@@ -318,6 +319,7 @@ interface OrderTeamAssignmentProps {
 }
 
 export const OrderTeamAssignment = ({
+  headingHidden = false,
   onUpdateSegment,
   segment,
   teamMembers,
@@ -380,7 +382,9 @@ export const OrderTeamAssignment = ({
     <div className="flex flex-col gap-3">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <CardTitle className="text-base">Team assignments</CardTitle>
+          {headingHidden ? null : (
+            <CardTitle className="text-base">Team assignments</CardTitle>
+          )}
           <CardDescription>
             Choose who serves on each team for this service card. Required teams
             must be staffed before publishing.
@@ -392,7 +396,7 @@ export const OrderTeamAssignment = ({
               disabled={availableTeams.length === 0}
               size="sm"
               type="button"
-              variant="outline"
+              variant="secondary"
             >
               <PlusIcon data-icon="inline-start" />
               Add team

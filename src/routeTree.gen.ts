@@ -9,11 +9,11 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PlannerRouteImport } from './routes/planner'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TemplatesIndexRouteImport } from './routes/templates/index'
 import { Route as TeamsIndexRouteImport } from './routes/teams/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
-import { Route as OrdersIndexRouteImport } from './routes/orders/index'
 import { Route as MembersIndexRouteImport } from './routes/members/index'
 import { Route as HymnsIndexRouteImport } from './routes/hymns/index'
 import { Route as TemplatesNewRouteImport } from './routes/templates/new'
@@ -27,6 +27,11 @@ import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
 import { Route as HymnsNewRouteImport } from './routes/hymns/new'
 import { Route as HymnsHymnIdRouteImport } from './routes/hymns/$hymnId'
 
+const PlannerRoute = PlannerRouteImport.update({
+  id: '/planner',
+  path: '/planner',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -45,11 +50,6 @@ const TeamsIndexRoute = TeamsIndexRouteImport.update({
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
   id: '/settings/',
   path: '/settings/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrdersIndexRoute = OrdersIndexRouteImport.update({
-  id: '/orders/',
-  path: '/orders/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MembersIndexRoute = MembersIndexRouteImport.update({
@@ -115,6 +115,7 @@ const HymnsHymnIdRoute = HymnsHymnIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/planner': typeof PlannerRoute
   '/hymns/$hymnId': typeof HymnsHymnIdRoute
   '/hymns/new': typeof HymnsNewRoute
   '/members/$memberId': typeof MembersMemberIdRoute
@@ -127,13 +128,13 @@ export interface FileRoutesByFullPath {
   '/templates/new': typeof TemplatesNewRoute
   '/hymns/': typeof HymnsIndexRoute
   '/members/': typeof MembersIndexRoute
-  '/orders/': typeof OrdersIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/planner': typeof PlannerRoute
   '/hymns/$hymnId': typeof HymnsHymnIdRoute
   '/hymns/new': typeof HymnsNewRoute
   '/members/$memberId': typeof MembersMemberIdRoute
@@ -146,7 +147,6 @@ export interface FileRoutesByTo {
   '/templates/new': typeof TemplatesNewRoute
   '/hymns': typeof HymnsIndexRoute
   '/members': typeof MembersIndexRoute
-  '/orders': typeof OrdersIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/teams': typeof TeamsIndexRoute
   '/templates': typeof TemplatesIndexRoute
@@ -154,6 +154,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/planner': typeof PlannerRoute
   '/hymns/$hymnId': typeof HymnsHymnIdRoute
   '/hymns/new': typeof HymnsNewRoute
   '/members/$memberId': typeof MembersMemberIdRoute
@@ -166,7 +167,6 @@ export interface FileRoutesById {
   '/templates/new': typeof TemplatesNewRoute
   '/hymns/': typeof HymnsIndexRoute
   '/members/': typeof MembersIndexRoute
-  '/orders/': typeof OrdersIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/teams/': typeof TeamsIndexRoute
   '/templates/': typeof TemplatesIndexRoute
@@ -175,6 +175,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/planner'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -187,13 +188,13 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/hymns/'
     | '/members/'
-    | '/orders/'
     | '/settings/'
     | '/teams/'
     | '/templates/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/planner'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -206,13 +207,13 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/hymns'
     | '/members'
-    | '/orders'
     | '/settings'
     | '/teams'
     | '/templates'
   id:
     | '__root__'
     | '/'
+    | '/planner'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -225,7 +226,6 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/hymns/'
     | '/members/'
-    | '/orders/'
     | '/settings/'
     | '/teams/'
     | '/templates/'
@@ -233,6 +233,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PlannerRoute: typeof PlannerRoute
   HymnsHymnIdRoute: typeof HymnsHymnIdRoute
   HymnsNewRoute: typeof HymnsNewRoute
   MembersMemberIdRoute: typeof MembersMemberIdRoute
@@ -245,7 +246,6 @@ export interface RootRouteChildren {
   TemplatesNewRoute: typeof TemplatesNewRoute
   HymnsIndexRoute: typeof HymnsIndexRoute
   MembersIndexRoute: typeof MembersIndexRoute
-  OrdersIndexRoute: typeof OrdersIndexRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
   TeamsIndexRoute: typeof TeamsIndexRoute
   TemplatesIndexRoute: typeof TemplatesIndexRoute
@@ -253,6 +253,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/planner': {
+      id: '/planner'
+      path: '/planner'
+      fullPath: '/planner'
+      preLoaderRoute: typeof PlannerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -279,13 +286,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings/'
       preLoaderRoute: typeof SettingsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/orders/': {
-      id: '/orders/'
-      path: '/orders'
-      fullPath: '/orders/'
-      preLoaderRoute: typeof OrdersIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/members/': {
@@ -377,6 +377,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PlannerRoute: PlannerRoute,
   HymnsHymnIdRoute: HymnsHymnIdRoute,
   HymnsNewRoute: HymnsNewRoute,
   MembersMemberIdRoute: MembersMemberIdRoute,
@@ -389,7 +390,6 @@ const rootRouteChildren: RootRouteChildren = {
   TemplatesNewRoute: TemplatesNewRoute,
   HymnsIndexRoute: HymnsIndexRoute,
   MembersIndexRoute: MembersIndexRoute,
-  OrdersIndexRoute: OrdersIndexRoute,
   SettingsIndexRoute: SettingsIndexRoute,
   TeamsIndexRoute: TeamsIndexRoute,
   TemplatesIndexRoute: TemplatesIndexRoute,

@@ -38,6 +38,12 @@ import * as React from "react";
 import { v4 as uuidv4 } from "uuid";
 
 import { OrderTeamAssignment } from "~/components/order-team-assignment";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -115,6 +121,7 @@ import {
   MAX_REQUIRED_TEAM_COUNT,
   REQUIRED_TEAM_MINIMUM,
   clampRequiredTeamCount,
+  getAssignmentMemberIds,
   getRequiredTeamCount,
 } from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
@@ -173,6 +180,23 @@ const activityNeedsHymn = (
   activity: OrderActivity,
   allowHymnSelection: boolean
 ) => allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
+
+/** Whether any activity on the card still needs attention (e.g. a hymn). */
+const segmentActivitiesNeedAttention = (
+  segment: ServiceTypeCard,
+  allowHymnSelection: boolean
+) =>
+  segment.activities.some((activity) =>
+    activityNeedsHymn(activity, allowHymnSelection)
+  );
+
+/** Whether any required team on the card is short of its required members. */
+const segmentTeamsNeedAttention = (segment: ServiceTypeCard) =>
+  (segment.requiredTeamIds ?? []).some(
+    (teamId) =>
+      getAssignmentMemberIds(segment, teamId).length <
+      getRequiredTeamCount(segment, teamId)
+  );
 
 interface EditorProps {
   activityTypes: ReferenceOption[];
@@ -1164,114 +1188,162 @@ const SegmentEditor = ({
   segment,
   teamMembers,
   teams,
-}: SegmentEditorProps) => (
-  <Card>
-    <CardHeader>
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <FieldGroup className="flex-1">
-          <Field>
-            <FieldLabel htmlFor={`${segment.id}-type-name`}>
-              Service card name
-            </FieldLabel>
-            <Input
-              id={`${segment.id}-type-name`}
-              onChange={(event) =>
-                onUpdateSegment({ ...segment, typeName: event.target.value })
-              }
-              value={segment.typeName}
-            />
-            <FieldDescription>
-              Examples: Sunday School, Sunday Main Service, Sunday Evening
-              Service.
-            </FieldDescription>
-          </Field>
-        </FieldGroup>
-        <Button onClick={onRemove} type="button" variant="outline">
-          <TrashIcon data-icon="inline-start" />
-          Remove card
-        </Button>
-      </div>
-    </CardHeader>
-    <CardContent className="flex flex-col gap-4">
-      <Separator />
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <CardTitle className="text-base">
-            Order of Service Activities
-          </CardTitle>
-          <CardDescription>
-            Drag rows to reorder activities, or click a row to edit it.
-          </CardDescription>
+}: SegmentEditorProps) => {
+  const activitiesNeedAttention = segmentActivitiesNeedAttention(
+    segment,
+    allowHymnSelection
+  );
+  const showTeamAssignment =
+    allowTeamAssignment &&
+    ((segment.requiredTeamIds?.length ?? 0) > 0 ||
+      (segment.optionalTeamIds?.length ?? 0) > 0 ||
+      (segment.teamAssignments?.length ?? 0) > 0);
+  const teamsNeedAttention = showTeamAssignment
+    ? segmentTeamsNeedAttention(segment)
+    : false;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <FieldGroup className="flex-1">
+            <Field>
+              <FieldLabel htmlFor={`${segment.id}-type-name`}>
+                Service card name
+              </FieldLabel>
+              <Input
+                id={`${segment.id}-type-name`}
+                onChange={(event) =>
+                  onUpdateSegment({ ...segment, typeName: event.target.value })
+                }
+                value={segment.typeName}
+              />
+              <FieldDescription>
+                Examples: Sunday School, Sunday Main Service, Sunday Evening
+                Service.
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+          <Button onClick={onRemove} type="button" variant="outline">
+            <TrashIcon data-icon="inline-start" />
+            Remove card
+          </Button>
         </div>
-        <Button onClick={onAddActivity} type="button" variant="secondary">
-          <PlusIcon data-icon="inline-start" />
-          Add activity
-        </Button>
-      </div>
-      <SegmentActivitiesTable
-        activities={segment.activities}
-        activityTypes={activityTypes}
-        allowHymnSelection={allowHymnSelection}
-        hymnOptions={hymnOptions}
-        onRemove={(activityId) =>
-          onUpdateSegment({
-            ...segment,
-            activities: segment.activities.filter(
-              (item) => item.id !== activityId
-            ),
-          })
-        }
-        onReorder={(activeId, overId) => {
-          const oldIndex = segment.activities.findIndex(
-            (item) => item.id === activeId
-          );
-          const newIndex = segment.activities.findIndex(
-            (item) => item.id === overId
-          );
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <Separator />
+        <Accordion defaultValue="activities" type="single">
+          <AccordionItem value="activities">
+            <AccordionTrigger>
+              <span className="flex items-center gap-2 text-base">
+                Order of Service Activities
+                {activitiesNeedAttention ? (
+                  <WarningCircleIcon
+                    aria-label="Some activities need attention"
+                    className="size-4 text-destructive"
+                  />
+                ) : null}
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="flex flex-col gap-4">
+              <div className="flex items-center justify-between gap-4">
+                <CardDescription>
+                  Drag rows to reorder activities, or click a row to edit it.
+                </CardDescription>
+                <Button
+                  onClick={onAddActivity}
+                  type="button"
+                  variant="secondary"
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Add activity
+                </Button>
+              </div>
+              <SegmentActivitiesTable
+                activities={segment.activities}
+                activityTypes={activityTypes}
+                allowHymnSelection={allowHymnSelection}
+                hymnOptions={hymnOptions}
+                onRemove={(activityId) =>
+                  onUpdateSegment({
+                    ...segment,
+                    activities: segment.activities.filter(
+                      (item) => item.id !== activityId
+                    ),
+                  })
+                }
+                onReorder={(activeId, overId) => {
+                  const oldIndex = segment.activities.findIndex(
+                    (item) => item.id === activeId
+                  );
+                  const newIndex = segment.activities.findIndex(
+                    (item) => item.id === overId
+                  );
 
-          if (oldIndex === -1 || newIndex === -1) {
-            return;
-          }
+                  if (oldIndex === -1 || newIndex === -1) {
+                    return;
+                  }
 
-          onUpdateSegment({
-            ...segment,
-            activities: arrayMove(segment.activities, oldIndex, newIndex),
-          });
-        }}
-        onUpdate={(updatedActivity) =>
-          onUpdateSegment({
-            ...segment,
-            activities: segment.activities.map((item) =>
-              item.id === updatedActivity.id ? updatedActivity : item
-            ),
-          })
-        }
-        segmentId={segment.id}
-      />
-      {allowTeamDefinition && teams.length > 0 ? (
-        <>
-          <hr />
-          <SegmentTeamDefinition
-            onUpdateSegment={onUpdateSegment}
-            segment={segment}
-            teams={teams}
-          />
-        </>
-      ) : null}
-      {allowTeamAssignment ? (
-        <>
-          <Separator />
-          <OrderTeamAssignment
-            onUpdateSegment={onUpdateSegment}
-            segment={segment}
-            teamMembers={teamMembers}
-            teams={teams}
-          />
-        </>
-      ) : null}
-    </CardContent>
-  </Card>
-);
+                  onUpdateSegment({
+                    ...segment,
+                    activities: arrayMove(
+                      segment.activities,
+                      oldIndex,
+                      newIndex
+                    ),
+                  });
+                }}
+                onUpdate={(updatedActivity) =>
+                  onUpdateSegment({
+                    ...segment,
+                    activities: segment.activities.map((item) =>
+                      item.id === updatedActivity.id ? updatedActivity : item
+                    ),
+                  })
+                }
+                segmentId={segment.id}
+              />
+            </AccordionContent>
+          </AccordionItem>
+          {showTeamAssignment ? (
+            <AccordionItem value="team-assignments">
+              <AccordionTrigger>
+                <span className="flex items-center gap-2 text-base">
+                  Team assignments
+                  {teamsNeedAttention ? (
+                    <WarningCircleIcon
+                      aria-label="Required teams need members"
+                      className="size-4 text-destructive"
+                    />
+                  ) : null}
+                </span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <OrderTeamAssignment
+                  headingHidden
+                  onUpdateSegment={onUpdateSegment}
+                  segment={segment}
+                  teamMembers={teamMembers}
+                  teams={teams}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          ) : null}
+        </Accordion>
+        {allowTeamDefinition && teams.length > 0 ? (
+          <>
+            <hr />
+            <SegmentTeamDefinition
+              onUpdateSegment={onUpdateSegment}
+              segment={segment}
+              teams={teams}
+            />
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+};
 
 const EMPTY_HYMN_OPTIONS: HymnOption[] = [];
 const EMPTY_TEAMS: TeamSummary[] = [];

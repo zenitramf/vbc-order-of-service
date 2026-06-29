@@ -2,6 +2,7 @@ import { ListChecksIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -126,8 +127,17 @@ const TemplatesPage = () => {
                         </Button>
                         <Button
                           onClick={async () => {
-                            await deleteTemplateFn({ data: template.id });
-                            await router.invalidate();
+                            try {
+                              await deleteTemplateFn({ data: template.id });
+                              await router.invalidate();
+                              toast.success(`Deleted "${template.name}".`);
+                            } catch (error) {
+                              toast.error(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Template could not be deleted."
+                              );
+                            }
                           }}
                           size="sm"
                           type="button"
