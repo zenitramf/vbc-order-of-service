@@ -33,16 +33,16 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "~/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -115,107 +115,81 @@ const formatServiceDate = (date: string): string =>
 
 const cardKey = (orderId: string, cardId: string) => `${orderId}::${cardId}`;
 
-interface MemberPickerDialogProps {
-  cardName: string;
+interface MemberPickerPaneProps {
   members: TeamMemberSummary[];
-  onClose: () => void;
   onToggleMember: (memberId: string, checked: boolean) => void;
   selectedMemberIds: string[];
-  teamName: string;
 }
 
-const MemberPickerDialog = ({
-  cardName,
+const MemberPickerPane = ({
   members,
-  onClose,
   onToggleMember,
   selectedMemberIds,
-  teamName,
-}: MemberPickerDialogProps) => {
+}: MemberPickerPaneProps) => {
   const [search, setSearch] = React.useState("");
   const visibleMembers = filterTeamMembers(members, search);
 
+  if (members.length === 0) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        No members on this team yet. Add members in Team Management.
+      </p>
+    );
+  }
+
   return (
-    <Dialog
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose();
-        }
-      }}
-      open
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{teamName}</DialogTitle>
-          <DialogDescription>
-            Add or remove members for {cardName}.
-          </DialogDescription>
-        </DialogHeader>
-        {members.length === 0 ? (
+    <div className="flex flex-col gap-3">
+      <Input
+        aria-label="Search members"
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Search by name or email"
+        type="search"
+        value={search}
+      />
+      <div className="flex flex-col gap-2">
+        {visibleMembers.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            No members on this team yet. Add members in Team Management.
+            No members match “{search}”.
           </p>
         ) : (
-          <>
-            <Input
-              aria-label="Search members"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name or email"
-              type="search"
-              value={search}
-            />
-            <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
-              {visibleMembers.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No members match “{search}”.
-                </p>
-              ) : (
-                visibleMembers.map((member) => {
-                  const checked = selectedMemberIds.includes(member.id);
+          visibleMembers.map((member) => {
+            const checked = selectedMemberIds.includes(member.id);
 
-                  return (
-                    <Label
-                      className={cn(
-                        "flex items-center gap-3 rounded-xl border p-2 font-normal",
-                        checked && "border-primary bg-primary/5"
-                      )}
-                      key={member.id}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={(value) =>
-                          onToggleMember(member.id, value === true)
-                        }
-                      />
-                      <MemberAvatar member={member} />
-                      <span className="flex flex-col">
-                        <span className="text-sm">
-                          {member.firstName} {member.lastName}
-                        </span>
-                        {member.email ? (
-                          <span className="text-muted-foreground text-xs">
-                            {member.email}
-                          </span>
-                        ) : null}
-                      </span>
-                    </Label>
-                  );
-                })
-              )}
-            </div>
-            <p className="text-muted-foreground text-xs">
-              {selectedMemberIds.length} selected · {visibleMembers.length} of{" "}
-              {members.length} shown
-            </p>
-          </>
+            return (
+              <Label
+                className={cn(
+                  "flex items-center gap-3 rounded-xl border p-2 font-normal",
+                  checked && "border-primary bg-primary/5"
+                )}
+                key={member.id}
+              >
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(value) =>
+                    onToggleMember(member.id, value === true)
+                  }
+                />
+                <MemberAvatar member={member} />
+                <span className="flex flex-col">
+                  <span className="text-sm">
+                    {member.firstName} {member.lastName}
+                  </span>
+                  {member.email ? (
+                    <span className="text-muted-foreground text-xs">
+                      {member.email}
+                    </span>
+                  ) : null}
+                </span>
+              </Label>
+            );
+          })
         )}
-        <DialogFooter>
-          <Button onClick={onClose} type="button">
-            Done
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        {selectedMemberIds.length} selected · {visibleMembers.length} of{" "}
+        {members.length} shown
+      </p>
+    </div>
   );
 };
 
@@ -329,7 +303,7 @@ const ScheduleDateGroup = ({
   );
 };
 
-interface MonthScheduleDialogProps {
+interface MonthScheduleSheetProps {
   cards: MonthScheduleCard[];
   onClose: () => void;
   onSaved: () => Promise<void> | void;
@@ -338,14 +312,14 @@ interface MonthScheduleDialogProps {
   teamName: string;
 }
 
-const MonthScheduleDialog = ({
+const MonthScheduleSheet = ({
   cards,
   onClose,
   onSaved,
   teamId,
   teamMembers,
   teamName,
-}: MonthScheduleDialogProps) => {
+}: MonthScheduleSheetProps) => {
   const saveSchedule = useServerFn(saveMonthSchedule);
   const [assignments, setAssignments] = React.useState<Map<string, string[]>>(
     () =>
@@ -471,8 +445,34 @@ const MonthScheduleDialog = ({
     ? cards.find((card) => cardKey(card.orderId, card.cardId) === manageKey)
     : undefined;
 
+  const renderScheduleList = () => {
+    if (cardsByDate.length === 0) {
+      return (
+        <p className="text-muted-foreground text-sm">
+          No planned services in this month staff {teamName}. Plan the month
+          first, then assign members here.
+        </p>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-2">
+        {cardsByDate.map(([date, dateCards]) => (
+          <ScheduleDateGroup
+            cards={dateCards}
+            date={date}
+            key={date}
+            memberIdsFor={memberIdsFor}
+            onManage={setManageKey}
+            renderAssigned={renderAssigned}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <Dialog
+    <Sheet
       onOpenChange={(open) => {
         if (!open) {
           onClose();
@@ -480,60 +480,74 @@ const MonthScheduleDialog = ({
       }}
       open
     >
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Schedule {teamName}</DialogTitle>
-          <DialogDescription>
-            Add or modify {teamName} members for every service card in the month
-            where the team is required or optional.
-          </DialogDescription>
-        </DialogHeader>
-        {cardsByDate.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No planned services in this month staff {teamName}. Plan the month
-            first, then assign members here.
-          </p>
-        ) : (
-          <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
-            {cardsByDate.map(([date, dateCards]) => (
-              <ScheduleDateGroup
-                cards={dateCards}
-                date={date}
-                key={date}
-                memberIdsFor={memberIdsFor}
-                onManage={setManageKey}
-                renderAssigned={renderAssigned}
-              />
-            ))}
-          </div>
-        )}
-        <DialogFooter>
-          <Button onClick={onClose} type="button" variant="outline">
-            Cancel
-          </Button>
-          <Button
-            disabled={cards.length === 0 || isSaving}
-            onClick={handleSave}
-            type="button"
-          >
-            {isSaving ? "Saving…" : "Save schedule"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      <SheetContent
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-xl"
+        side="right"
+      >
+        <SheetHeader className="border-b">
+          {manageCard ? (
+            <>
+              <button
+                className="flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
+                onClick={() => setManageKey(null)}
+                type="button"
+              >
+                <CaretLeftIcon className="size-4" />
+                Back to schedule
+              </button>
+              <SheetTitle>{teamName}</SheetTitle>
+              <SheetDescription>
+                Add or remove members for {formatServiceDate(manageCard.date)} ·{" "}
+                {manageCard.cardName}.
+              </SheetDescription>
+            </>
+          ) : (
+            <>
+              <SheetTitle>Schedule {teamName}</SheetTitle>
+              <SheetDescription>
+                Add or modify {teamName} members for every service card in the
+                month where the team is required or optional.
+              </SheetDescription>
+            </>
+          )}
+        </SheetHeader>
 
-      {manageCard ? (
-        <MemberPickerDialog
-          cardName={`${formatServiceDate(manageCard.date)} · ${manageCard.cardName}`}
-          members={membersForTeam(memberIdsFor(manageKey ?? ""))}
-          onClose={() => setManageKey(null)}
-          onToggleMember={(memberId, checked) =>
-            toggleMember(manageKey ?? "", memberId, checked)
-          }
-          selectedMemberIds={memberIdsFor(manageKey ?? "")}
-          teamName={teamName}
-        />
-      ) : null}
-    </Dialog>
+        <div className="flex-1 overflow-y-auto p-6">
+          {manageCard ? (
+            <MemberPickerPane
+              members={membersForTeam(memberIdsFor(manageKey ?? ""))}
+              onToggleMember={(memberId, checked) =>
+                toggleMember(manageKey ?? "", memberId, checked)
+              }
+              selectedMemberIds={memberIdsFor(manageKey ?? "")}
+            />
+          ) : (
+            renderScheduleList()
+          )}
+        </div>
+
+        <SheetFooter className="border-t">
+          {manageCard ? (
+            <Button onClick={() => setManageKey(null)} type="button">
+              Done
+            </Button>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <Button onClick={onClose} type="button" variant="outline">
+                Cancel
+              </Button>
+              <Button
+                disabled={cards.length === 0 || isSaving}
+                onClick={handleSave}
+                type="button"
+              >
+                {isSaving ? "Saving…" : "Save schedule"}
+              </Button>
+            </div>
+          )}
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 };
 
@@ -759,7 +773,7 @@ const MonthPlannerPage = () => {
       </Card>
 
       {openTeam ? (
-        <MonthScheduleDialog
+        <MonthScheduleSheet
           cards={scheduleCards[openTeam.teamId] ?? []}
           onClose={() => setOpenTeamId(null)}
           onSaved={() => router.invalidate()}
