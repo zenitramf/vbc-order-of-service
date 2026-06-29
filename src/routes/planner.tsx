@@ -1,11 +1,14 @@
 // oxlint-disable no-use-before-define
 import {
+  CalendarBlankIcon,
   CalendarPlusIcon,
   CaretLeftIcon,
   CaretRightIcon,
   CheckCircleIcon,
+  DotsThreeVerticalIcon,
   UsersThreeIcon,
   WarningCircleIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import {
   Link,
@@ -33,16 +36,19 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "~/components/ui/sheet";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "~/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -303,7 +309,7 @@ const ScheduleDateGroup = ({
   );
 };
 
-interface MonthScheduleSheetProps {
+interface MonthSchedulePanelProps {
   cards: MonthScheduleCard[];
   onClose: () => void;
   onSaved: () => Promise<void> | void;
@@ -312,14 +318,14 @@ interface MonthScheduleSheetProps {
   teamName: string;
 }
 
-const MonthScheduleSheet = ({
+const MonthSchedulePanel = ({
   cards,
   onClose,
   onSaved,
   teamId,
   teamMembers,
   teamName,
-}: MonthScheduleSheetProps) => {
+}: MonthSchedulePanelProps) => {
   const saveSchedule = useServerFn(saveMonthSchedule);
   const [assignments, setAssignments] = React.useState<Map<string, string[]>>(
     () =>
@@ -485,75 +491,88 @@ const MonthScheduleSheet = ({
     );
   };
 
+  const exitScheduling = async () => {
+    await persist();
+    onClose();
+  };
+
   return (
-    <Sheet
-      onOpenChange={async (open) => {
-        if (!open) {
-          await persist();
-          onClose();
-        }
-      }}
-      open
-    >
-      <SheetContent
-        className="flex w-full flex-col gap-0 p-0 sm:w-1/2 sm:max-w-none"
-        side="right"
-      >
-        <SheetHeader className="border-b">
-          {manageCard ? (
-            <>
-              <button
-                className="flex items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
-                onClick={closePicker}
-                type="button"
-              >
-                <CaretLeftIcon className="size-4" />
-                Back to schedule
-              </button>
-              <SheetTitle>{teamName}</SheetTitle>
-              <SheetDescription>
-                Add or remove members for {formatServiceDate(manageCard.date)} ·{" "}
-                {manageCard.cardName}.
-              </SheetDescription>
-            </>
-          ) : (
-            <>
-              <SheetTitle>Schedule {teamName}</SheetTitle>
-              <SheetDescription>
-                Add or modify {teamName} members for every service card in the
-                month where the team is required or optional. Changes save
-                automatically.
-              </SheetDescription>
-            </>
-          )}
-        </SheetHeader>
-
-        <div className="flex-1 overflow-y-auto p-6">
-          {manageCard ? (
-            <MemberPickerPane
-              members={membersForTeam(memberIdsFor(manageKey ?? ""))}
-              onToggleMember={(memberId, checked) =>
-                toggleMember(manageKey ?? "", memberId, checked)
-              }
-              selectedMemberIds={memberIdsFor(manageKey ?? "")}
-            />
-          ) : (
-            renderScheduleList()
-          )}
+    <div className="flex flex-col overflow-hidden rounded-lg border-2 border-primary bg-primary/5">
+      <div className="flex flex-col gap-3 border-b bg-primary/10 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="flex items-center gap-2 font-medium text-primary text-sm">
+              <UsersThreeIcon className="size-4" />
+              Scheduling mode
+            </span>
+            {manageCard ? (
+              <>
+                <p className="font-heading font-semibold text-lg">{teamName}</p>
+                <p className="text-muted-foreground text-sm">
+                  Add or remove members for {formatServiceDate(manageCard.date)}{" "}
+                  · {manageCard.cardName}.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-heading font-semibold text-lg">
+                  Schedule {teamName}
+                </p>
+                <p className="text-muted-foreground text-sm">
+                  Add or modify {teamName} members for every service card where
+                  the team is required or optional. Changes save automatically.
+                </p>
+              </>
+            )}
+          </div>
+          <Button
+            disabled={isSaving}
+            onClick={exitScheduling}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <XIcon data-icon="inline-start" />
+            Exit scheduling
+          </Button>
         </div>
+        {manageCard ? (
+          <button
+            className="flex w-fit items-center gap-1 text-muted-foreground text-sm hover:text-foreground"
+            onClick={closePicker}
+            type="button"
+          >
+            <CaretLeftIcon className="size-4" />
+            Back to schedule
+          </button>
+        ) : null}
+      </div>
 
-        <SheetFooter className="flex-row items-center justify-between border-t">
-          <span className="text-muted-foreground text-xs">
-            {isSaving ? "Saving…" : "Changes save automatically"}
-          </span>
-          {manageCard ? (
-            <Button disabled={isSaving} onClick={closePicker} type="button">
-              Done
-            </Button>
-          ) : null}
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+      <div className="bg-background p-4">
+        {manageCard ? (
+          <MemberPickerPane
+            members={membersForTeam(memberIdsFor(manageKey ?? ""))}
+            onToggleMember={(memberId, checked) =>
+              toggleMember(manageKey ?? "", memberId, checked)
+            }
+            selectedMemberIds={memberIdsFor(manageKey ?? "")}
+          />
+        ) : (
+          renderScheduleList()
+        )}
+      </div>
+
+      <div className="flex items-center justify-between border-t bg-primary/10 px-4 py-3">
+        <span className="text-muted-foreground text-xs">
+          {isSaving ? "Saving…" : "Changes save automatically"}
+        </span>
+        {manageCard ? (
+          <Button disabled={isSaving} onClick={closePicker} type="button">
+            Done
+          </Button>
+        ) : null}
+      </div>
+    </div>
   );
 };
 
@@ -575,6 +594,10 @@ const MonthPlannerPage = () => {
 
   const goToMonth = (next: string) => {
     void navigate({ search: { month: next }, to: "/planner" });
+  };
+
+  const openOrder = (orderId: string) => {
+    void navigate({ params: { orderId }, to: "/orders/$orderId" });
   };
 
   const handlePlanMonth = async () => {
@@ -601,6 +624,99 @@ const MonthPlannerPage = () => {
     ? scheduleTargets.find((target) => target.teamId === openTeamId)
     : undefined;
 
+  const plannedServices =
+    serviceDates.length === 0 ? (
+      <p className="text-muted-foreground text-sm">
+        No weekdays are configured for pre-population.{" "}
+        <Link className="underline" to="/settings">
+          Configure the Month Planner
+        </Link>{" "}
+        to choose which days to plan.
+      </p>
+    ) : (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Template</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {serviceDates.map((entry) => {
+            const hasOrder = Boolean(entry.order);
+
+            return (
+              <TableRow
+                className={hasOrder ? "cursor-pointer" : undefined}
+                key={entry.date}
+                onClick={() => {
+                  if (entry.order) {
+                    openOrder(entry.order.id);
+                  }
+                }}
+              >
+                <TableCell className="whitespace-nowrap font-medium">
+                  {formatServiceDate(entry.date)}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary">
+                    {entry.templateName || "Template missing"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {entry.order ? (
+                    <Badge
+                      variant={
+                        entry.order.status === "Published"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
+                      {entry.order.status}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline">Not planned</Badge>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  {hasOrder ? (
+                    <div className="flex justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            aria-label="Service actions"
+                            onClick={(event) => event.stopPropagation()}
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <DotsThreeVerticalIcon />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onSelect={() => openOrder(entry.order?.id ?? "")}
+                          >
+                            Manage
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">
+                      Plan month to create
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    );
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -608,8 +724,8 @@ const MonthPlannerPage = () => {
           Month Planner
         </h1>
         <p className="text-muted-foreground">
-          Pre-populate a month of services and schedule teams such as ushers and
-          counters across the whole month.
+          Create and review upcoming services for the month, then assign teams
+          to each service card.
         </p>
       </div>
 
@@ -626,9 +742,11 @@ const MonthPlannerPage = () => {
               >
                 <CaretLeftIcon />
               </Button>
-              <CardTitle className="min-w-44 text-center text-xl">
-                {formatMonthLabel(month)}
-              </CardTitle>
+              <div className="flex min-w-44 items-center justify-center text-center">
+                <CardTitle className="text-xl">
+                  {formatMonthLabel(month)}
+                </CardTitle>
+              </div>
               <Button
                 aria-label="Next month"
                 onClick={() => goToMonth(shiftMonth(month, 1))}
@@ -638,22 +756,40 @@ const MonthPlannerPage = () => {
               >
                 <CaretRightIcon />
               </Button>
-              <div className="relative ml-1">
-                <Input
-                  aria-label="Jump to month"
-                  className="w-40"
-                  onChange={(event) => {
-                    if (isValidMonth(event.target.value)) {
-                      goToMonth(event.target.value);
-                    }
-                  }}
-                  type="month"
-                  value={month}
-                />
-              </div>
-              {month === getCurrentMonth() ? (
-                <Badge variant="secondary">Current month</Badge>
-              ) : null}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    aria-label="Jump to month"
+                    size="icon"
+                    type="button"
+                    variant="outline"
+                  >
+                    <CalendarBlankIcon />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-auto p-3">
+                  <Input
+                    aria-label="Jump to month"
+                    onChange={(event) => {
+                      if (isValidMonth(event.target.value)) {
+                        goToMonth(event.target.value);
+                      }
+                    }}
+                    type="month"
+                    value={month}
+                  />
+                </PopoverContent>
+              </Popover>
+              {month === getCurrentMonth() ? null : (
+                <Button
+                  onClick={() => goToMonth(getCurrentMonth())}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Today
+                </Button>
+              )}
             </div>
             {missingCount > 0 ? (
               <Button
@@ -694,100 +830,43 @@ const MonthPlannerPage = () => {
             <div className="flex flex-col gap-2">
               <p className="font-medium text-sm">Schedule a team</p>
               <div className="flex flex-wrap gap-2">
-                {scheduleTargets.map((target) => (
-                  <Button
-                    key={target.teamId}
-                    onClick={() => setOpenTeamId(target.teamId)}
-                    size="sm"
-                    type="button"
-                    variant="secondary"
-                  >
-                    <UsersThreeIcon data-icon="inline-start" />
-                    {target.teamName}
-                  </Button>
-                ))}
+                {scheduleTargets.map((target) => {
+                  const isActive = openTeamId === target.teamId;
+
+                  return (
+                    <Button
+                      key={target.teamId}
+                      onClick={() =>
+                        setOpenTeamId(isActive ? null : target.teamId)
+                      }
+                      size="sm"
+                      type="button"
+                      variant={isActive ? "default" : "secondary"}
+                    >
+                      <UsersThreeIcon data-icon="inline-start" />
+                      {target.teamName}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
           ) : null}
 
-          {serviceDates.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              No weekdays are configured for pre-population.{" "}
-              <Link className="underline" to="/settings">
-                Configure the Month Planner
-              </Link>{" "}
-              to choose which days to plan.
-            </p>
+          {openTeam ? (
+            <MonthSchedulePanel
+              cards={scheduleCards[openTeam.teamId] ?? []}
+              key={openTeam.teamId}
+              onClose={() => setOpenTeamId(null)}
+              onSaved={() => router.invalidate()}
+              teamId={openTeam.teamId}
+              teamMembers={teamMembers}
+              teamName={openTeam.teamName}
+            />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Template</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {serviceDates.map((entry) => (
-                  <TableRow key={entry.date}>
-                    <TableCell className="whitespace-nowrap font-medium">
-                      {formatServiceDate(entry.date)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {entry.templateName || "Template missing"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {entry.order ? (
-                        <Badge
-                          variant={
-                            entry.order.status === "Published"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {entry.order.status}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">Not planned</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {entry.order ? (
-                        <Button asChild size="sm" variant="outline">
-                          <Link
-                            params={{ orderId: entry.order.id }}
-                            to="/orders/$orderId"
-                          >
-                            Open
-                          </Link>
-                        </Button>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">
-                          Plan month to create
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            plannedServices
           )}
         </CardContent>
       </Card>
-
-      {openTeam ? (
-        <MonthScheduleSheet
-          cards={scheduleCards[openTeam.teamId] ?? []}
-          onClose={() => setOpenTeamId(null)}
-          onSaved={() => router.invalidate()}
-          teamId={openTeam.teamId}
-          teamMembers={teamMembers}
-          teamName={openTeam.teamName}
-        />
-      ) : null}
     </div>
   );
 };
