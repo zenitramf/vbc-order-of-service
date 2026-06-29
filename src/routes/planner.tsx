@@ -3,6 +3,7 @@ import {
   CalendarPlusIcon,
   CaretLeftIcon,
   CaretRightIcon,
+  CheckCircleIcon,
   UsersThreeIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
@@ -21,6 +22,11 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Checkbox } from "~/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "~/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -196,6 +202,116 @@ const MemberPickerDialog = ({
   );
 };
 
+interface ScheduleDateGroupProps {
+  cards: MonthScheduleCard[];
+  date: string;
+  memberIdsFor: (key: string) => string[];
+  onManage: (key: string) => void;
+  renderAssigned: (key: string) => React.ReactNode;
+}
+
+const ScheduleDateGroup = ({
+  cards,
+  date,
+  memberIdsFor,
+  onManage,
+  renderAssigned,
+}: ScheduleDateGroupProps) => {
+  const needsAssignment = cards.some(
+    (card) =>
+      card.required &&
+      memberIdsFor(cardKey(card.orderId, card.cardId)).length <
+        card.requiredCount
+  );
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <Collapsible
+      className="rounded-lg border"
+      onOpenChange={setOpen}
+      open={open}
+    >
+      <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 p-3 text-left">
+        <span className="flex items-center gap-2 font-medium">
+          <CaretRightIcon
+            className={cn("size-4 transition-transform", open && "rotate-90")}
+          />
+          {formatServiceDate(date)}
+        </span>
+        {needsAssignment ? (
+          <Badge variant="destructive">
+            <WarningCircleIcon />
+            Needs assignment
+          </Badge>
+        ) : (
+          <Badge variant="secondary">
+            <CheckCircleIcon />
+            All assigned
+          </Badge>
+        )}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Card</TableHead>
+              <TableHead>Assigned members</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {cards.map((card) => {
+              const key = cardKey(card.orderId, card.cardId);
+              const assignedCount = memberIdsFor(key).length;
+              const isMissing =
+                card.required && assignedCount < card.requiredCount;
+
+              return (
+                <TableRow
+                  className="cursor-pointer"
+                  key={key}
+                  onClick={() => onManage(key)}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {card.cardName}
+                      {card.required ? (
+                        <Badge variant="secondary">Required</Badge>
+                      ) : (
+                        <Badge variant="outline">Optional</Badge>
+                      )}
+                      {isMissing ? (
+                        <WarningCircleIcon
+                          aria-label="Needs a member"
+                          className="size-4 text-destructive"
+                        />
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell>{renderAssigned(key)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onManage(key);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Manage
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
+
 interface MonthScheduleDialogProps {
   cards: MonthScheduleCard[];
   onClose: () => void;
@@ -230,6 +346,22 @@ const MonthScheduleDialog = ({
     () => new Map(teamMembers.map((member) => [member.id, member])),
     [teamMembers]
   );
+
+  // Group the team's staffable cards by date for the collapsible day sections.
+  const cardsByDate = React.useMemo(() => {
+    const byDate = new Map<string, MonthScheduleCard[]>();
+
+    for (const card of cards) {
+      const list = byDate.get(card.date) ?? [];
+      list.push(card);
+      byDate.set(card.date, list);
+    }
+
+    // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target does not include toSorted.
+    return [...byDate.entries()].sort((first, second) =>
+      first[0].localeCompare(second[0])
+    );
+  }, [cards]);
 
   const memberIdsFor = (key: string) => assignments.get(key) ?? [];
 
@@ -332,76 +464,23 @@ const MonthScheduleDialog = ({
             where the team is required or optional.
           </DialogDescription>
         </DialogHeader>
-        {cards.length === 0 ? (
+        {cardsByDate.length === 0 ? (
           <p className="text-muted-foreground text-sm">
             No planned services in this month staff {teamName}. Plan the month
             first, then assign members here.
           </p>
         ) : (
-          <div className="max-h-[60vh] overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead>Card</TableHead>
-                  <TableHead>Assigned members</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {cards.map((card) => {
-                  const key = cardKey(card.orderId, card.cardId);
-                  const assignedCount = memberIdsFor(key).length;
-                  const isMissing =
-                    card.required && assignedCount < card.requiredCount;
-
-                  return (
-                    <TableRow key={key}>
-                      <TableCell className="whitespace-nowrap">
-                        {formatServiceDate(card.date)}
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          className="hover:underline"
-                          params={{ orderId: card.orderId }}
-                          to="/orders/$orderId"
-                        >
-                          {card.orderTitle}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {card.cardName}
-                          {card.required ? (
-                            <Badge variant="secondary">Required</Badge>
-                          ) : (
-                            <Badge variant="outline">Optional</Badge>
-                          )}
-                          {isMissing ? (
-                            <WarningCircleIcon
-                              aria-label="Needs a member"
-                              className="size-4 text-destructive"
-                            />
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell>{renderAssigned(key)}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          onClick={() => setManageKey(key)}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          Manage
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto">
+            {cardsByDate.map(([date, dateCards]) => (
+              <ScheduleDateGroup
+                cards={dateCards}
+                date={date}
+                key={date}
+                memberIdsFor={memberIdsFor}
+                onManage={setManageKey}
+                renderAssigned={renderAssigned}
+              />
+            ))}
           </div>
         )}
         <DialogFooter>

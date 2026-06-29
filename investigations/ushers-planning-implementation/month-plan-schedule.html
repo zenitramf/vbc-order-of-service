@@ -67,9 +67,13 @@
             <strong>Template-driven schedule targets</strong> &mdash; the team
             button bar and the monthly schedule dialog are derived from the
             required and optional teams on each assigned template's service
-            cards. The dialog shows every matching card across the month and
-            supports adding <em>and modifying</em> existing assignments, saved
-            in a single batched update of the affected orders' JSON.
+            cards. The schedule dialog groups the month by date as collapsible
+            sections (collapsed by default, each showing an
+            <em>All assigned</em> / <em>Needs assignment</em> status); expanding
+            a date reveals a datagrid of its applicable cards (no date column),
+            and clicking a row opens the member picker to add
+            <em>and modify</em> assignments. Changes save in a single batched
+            update of the affected orders' JSON.
           </li>
           <li>
             <strong>Template delete protection</strong> &mdash; templates
