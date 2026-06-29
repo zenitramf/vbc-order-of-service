@@ -72,6 +72,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import {
@@ -110,6 +111,12 @@ import type {
   TeamMemberSummary,
   TeamSummary,
 } from "~/lib/order-service-types";
+import {
+  MAX_REQUIRED_TEAM_COUNT,
+  REQUIRED_TEAM_MINIMUM,
+  clampRequiredTeamCount,
+  getRequiredTeamCount,
+} from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
 
 interface HymnComboboxOption {
@@ -755,19 +762,10 @@ const SegmentActivitiesTable = ({
   );
 };
 
-type TeamRole = "none" | "optional" | "required";
+type TeamRole = "optional" | "required";
 
-const getTeamRole = (segment: ServiceTypeCard, teamId: string): TeamRole => {
-  if (segment.requiredTeamIds?.includes(teamId)) {
-    return "required";
-  }
-
-  if (segment.optionalTeamIds?.includes(teamId)) {
-    return "optional";
-  }
-
-  return "none";
-};
+const getTeamRole = (segment: ServiceTypeCard, teamId: string): TeamRole =>
+  segment.requiredTeamIds?.includes(teamId) ? "required" : "optional";
 
 const setTeamRole = (
   segment: ServiceTypeCard,
@@ -781,16 +779,220 @@ const setTeamRole = (
 
   if (role === "required") {
     required.add(teamId);
-  } else if (role === "optional") {
+  } else {
     optional.add(teamId);
   }
+
+  // Drop any stored count when a team is no longer required so stale amounts
+  // never linger.
+  const requiredTeamCounts = Object.fromEntries(
+    Object.entries(segment.requiredTeamCounts ?? {}).filter(
+      ([id]) => id !== teamId || role === "required"
+    )
+  );
 
   return {
     ...segment,
     optionalTeamIds: [...optional],
+    requiredTeamCounts,
     requiredTeamIds: [...required],
   };
 };
+
+const setTeamCount = (
+  segment: ServiceTypeCard,
+  teamId: string,
+  count: number
+): ServiceTypeCard => ({
+  ...segment,
+  requiredTeamCounts: {
+    ...segment.requiredTeamCounts,
+    [teamId]: clampRequiredTeamCount(count),
+  },
+});
+
+const removeTeamFromSegment = (
+  segment: ServiceTypeCard,
+  teamId: string
+): ServiceTypeCard => ({
+  ...segment,
+  optionalTeamIds: (segment.optionalTeamIds ?? []).filter(
+    (id) => id !== teamId
+  ),
+  requiredTeamCounts: Object.fromEntries(
+    Object.entries(segment.requiredTeamCounts ?? {}).filter(
+      ([id]) => id !== teamId
+    )
+  ),
+  requiredTeamIds: (segment.requiredTeamIds ?? []).filter(
+    (id) => id !== teamId
+  ),
+});
+
+interface TeamDefinitionRow {
+  count: number;
+  role: TeamRole;
+  team: TeamSummary;
+}
+
+interface TeamDefinitionColumnsOptions {
+  onEdit: (teamId: string) => void;
+  onRemove: (teamId: string) => void;
+}
+
+const createTeamDefinitionColumns = ({
+  onEdit,
+  onRemove,
+}: TeamDefinitionColumnsOptions): ColumnDef<TeamDefinitionRow>[] => [
+  {
+    accessorFn: (row) => row.team.name,
+    cell: ({ row }) => (
+      <div className="flex flex-col">
+        <span className="font-medium">{row.original.team.name}</span>
+        {row.original.team.parentName ? (
+          <span className="text-muted-foreground text-xs">
+            {row.original.team.parentName}
+          </span>
+        ) : null}
+      </div>
+    ),
+    header: "Team",
+    id: "team",
+  },
+  {
+    cell: ({ row }) =>
+      row.original.role === "required" ? (
+        <Badge variant="secondary">Required</Badge>
+      ) : (
+        <Badge variant="outline">Optional</Badge>
+      ),
+    header: "Requirement",
+    id: "requirement",
+  },
+  {
+    cell: ({ row }) =>
+      row.original.role === "required" ? (
+        <span className="tabular-nums">{row.original.count}</span>
+      ) : (
+        <span className="text-muted-foreground text-sm">—</span>
+      ),
+    header: "Members required",
+    id: "amount",
+  },
+  {
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label="Team actions"
+              onClick={(event) => event.stopPropagation()}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <DotsThreeVerticalIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => onEdit(row.original.team.id)}>
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onSelect={() => onRemove(row.original.team.id)}
+            >
+              <TrashIcon data-icon="inline-start" />
+              Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    ),
+    header: () => <span className="sr-only">Actions</span>,
+    id: "actions",
+  },
+];
+
+const SegmentTeamEditDialog = ({
+  count,
+  onChangeCount,
+  onChangeRole,
+  onClose,
+  role,
+  team,
+}: {
+  count: number;
+  onChangeCount: (count: number) => void;
+  onChangeRole: (role: TeamRole) => void;
+  onClose: () => void;
+  role: TeamRole;
+  team: TeamSummary;
+}) => (
+  <Dialog
+    onOpenChange={(open) => {
+      if (!open) {
+        onClose();
+      }
+    }}
+    open
+  >
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>{team.name}</DialogTitle>
+        <DialogDescription>
+          {team.parentName
+            ? `Part of ${team.parentName}. Set how this team is used on this service card.`
+            : "Set how this team is used on this service card."}
+        </DialogDescription>
+      </DialogHeader>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor={`${team.id}-requirement`}>
+            Requirement
+          </FieldLabel>
+          <NativeSelect
+            className="w-full"
+            id={`${team.id}-requirement`}
+            onChange={(event) => onChangeRole(event.target.value as TeamRole)}
+            value={role}
+          >
+            <NativeSelectOption value="optional">Optional</NativeSelectOption>
+            <NativeSelectOption value="required">Required</NativeSelectOption>
+          </NativeSelect>
+          <FieldDescription>
+            Optional teams are suggestions. Required teams must be staffed
+            before the order can be published.
+          </FieldDescription>
+        </Field>
+        {role === "required" ? (
+          <Field>
+            <FieldLabel htmlFor={`${team.id}-amount`}>
+              Members required
+            </FieldLabel>
+            <Input
+              id={`${team.id}-amount`}
+              max={MAX_REQUIRED_TEAM_COUNT}
+              min={REQUIRED_TEAM_MINIMUM}
+              onChange={(event) => onChangeCount(Number(event.target.value))}
+              type="number"
+              value={count}
+            />
+            <FieldDescription>
+              The order can’t be published until this many members are assigned
+              to {team.name} (max {MAX_REQUIRED_TEAM_COUNT}).
+            </FieldDescription>
+          </Field>
+        ) : null}
+      </FieldGroup>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button">Done</Button>
+        </DialogClose>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+);
 
 const SegmentTeamDefinition = ({
   onUpdateSegment,
@@ -800,49 +1002,155 @@ const SegmentTeamDefinition = ({
   onUpdateSegment: (segment: ServiceTypeCard) => void;
   segment: ServiceTypeCard;
   teams: TeamSummary[];
-}) => (
-  <div className="flex flex-col gap-3">
-    <div>
-      <CardTitle className="text-base">Teams</CardTitle>
-      <CardDescription>
-        Mark teams as required or optional for this service card. Required teams
-        must be staffed before an order can be published.
-      </CardDescription>
-    </div>
-    <div className="grid gap-2 md:grid-cols-2">
-      {teams.map((team) => (
-        <div
-          className="flex items-center justify-between gap-3 rounded-xl border bg-background/50 px-3 py-2"
-          key={team.id}
-        >
-          <span className="text-sm">
-            {team.name}
-            {team.parentName ? (
-              <span className="text-muted-foreground">
-                {" "}
-                · {team.parentName}
-              </span>
-            ) : null}
-          </span>
-          <NativeSelect
-            aria-label={`${team.name} requirement`}
-            className="w-32"
-            onChange={(event) =>
-              onUpdateSegment(
-                setTeamRole(segment, team.id, event.target.value as TeamRole)
-              )
-            }
-            value={getTeamRole(segment, team.id)}
-          >
-            <NativeSelectOption value="none">Not used</NativeSelectOption>
-            <NativeSelectOption value="optional">Optional</NativeSelectOption>
-            <NativeSelectOption value="required">Required</NativeSelectOption>
-          </NativeSelect>
+}) => {
+  const [editTeamId, setEditTeamId] = React.useState<string | null>(null);
+
+  const configuredTeamIds = React.useMemo(
+    () =>
+      new Set([
+        ...(segment.requiredTeamIds ?? []),
+        ...(segment.optionalTeamIds ?? []),
+      ]),
+    [segment.optionalTeamIds, segment.requiredTeamIds]
+  );
+
+  const rows = React.useMemo<TeamDefinitionRow[]>(
+    () =>
+      teams
+        .filter((team) => configuredTeamIds.has(team.id))
+        .map((team) => ({
+          count: getRequiredTeamCount(segment, team.id),
+          role: getTeamRole(segment, team.id),
+          team,
+        })),
+    [configuredTeamIds, segment, teams]
+  );
+
+  const availableTeams = teams.filter(
+    (team) => !configuredTeamIds.has(team.id)
+  );
+
+  const columns = React.useMemo(
+    () =>
+      createTeamDefinitionColumns({
+        onEdit: setEditTeamId,
+        onRemove: (teamId) =>
+          onUpdateSegment(removeTeamFromSegment(segment, teamId)),
+      }),
+    [onUpdateSegment, segment]
+  );
+
+  const table = useReactTable({
+    columns,
+    data: rows,
+    getCoreRowModel: getCoreRowModel(),
+    getRowId: (row) => row.team.id,
+  });
+
+  const editTeam = teams.find((team) => team.id === editTeamId);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <CardTitle className="text-base">Teams</CardTitle>
+          <CardDescription>
+            Add the teams that should appear on this service card in new orders,
+            and mark each optional or required. Required teams must be staffed
+            before an order can be published. Click a row to edit a team.
+          </CardDescription>
         </div>
-      ))}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={availableTeams.length === 0}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <PlusIcon data-icon="inline-start" />
+              Add team
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>
+              {availableTeams.length === 0 ? "All teams added" : "Add a team"}
+            </DropdownMenuLabel>
+            {availableTeams.map((team) => (
+              <DropdownMenuItem
+                key={team.id}
+                onSelect={() =>
+                  onUpdateSegment(setTeamRole(segment, team.id, "optional"))
+                }
+              >
+                {team.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id}>
+                  {flexRender(
+                    header.column.columnDef.header,
+                    header.getContext()
+                  )}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.length === 0 ? (
+            <TableRow>
+              <TableCell
+                className="text-muted-foreground"
+                colSpan={columns.length}
+              >
+                No teams added yet. Use “Add team” to choose which teams appear
+                on this card.
+              </TableCell>
+            </TableRow>
+          ) : (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                className="cursor-pointer"
+                key={row.id}
+                onClick={() => setEditTeamId(row.original.team.id)}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+
+      {editTeam ? (
+        <SegmentTeamEditDialog
+          count={getRequiredTeamCount(segment, editTeam.id)}
+          key={editTeam.id}
+          onChangeCount={(count) =>
+            onUpdateSegment(setTeamCount(segment, editTeam.id, count))
+          }
+          onChangeRole={(role) =>
+            onUpdateSegment(setTeamRole(segment, editTeam.id, role))
+          }
+          onClose={() => setEditTeamId(null)}
+          role={getTeamRole(segment, editTeam.id)}
+          team={editTeam}
+        />
+      ) : null}
     </div>
-  </div>
-);
+  );
+};
 
 const SegmentEditor = ({
   activityTypes,

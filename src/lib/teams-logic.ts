@@ -147,6 +147,34 @@ const uniqueStrings = (values: string[]): string[] => [
   ...new Set(values.filter(Boolean)),
 ];
 
+/** Minimum members a required team needs before an order can be published. */
+export const REQUIRED_TEAM_MINIMUM = 1;
+
+/** Most members a required team can demand before an order can be published. */
+export const MAX_REQUIRED_TEAM_COUNT = 10;
+
+/** Clamp a required-member count into the supported 1-10 range. */
+export const clampRequiredTeamCount = (count: number): number =>
+  Math.min(
+    MAX_REQUIRED_TEAM_COUNT,
+    Math.max(REQUIRED_TEAM_MINIMUM, Math.round(count))
+  );
+
+/**
+ * Members a required team needs on a card before an order can be published.
+ * Falls back to the minimum of one when the template has not set a count.
+ */
+export const getRequiredTeamCount = (
+  card: ServiceTypeCard,
+  teamId: string
+): number => {
+  const count = card.requiredTeamCounts?.[teamId];
+
+  return count === undefined
+    ? REQUIRED_TEAM_MINIMUM
+    : clampRequiredTeamCount(count);
+};
+
 /**
  * Normalize the team-related fields of a service card so persisted data stays
  * tidy: dedupe team ids, drop optional teams that are also required, and merge
@@ -158,7 +186,10 @@ export const normalizeServiceCardTeams = (
   card: ServiceTypeCard
 ): Pick<
   ServiceTypeCard,
-  "optionalTeamIds" | "requiredTeamIds" | "teamAssignments"
+  | "optionalTeamIds"
+  | "requiredTeamCounts"
+  | "requiredTeamIds"
+  | "teamAssignments"
 > => {
   const requiredTeamIds = uniqueStrings(card.requiredTeamIds ?? []);
   const optionalTeamIds = uniqueStrings(card.optionalTeamIds ?? []).filter(
@@ -179,11 +210,25 @@ export const normalizeServiceCardTeams = (
     teamId,
   }));
 
-  return { optionalTeamIds, requiredTeamIds, teamAssignments };
-};
+  // Keep required-member counts only for teams that are still required, and
+  // clamp each into the supported range so stray values never persist.
+  const requiredTeamCounts: Record<string, number> = {};
 
-/** Minimum members a required team needs before an order can be published. */
-export const REQUIRED_TEAM_MINIMUM = 1;
+  for (const teamId of requiredTeamIds) {
+    const count = card.requiredTeamCounts?.[teamId];
+
+    if (count !== undefined && count !== REQUIRED_TEAM_MINIMUM) {
+      requiredTeamCounts[teamId] = clampRequiredTeamCount(count);
+    }
+  }
+
+  return {
+    optionalTeamIds,
+    requiredTeamCounts,
+    requiredTeamIds,
+    teamAssignments,
+  };
+};
 
 /** Whether a team is marked required on a service card. */
 export const isTeamRequired = (
@@ -339,7 +384,7 @@ export const findMissingRequiredTeams = (
     for (const teamId of card.requiredTeamIds ?? []) {
       if (
         countValidAssignedMembers(card, teamId, membersByTeam) <
-        REQUIRED_TEAM_MINIMUM
+        getRequiredTeamCount(card, teamId)
       ) {
         missing.push({
           cardId: card.id,

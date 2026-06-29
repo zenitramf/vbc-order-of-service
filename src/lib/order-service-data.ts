@@ -2105,7 +2105,11 @@ export const saveTeam = createServerFn({ method: "POST" })
   });
 
 const cardReferencesTeam = (
-  card: { optionalTeamIds?: string[]; requiredTeamIds?: string[]; teamAssignments?: { teamId: string }[] },
+  card: {
+    optionalTeamIds?: string[];
+    requiredTeamIds?: string[];
+    teamAssignments?: { teamId: string }[];
+  },
   teamId: string
 ): boolean =>
   (card.requiredTeamIds ?? []).includes(teamId) ||

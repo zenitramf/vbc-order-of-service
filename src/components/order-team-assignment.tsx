@@ -43,12 +43,12 @@ import type {
   TeamSummary,
 } from "~/lib/order-service-types";
 import {
-  REQUIRED_TEAM_MINIMUM,
   addTeamAssignment,
   filterTeamMembers,
   getAssignmentMemberIds,
   getCardTeamIds,
   getInitials,
+  getRequiredTeamCount,
   isTeamConfigured,
   isTeamOptional,
   isTeamRequired,
@@ -59,20 +59,26 @@ import { cn } from "~/lib/utils";
 
 const MAX_VISIBLE_AVATARS = 4;
 
-const requirementBadgeVariant = (required: boolean, assignedCount: number) => {
+const requirementBadgeVariant = (
+  required: boolean,
+  assignedCount: number,
+  requiredCount: number
+) => {
   if (!required) {
     return "secondary" as const;
   }
 
-  return assignedCount < REQUIRED_TEAM_MINIMUM
+  return assignedCount < requiredCount
     ? ("destructive" as const)
     : ("default" as const);
 };
 
-const requirementBadgeLabel = (required: boolean, assignedCount: number) =>
-  required
-    ? `${assignedCount}/${REQUIRED_TEAM_MINIMUM}`
-    : `${assignedCount} assigned`;
+const requirementBadgeLabel = (
+  required: boolean,
+  assignedCount: number,
+  requiredCount: number
+) =>
+  required ? `${assignedCount}/${requiredCount}` : `${assignedCount} assigned`;
 
 const MemberAvatar = ({
   member,
@@ -95,6 +101,7 @@ interface TeamAssignmentRowProps {
   optional: boolean;
   removable: boolean;
   required: boolean;
+  requiredCount: number;
   teamName: string;
 }
 
@@ -105,10 +112,11 @@ const TeamAssignmentRow = ({
   optional,
   removable,
   required,
+  requiredCount,
   teamName,
 }: TeamAssignmentRowProps) => {
   const assignedCount = assignedMembers.length;
-  const isMissing = required && assignedCount < REQUIRED_TEAM_MINIMUM;
+  const isMissing = required && assignedCount < requiredCount;
 
   return (
     <TableRow>
@@ -148,8 +156,14 @@ const TeamAssignmentRow = ({
         )}
       </TableCell>
       <TableCell>
-        <Badge variant={requirementBadgeVariant(required, assignedCount)}>
-          {requirementBadgeLabel(required, assignedCount)}
+        <Badge
+          variant={requirementBadgeVariant(
+            required,
+            assignedCount,
+            requiredCount
+          )}
+        >
+          {requirementBadgeLabel(required, assignedCount, requiredCount)}
         </Badge>
       </TableCell>
       <TableCell className="text-right">
@@ -180,6 +194,7 @@ interface TeamMemberDialogProps {
   onClose: () => void;
   onToggleMember: (memberId: string, checked: boolean) => void;
   required: boolean;
+  requiredCount: number;
   teamName: string;
 }
 
@@ -190,6 +205,7 @@ const TeamMemberDialog = ({
   onClose,
   onToggleMember,
   required,
+  requiredCount,
   teamName,
 }: TeamMemberDialogProps) => {
   const [search, setSearch] = React.useState("");
@@ -211,10 +227,15 @@ const TeamMemberDialog = ({
             <Badge
               variant={requirementBadgeVariant(
                 required,
-                assignedMemberIds.length
+                assignedMemberIds.length,
+                requiredCount
               )}
             >
-              {requirementBadgeLabel(required, assignedMemberIds.length)}
+              {requirementBadgeLabel(
+                required,
+                assignedMemberIds.length,
+                requiredCount
+              )}
             </Badge>
           </div>
           <DialogDescription>
@@ -386,17 +407,17 @@ export const OrderTeamAssignment = ({
             {availableTeams.length === 0
               ? null
               : availableTeams.map((team) => (
-                <DropdownMenuItem
-                  key={team.id}
-                  onSelect={() =>
-                    updateTeamAssignments(
-                      addTeamAssignment(segment.teamAssignments, team.id)
-                    )
-                  }
-                >
-                  {team.name}
-                </DropdownMenuItem>
-              ))}
+                  <DropdownMenuItem
+                    key={team.id}
+                    onSelect={() =>
+                      updateTeamAssignments(
+                        addTeamAssignment(segment.teamAssignments, team.id)
+                      )
+                    }
+                  >
+                    {team.name}
+                  </DropdownMenuItem>
+                ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -431,6 +452,7 @@ export const OrderTeamAssignment = ({
                 optional={isTeamOptional(segment, teamId)}
                 removable={!isTeamConfigured(segment, teamId)}
                 required={isTeamRequired(segment, teamId)}
+                requiredCount={getRequiredTeamCount(segment, teamId)}
                 teamName={teamsById.get(teamId)?.name ?? teamId}
               />
             ))
@@ -448,6 +470,7 @@ export const OrderTeamAssignment = ({
             handleToggleMember(openTeamId, memberId, checked)
           }
           required={isTeamRequired(segment, openTeamId)}
+          requiredCount={getRequiredTeamCount(segment, openTeamId)}
           teamName={teamsById.get(openTeamId)?.name ?? openTeamId}
         />
       ) : null}

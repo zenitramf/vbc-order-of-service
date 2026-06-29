@@ -15,6 +15,7 @@ import {
   getAssignmentMemberIds,
   getCardTeamIds,
   getInitials,
+  getRequiredTeamCount,
   hasMissingRequiredTeams,
   isTeamConfigured,
   isTeamOptional,
@@ -207,12 +208,75 @@ describe("normalizeServiceCardTeams", () => {
     ]);
   });
 
-  it("defaults missing fields to empty arrays", () => {
+  it("defaults missing fields to empty collections", () => {
     expect(normalizeServiceCardTeams(card())).toEqual({
       optionalTeamIds: [],
+      requiredTeamCounts: {},
       requiredTeamIds: [],
       teamAssignments: [],
     });
+  });
+
+  it("keeps required counts only for required teams and clamps them", () => {
+    const result = normalizeServiceCardTeams(
+      card({
+        optionalTeamIds: ["singers"],
+        requiredTeamCounts: {
+          dropped: 4,
+          musicians: 25,
+          singers: 3,
+        },
+        requiredTeamIds: ["musicians"],
+      })
+    );
+
+    expect(result.requiredTeamCounts).toEqual({ musicians: 10 });
+  });
+
+  it("omits required counts equal to the minimum of one", () => {
+    const result = normalizeServiceCardTeams(
+      card({
+        requiredTeamCounts: { musicians: 1 },
+        requiredTeamIds: ["musicians"],
+      })
+    );
+
+    expect(result.requiredTeamCounts).toEqual({});
+  });
+});
+
+describe("getRequiredTeamCount", () => {
+  it("falls back to the minimum of one when unset", () => {
+    expect(
+      getRequiredTeamCount(
+        card({ requiredTeamIds: ["musicians"] }),
+        "musicians"
+      )
+    ).toBe(1);
+  });
+
+  it("returns the configured count", () => {
+    const value = card({
+      requiredTeamCounts: { musicians: 3 },
+      requiredTeamIds: ["musicians"],
+    });
+
+    expect(getRequiredTeamCount(value, "musicians")).toBe(3);
+  });
+
+  it("clamps configured counts into the 1-10 range", () => {
+    expect(
+      getRequiredTeamCount(
+        card({ requiredTeamCounts: { musicians: 99 } }),
+        "musicians"
+      )
+    ).toBe(10);
+    expect(
+      getRequiredTeamCount(
+        card({ requiredTeamCounts: { musicians: 0 } }),
+        "musicians"
+      )
+    ).toBe(1);
   });
 });
 
@@ -473,6 +537,38 @@ describe("findMissingRequiredTeams", () => {
     const membersByTeam = new Map([["musicians", new Set(["m1"])]]);
 
     expect(findMissingRequiredTeams(value, lookup, membersByTeam)).toEqual([]);
+  });
+
+  it("honors a per-team required count above the minimum", () => {
+    const value = order([
+      card({
+        id: "main",
+        requiredTeamCounts: { musicians: 2 },
+        requiredTeamIds: ["musicians"],
+        teamAssignments: [{ memberIds: ["m1"], teamId: "musicians" }],
+      }),
+    ]);
+
+    expect(findMissingRequiredTeams(value, lookup)).toEqual([
+      {
+        cardId: "main",
+        cardName: "Sunday Main Service",
+        teamId: "musicians",
+        teamName: "Musicians",
+      },
+    ]);
+  });
+
+  it("treats a required team as satisfied once its count is met", () => {
+    const value = order([
+      card({
+        requiredTeamCounts: { musicians: 2 },
+        requiredTeamIds: ["musicians"],
+        teamAssignments: [{ memberIds: ["m1", "m2"], teamId: "musicians" }],
+      }),
+    ]);
+
+    expect(findMissingRequiredTeams(value, lookup)).toEqual([]);
   });
 });
 

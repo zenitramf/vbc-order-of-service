@@ -36,6 +36,12 @@ export interface ServiceTypeCard {
   optionalTeamIds?: string[];
   /** Template-level: teams that must be staffed before publishing. */
   requiredTeamIds?: string[];
+  /**
+   * Template-level: how many members each required team needs before an order
+   * can be published, keyed by team id (1-10). Teams without an entry fall back
+   * to the minimum of one.
+   */
+  requiredTeamCounts?: Record<string, number>;
 }
 
 export interface OrderServiceTemplateJson {

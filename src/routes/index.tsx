@@ -32,10 +32,32 @@ import {
 import { getDashboardData } from "~/lib/order-service-data";
 import type { DashboardData, OrderSummary } from "~/lib/order-service-types";
 
+const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
 const formatFullDate = (value: string) =>
   new Intl.DateTimeFormat("en", {
     dateStyle: "full",
   }).format(new Date(`${value}T00:00:00`));
+
+const getDaysRemaining = (value: string) => {
+  const targetDate = new Date(`${value}T00:00:00`);
+  const today = new Date();
+  const todayDate = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  );
+
+  return Math.max(
+    0,
+    Math.round(
+      (targetDate.getTime() - todayDate.getTime()) / millisecondsPerDay
+    )
+  );
+};
+
+const formatDaysRemaining = (daysRemaining: number) =>
+  daysRemaining === 1 ? "1 day remaining" : `${daysRemaining} days remaining`;
 
 const StatusBadge = ({ status }: { status: OrderSummary["status"] }) => (
   <Badge variant={status === "Published" ? "default" : "secondary"}>
@@ -49,54 +71,61 @@ const UpcomingSundayCard = ({
 }: {
   nextSundayDate: string;
   order: OrderSummary | null;
-}) => (
-  <Card>
-    <CardHeader>
-      <CardDescription>Upcoming Sunday</CardDescription>
-      <CardTitle className="text-2xl">
-        {formatFullDate(nextSundayDate)}
-      </CardTitle>
-    </CardHeader>
-    {order ? (
-      <>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{order.title}</span>
-            <StatusBadge status={order.status} />
-            <Badge variant="outline">{order.serviceTypeName}</Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {order.segmentCount} cards · {order.activityCount} activities
-          </p>
-        </CardContent>
-        <CardFooter>
-          <Button asChild>
-            <Link params={{ orderId: order.id }} to="/orders/$orderId">
-              <PencilSimpleIcon data-icon="inline-start" />
-              Edit order of service
-            </Link>
-          </Button>
-        </CardFooter>
-      </>
-    ) : (
-      <>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No order of service has been created for this Sunday yet.
-          </p>
-        </CardContent>
-        <CardFooter>
-          <Button asChild>
-            <Link to="/orders/new">
-              <PlusIcon data-icon="inline-start" />
-              Create order of service
-            </Link>
-          </Button>
-        </CardFooter>
-      </>
-    )}
-  </Card>
-);
+}) => {
+  const daysRemaining = getDaysRemaining(nextSundayDate);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardDescription>Upcoming Sunday</CardDescription>
+        <CardTitle className="text-2xl">
+          {formatFullDate(nextSundayDate)}
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {formatDaysRemaining(daysRemaining)}
+        </p>
+      </CardHeader>
+      {order ? (
+        <>
+          <CardContent className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{order.title}</span>
+              <StatusBadge status={order.status} />
+              <Badge variant="outline">{order.serviceTypeName}</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {order.segmentCount} cards · {order.activityCount} activities
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button asChild>
+              <Link params={{ orderId: order.id }} to="/orders/$orderId">
+                <PencilSimpleIcon data-icon="inline-start" />
+                Edit order of service
+              </Link>
+            </Button>
+          </CardFooter>
+        </>
+      ) : (
+        <>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              No order of service has been created for this Sunday yet.
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button asChild>
+              <Link to="/orders/new">
+                <PlusIcon data-icon="inline-start" />
+                Create order of service
+              </Link>
+            </Button>
+          </CardFooter>
+        </>
+      )}
+    </Card>
+  );
+};
 
 const TeamMembersSection = ({
   teamCount,
