@@ -2,15 +2,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { TemplateEditorPage } from "~/components/template-editor-page";
-import { getReferenceData } from "~/lib/order-service-data";
+import { getReferenceData, getTeams } from "~/lib/order-service-data";
 
 const NewTemplateRoute = () => {
-  const referenceData = Route.useLoaderData();
+  const { referenceData, teams } = Route.useLoaderData();
 
-  return <TemplateEditorPage referenceData={referenceData} />;
+  return <TemplateEditorPage referenceData={referenceData} teams={teams} />;
 };
 
 export const Route = createFileRoute("/templates/new")({
   component: NewTemplateRoute,
-  loader: () => getReferenceData(),
+  loader: async () => {
+    const [referenceData, teams] = await Promise.all([
+      getReferenceData(),
+      getTeams(),
+    ]);
+
+    return { referenceData, teams };
+  },
 });

@@ -8,12 +8,17 @@ import {
   UploadSimpleIcon,
   XIcon,
 } from "@phosphor-icons/react";
-import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { MusicKeySelector } from "~/components/music-key-selector";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,8 +30,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "~/components/ui/alert-dialog";
-
-import { MusicKeySelector } from "~/components/music-key-selector";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -62,7 +65,11 @@ import {
   saveHymn,
   uploadHymnFile,
 } from "~/lib/order-service-data";
-import type { HymnFileRecord, HymnRecord, ReferenceData } from "~/lib/order-service-types";
+import type {
+  HymnFileRecord,
+  HymnRecord,
+  ReferenceData,
+} from "~/lib/order-service-types";
 
 interface HymnEditorPageProps {
   files?: HymnFileRecord[];
@@ -95,10 +102,20 @@ const fileToBase64 = async (file: File): Promise<string> => {
 
 const EMPTY_HYMN_FILES: HymnFileRecord[] = [];
 
-const openHymnFile = (base64: string, contentType: string, filename: string, download: boolean): void => {
+const openHymnFile = (
+  base64: string,
+  contentType: string,
+  filename: string,
+  download: boolean
+): void => {
   const binary = window.atob(base64);
-  const bytes = Uint8Array.from(binary, (character) => character.codePointAt(0) ?? 0);
-  const url = window.URL.createObjectURL(new Blob([bytes], { type: contentType }));
+  const bytes = Uint8Array.from(
+    binary,
+    (character) => character.codePointAt(0) ?? 0
+  );
+  const url = window.URL.createObjectURL(
+    new Blob([bytes], { type: contentType })
+  );
 
   if (download) {
     const anchor = document.createElement("a");
@@ -214,7 +231,9 @@ export const HymnEditorPage = ({
 
     try {
       setIsDeleting(true);
-      setFiles((currentFiles) => currentFiles.filter((file) => file.id !== fileId));
+      setFiles((currentFiles) =>
+        currentFiles.filter((file) => file.id !== fileId)
+      );
       setFileToDelete(null);
 
       await deleteHymnFileFn({ data: fileId });
@@ -339,11 +358,14 @@ export const HymnEditorPage = ({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete this hymn file?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently remove "{file.filename}" from this hymn and R2 storage.
+                      This will permanently remove "{file.filename}" from this
+                      hymn and R2 storage.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel disabled={isDeleting}>
+                      Cancel
+                    </AlertDialogCancel>
                     <AlertDialogAction
                       disabled={isDeleting}
                       onClick={async () => {
@@ -479,7 +501,8 @@ export const HymnEditorPage = ({
                     <div>
                       <FieldLabel>Hymn files</FieldLabel>
                       <FieldDescription>
-                        Upload sheet music, PDFs, and related files to R2 for this hymn.
+                        Upload sheet music, PDFs, and related files to R2 for
+                        this hymn.
                       </FieldDescription>
                     </div>
                     <div>
@@ -524,14 +547,20 @@ export const HymnEditorPage = ({
                           <TableRow key={row.id}>
                             {row.getVisibleCells().map((cell) => (
                               <TableCell key={cell.id}>
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext()
+                                )}
                               </TableCell>
                             ))}
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell className="text-muted-foreground" colSpan={5}>
+                          <TableCell
+                            className="text-muted-foreground"
+                            colSpan={5}
+                          >
                             No files uploaded for this hymn.
                           </TableCell>
                         </TableRow>

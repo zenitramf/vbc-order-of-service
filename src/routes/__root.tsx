@@ -9,6 +9,8 @@ import {
   ListChecksIcon,
   MusicNotesIcon,
   PlusIcon,
+  UserCircleIcon,
+  UsersThreeIcon,
 } from "@phosphor-icons/react";
 import {
   HeadContent,
@@ -54,16 +56,29 @@ import appCss from "~/styles/app.css?url";
 
 const navigationItems = [
   { icon: HouseIcon, label: "Dashboard", to: "/" },
-  { icon: CalendarCheckIcon, label: "Orders", to: "/orders" },
+  {
+    icon: CalendarCheckIcon,
+    label: "Month Planner",
+    match: "/orders",
+    to: "/planner",
+  },
   { icon: ListChecksIcon, label: "Templates", to: "/templates" },
   { icon: MusicNotesIcon, label: "Hymns", to: "/hymns" },
 ] as const;
 
+const teamManagementItems = [
+  { icon: UsersThreeIcon, label: "Teams", to: "/teams" },
+  { icon: UserCircleIcon, label: "Team Members", to: "/members" },
+] as const;
+
 const routeLabels = new Map([
-  ["orders", "Orders"],
+  ["orders", "Month Planner"],
+  ["planner", "Month Planner"],
   ["new", "New"],
   ["templates", "Templates"],
   ["hymns", "Hymns"],
+  ["teams", "Teams"],
+  ["members", "Team Members"],
 ]);
 
 const RootDocument = ({ children }: { children: React.ReactNode }) => (
@@ -99,6 +114,9 @@ const AppBreadcrumb = () => {
         </BreadcrumbItem>
         {segments.map((segment, index) => {
           const href = `/${segments.slice(0, index + 1).join("/")}`;
+          // The standalone /orders list was removed; its sub-routes (new,
+          // editor) now belong under the Month Planner.
+          const linkHref = href === "/orders" ? "/planner" : href;
           const label = routeLabels.get(segment) ?? "Edit";
           const isLast = index === segments.length - 1;
 
@@ -110,7 +128,7 @@ const AppBreadcrumb = () => {
                   <BreadcrumbPage>{label}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink asChild>
-                    <Link to={href}>{label}</Link>
+                    <Link to={linkHref}>{label}</Link>
                   </BreadcrumbLink>
                 )}
               </BreadcrumbItem>
@@ -148,11 +166,41 @@ const AppSidebar = () => {
             <SidebarMenu>
               {navigationItems.map((item) => {
                 const Icon = item.icon;
+                const matchPaths = [
+                  item.to,
+                  ...("match" in item ? [item.match] : []),
+                ];
                 const isActive =
                   item.to === "/"
                     ? pathname === "/"
-                    : pathname === item.to ||
-                      pathname.startsWith(`${item.to}/`);
+                    : matchPaths.some(
+                        (matchPath) =>
+                          pathname === matchPath ||
+                          pathname.startsWith(`${matchPath}/`)
+                      );
+
+                return (
+                  <SidebarMenuItem key={item.to}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <Link to={item.to}>
+                        <Icon />
+                        <span>{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Team Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {teamManagementItems.map((item) => {
+                const Icon = item.icon;
+                const isActive =
+                  pathname === item.to || pathname.startsWith(`${item.to}/`);
 
                 return (
                   <SidebarMenuItem key={item.to}>
@@ -206,7 +254,6 @@ const AppSidebar = () => {
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
-
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

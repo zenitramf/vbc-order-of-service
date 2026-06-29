@@ -1,13 +1,21 @@
-import { CalendarCheckIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  CaretDownIcon,
+  CaretUpDownIcon,
+  CaretUpIcon,
+  PlusIcon,
+  TrashIcon,
+  UsersThreeIcon,
+} from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import type { ColumnDef } from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -47,77 +55,67 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-import { deleteOrder, getOrders } from "~/lib/order-service-data";
-import type { OrderSummary } from "~/lib/order-service-types";
+import { deleteTeam, getTeams } from "~/lib/order-service-data";
+import type { TeamSummary } from "~/lib/order-service-types";
 
-interface OrderColumnsOptions {
+interface TeamColumnsOptions {
   isDeleting: boolean;
-  onDelete: (orderId: string, orderTitle: string) => Promise<void>;
-  onOpenChange: (open: boolean, orderId: string) => void;
-  orderToDelete: string | null;
+  onDelete: (teamId: string, teamName: string) => Promise<void>;
+  onOpenChange: (open: boolean, teamId: string) => void;
+  teamToDelete: string | null;
 }
 
-const formatDate = (value: string) =>
-  value
-    ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
-        new Date(`${value}T00:00:00`)
-      )
-    : "Unscheduled";
+const renderSortIcon = (sortDirection: false | "asc" | "desc") => {
+  if (sortDirection === "asc") {
+    return <CaretUpIcon data-icon="inline-end" />;
+  }
 
-const createOrderColumns = ({
+  if (sortDirection === "desc") {
+    return <CaretDownIcon data-icon="inline-end" />;
+  }
+
+  return <CaretUpDownIcon data-icon="inline-end" />;
+};
+
+const createTeamColumns = ({
   isDeleting,
   onDelete,
   onOpenChange,
-  orderToDelete,
-}: OrderColumnsOptions): ColumnDef<OrderSummary>[] => [
+  teamToDelete,
+}: TeamColumnsOptions): ColumnDef<TeamSummary>[] => [
   {
-    accessorKey: "title",
+    accessorKey: "name",
     cell: ({ row }) => (
       <Link
         className="font-medium hover:underline"
-        params={{ orderId: row.original.id }}
-        to="/orders/$orderId"
+        params={{ teamId: row.original.id }}
+        to="/teams/$teamId"
       >
-        {row.original.title}
+        {row.original.name}
       </Link>
     ),
-    header: "Service",
+    header: "Team",
   },
   {
-    accessorKey: "serviceDate",
-    cell: ({ row }) => formatDate(row.original.serviceDate),
-    header: "Date",
+    accessorKey: "parentName",
+    cell: ({ row }) =>
+      row.original.parentName ? (
+        <Badge variant="secondary">{row.original.parentName}</Badge>
+      ) : (
+        <span className="text-muted-foreground">Top level</span>
+      ),
+    header: "Parent team",
   },
   {
-    accessorKey: "serviceTypeName",
-    cell: ({ row }) => (
-      <Badge variant="secondary">{row.original.serviceTypeName}</Badge>
-    ),
-    header: "Type",
-  },
-  {
-    accessorKey: "status",
-    cell: ({ row }) => (
-      <Badge variant={row.original.status === "Published" ? "default" : "secondary"}>
-        {row.original.status}
-      </Badge>
-    ),
-    header: "Status",
-  },
-  {
-    cell: ({ row }) => (
-      <span>
-        {row.original.segmentCount} cards · {row.original.activityCount} activities
-      </span>
-    ),
-    header: "Plan",
-    id: "plan",
+    accessorKey: "memberCount",
+    cell: ({ row }) => row.original.memberCount,
+    header: "Members",
   },
   {
     cell: ({ row }) => (
       <div className="flex gap-2">
         <Button asChild size="sm" variant="outline">
-          <Link params={{ orderId: row.original.id }} to="/orders/$orderId">
+          <Link params={{ teamId: row.original.id }} to="/teams/$teamId">
             Edit
           </Link>
         </Button>
@@ -125,7 +123,7 @@ const createOrderColumns = ({
           onOpenChange={(open) => {
             onOpenChange(open, row.original.id);
           }}
-          open={orderToDelete === row.original.id}
+          open={teamToDelete === row.original.id}
         >
           <AlertDialogTrigger asChild>
             <Button size="sm" type="button" variant="ghost">
@@ -135,17 +133,20 @@ const createOrderColumns = ({
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete this order of service?</AlertDialogTitle>
+              <AlertDialogTitle>Delete this team?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently remove "{row.original.title}".
+                This will permanently remove "{row.original.name}" and detach
+                its members. Sub-teams become top-level teams.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
               <AlertDialogAction
                 disabled={isDeleting}
                 onClick={async () => {
-                  await onDelete(row.original.id, row.original.title);
+                  await onDelete(row.original.id, row.original.name);
                 }}
                 variant="destructive"
               >
@@ -161,52 +162,56 @@ const createOrderColumns = ({
   },
 ];
 
-const OrdersPage = () => {
-  const orders = Route.useLoaderData();
-  const [orderRows, setOrderRows] = useState(orders);
+const TeamsPage = () => {
+  const teams = Route.useLoaderData();
+  const [teamRows, setTeamRows] = useState(teams);
   const router = useRouter();
-  const deleteOrderFn = useServerFn(deleteOrder);
-  const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
+  const deleteTeamFn = useServerFn(deleteTeam);
+  const [teamToDelete, setTeamToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   useEffect(() => {
-    setOrderRows(orders);
-  }, [orders]);
+    setTeamRows(teams);
+  }, [teams]);
 
-  const handleDelete = async (orderId: string, orderTitle: string) => {
-    const previousRows = orderRows;
+  const handleDelete = async (teamId: string, teamName: string) => {
+    const previousRows = teamRows;
 
     try {
       setIsDeleting(true);
-      setOrderRows((currentRows) =>
-        currentRows.filter((order) => order.id !== orderId)
+      setTeamRows((currentRows) =>
+        currentRows.filter((team) => team.id !== teamId)
       );
-      setOrderToDelete(null);
+      setTeamToDelete(null);
 
-      await deleteOrderFn({ data: orderId });
+      await deleteTeamFn({ data: teamId });
       await router.invalidate();
-      toast.success(`Deleted "${orderTitle}".`);
+      toast.success(`Deleted "${teamName}".`);
     } catch {
-      setOrderRows(previousRows);
-      toast.error("Unable to delete order. Please try again.");
+      setTeamRows(previousRows);
+      toast.error("Unable to delete team. Please try again.");
     } finally {
       setIsDeleting(false);
     }
   };
 
-  const columns = createOrderColumns({
+  const columns = createTeamColumns({
     isDeleting,
     onDelete: handleDelete,
-    onOpenChange: (open, orderId) => {
-      setOrderToDelete(open ? orderId : null);
+    onOpenChange: (open, teamId) => {
+      setTeamToDelete(open ? teamId : null);
     },
-    orderToDelete,
+    teamToDelete,
   });
 
   const table = useReactTable({
     columns,
-    data: orderRows,
+    data: teamRows,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: { sorting },
   });
 
   return (
@@ -214,44 +219,46 @@ const OrdersPage = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
           <h1 className="font-heading text-3xl font-semibold tracking-tight">
-            Orders of Service
+            Teams
           </h1>
           <p className="text-muted-foreground">
-            Review previous services and continue planning upcoming services.
+            Manage the teams that serve in the order of service and the people
+            on each team.
           </p>
         </div>
         <Button asChild>
-          <Link to="/orders/new">
+          <Link to="/teams/new">
             <PlusIcon data-icon="inline-start" />
-            New order
+            New team
           </Link>
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>All orders</CardTitle>
+          <CardTitle>Team Management</CardTitle>
           <CardDescription>
-            Planning and published orders sorted by service date.
+            Select a team to manage its members and the templates that rely on
+            it.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {orderRows.length === 0 ? (
+          {teamRows.length === 0 ? (
             <Empty>
               <EmptyHeader>
                 <EmptyMedia variant="icon">
-                  <CalendarCheckIcon />
+                  <UsersThreeIcon />
                 </EmptyMedia>
-                <EmptyTitle>No orders yet</EmptyTitle>
+                <EmptyTitle>No teams yet</EmptyTitle>
                 <EmptyDescription>
-                  Create an order from a template to begin planning.
+                  Add a team to start assigning members to services.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
                 <Button asChild>
-                  <Link to="/orders/new">
+                  <Link to="/teams/new">
                     <PlusIcon data-icon="inline-start" />
-                    Create order
+                    Add team
                   </Link>
                 </Button>
               </EmptyContent>
@@ -261,16 +268,29 @@ const OrdersPage = () => {
               <TableHeader>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
+                    {headerGroup.headers.map((header) => {
+                      const sortDirection = header.column.getIsSorted();
+
+                      return (
+                        <TableHead key={header.id}>
+                          {header.isPlaceholder ? null : (
+                            <Button
+                              className="h-auto px-0 font-semibold"
+                              disabled={!header.column.getCanSort()}
+                              onClick={header.column.getToggleSortingHandler()}
+                              type="button"
+                              variant="ghost"
+                            >
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                              {renderSortIcon(sortDirection)}
+                            </Button>
+                          )}
+                        </TableHead>
+                      );
+                    })}
                   </TableRow>
                 ))}
               </TableHeader>
@@ -296,7 +316,7 @@ const OrdersPage = () => {
   );
 };
 
-export const Route = createFileRoute("/orders/")({
-  component: OrdersPage,
-  loader: () => getOrders(),
+export const Route = createFileRoute("/teams/")({
+  component: TeamsPage,
+  loader: () => getTeams(),
 });

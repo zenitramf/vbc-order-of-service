@@ -1,6 +1,7 @@
+import { Buffer } from "node:buffer";
+
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
-import { Buffer } from "node:buffer";
 import { v4 as uuidv4 } from "uuid";
 
 import type {
@@ -13,25 +14,57 @@ import type {
   HymnFileRecord,
   HymnOption,
   HymnRecord,
+  MonthPlanData,
+  MonthPlanningDayConfig,
+  MonthPlanningSettings,
+  MonthPlanServiceDate,
+  MonthScheduleCard,
+  MonthScheduleTarget,
   OrderEmailDeliveryRecord,
   OrderEmailQueueMessage,
   OrderEmailStatus,
   OrderRecord,
   OrderServiceTemplateJson,
   OrderSummary,
+  PlanMonthInput,
   ReferenceData,
   ReferenceOption,
   RenameHymnFileInput,
   SaveEmailSettingsInput,
   SaveHymnInput,
+  SaveMonthScheduleInput,
   SaveOrderInput,
   SaveTemplateInput,
+  SaveTeamInput,
+  SaveTeamMemberInput,
   SendOrderToCraftMyPdfInput,
+  Team,
+  TeamMember,
+  TeamMembershipInput,
+  TeamMemberSummary,
+  TeamRecord,
+  TeamSummary,
+  TemplateOption,
   UploadHymnFileInput,
   ServiceStatus,
   TemplateRecord,
   TemplateSummary,
 } from "~/lib/order-service-types";
+import {
+  DEFAULT_TEAMS,
+  findMissingRequiredTeams,
+  getAssignmentMemberIds,
+  getRequiredTeamCount,
+  isTeamOptional,
+  isTeamRequired,
+  memberTeamNames,
+  normalizeServiceCardTeams,
+  pruneStaleAssignments,
+  setAssignmentMemberIds,
+  teamsById as toTeamsById,
+  validateTeamMember,
+  validateTeamParent,
+} from "~/lib/teams-logic";
 
 const DEFAULT_TEMPLATE: OrderServiceTemplateJson = {
   name: "Sunday Service",
@@ -54,25 +87,53 @@ const DEFAULT_TEMPLATE: OrderServiceTemplateJson = {
     },
     {
       activities: [
-        { activityName: "Opening Hymn", activityType: "hymn", id: "opening-hymn" },
+        {
+          activityName: "Opening Hymn",
+          activityType: "hymn",
+          id: "opening-hymn",
+        },
         { activityName: "Prayer", activityType: "prayer", id: "prayer" },
         {
           activityName: "Scripture Reading",
           activityType: "scripture_reading",
           id: "scripture-reading",
         },
-        { activityName: "Offertory", activityType: "offertory", id: "offertory" },
-        { activityName: "Preaching", activityType: "preaching", id: "preaching" },
-        { activityName: "Invitation", activityType: "invitation", id: "invitation" },
+        {
+          activityName: "Offertory",
+          activityType: "offertory",
+          id: "offertory",
+        },
+        {
+          activityName: "Preaching",
+          activityType: "preaching",
+          id: "preaching",
+        },
+        {
+          activityName: "Invitation",
+          activityType: "invitation",
+          id: "invitation",
+        },
       ],
       id: "sunday-main-service",
       typeName: "Sunday Main Service",
     },
     {
       activities: [
-        { activityName: "Congregational Hymn", activityType: "hymn", id: "evening-hymn" },
-        { activityName: "Special Music", activityType: "special_music", id: "special-music" },
-        { activityName: "Preaching", activityType: "preaching", id: "evening-preaching" },
+        {
+          activityName: "Congregational Hymn",
+          activityType: "hymn",
+          id: "evening-hymn",
+        },
+        {
+          activityName: "Special Music",
+          activityType: "special_music",
+          id: "special-music",
+        },
+        {
+          activityName: "Preaching",
+          activityType: "preaching",
+          id: "evening-preaching",
+        },
       ],
       id: "sunday-evening-service",
       typeName: "Sunday Evening Service",
@@ -202,6 +263,40 @@ CREATE TABLE IF NOT EXISTS order_email_deliveries (
 
 CREATE INDEX IF NOT EXISTS order_email_deliveries_order_idx
   ON order_email_deliveries(order_id);
+
+CREATE TABLE IF NOT EXISTS teams (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_team_id TEXT REFERENCES teams(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS teams_parent_idx ON teams(parent_team_id);
+
+CREATE TABLE IF NOT EXISTS team_members (
+  id TEXT PRIMARY KEY,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS team_members_name_idx
+  ON team_members(last_name, first_name);
+
+CREATE TABLE IF NOT EXISTS team_member_teams (
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (team_id, member_id)
+);
+
+CREATE INDEX IF NOT EXISTS team_member_teams_member_idx
+  ON team_member_teams(member_id);
 `;
 
 let databaseInitialized = false;
@@ -223,10 +318,14 @@ const getPdfBucket = (): R2Bucket => {
 };
 
 const getEmailQueue = (): Queue<OrderEmailQueueMessage> => {
-  const queue = (env as unknown as { OOS_EMAIL_SENDER?: Queue<OrderEmailQueueMessage> }).OOS_EMAIL_SENDER;
+  const queue = (
+    env as unknown as { OOS_EMAIL_SENDER?: Queue<OrderEmailQueueMessage> }
+  ).OOS_EMAIL_SENDER;
 
   if (!queue) {
-    throw new Error("Cloudflare Queue binding OOS_EMAIL_SENDER is not configured.");
+    throw new Error(
+      "Cloudflare Queue binding OOS_EMAIL_SENDER is not configured."
+    );
   }
 
   return queue;
@@ -256,6 +355,7 @@ const normalizeTemplate = (
     })),
     id: segment.id || uuidv4(),
     typeName: segment.typeName?.trim() || "Service Segment",
+    ...normalizeServiceCardTeams(segment),
   })),
 });
 
@@ -266,25 +366,47 @@ const countActivities = (template: OrderServiceTemplateJson) =>
   );
 
 const parseTemplateJson = (value: string, fallbackName: string) =>
-  normalizeTemplate(JSON.parse(value) as OrderServiceTemplateJson, fallbackName);
+  normalizeTemplate(
+    JSON.parse(value) as OrderServiceTemplateJson,
+    fallbackName
+  );
 
 const asString = (value: unknown) => (typeof value === "string" ? value : "");
 
 const asNumber = (value: unknown) =>
-  typeof value === "number" ? value : Number.parseInt(String(value ?? "0"), 10) || 0;
+  typeof value === "number"
+    ? value
+    : Number.parseInt(String(value ?? "0"), 10) || 0;
 
 const getErrorMessage = (error: unknown, fallbackMessage: string) =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const EMAIL_SETTINGS_KEY = "email.smtp";
+const MONTH_PLANNING_KEY = "monthPlanning";
+const DEFAULT_SUNDAY_TEMPLATE_ID = "default-sunday-service";
 const SERVICE_PDFS_BUCKET_NAME = "vbc-order-of-service-pdfs";
 
+/** Sunday is pre-selected and assigned the seeded Sunday template by default. */
+const DEFAULT_MONTH_PLANNING_SETTINGS: MonthPlanningSettings = {
+  prepopulateDays: [
+    {
+      defaultTitle: "Sunday Order of Service",
+      templateId: DEFAULT_SUNDAY_TEMPLATE_ID,
+      weekday: 0,
+    },
+  ],
+};
+
 const getRequiredSecret = (key: string) => {
-  const value = (env as unknown as Record<string, string | undefined>)[key]?.trim();
+  const value = (env as unknown as Record<string, string | undefined>)[
+    key
+  ]?.trim();
 
   if (!value) {
-    throw new Error(`${key} is not configured. Add it as a Cloudflare Worker secret before saving email settings.`);
+    throw new Error(
+      `${key} is not configured. Add it as a Cloudflare Worker secret before saving email settings.`
+    );
   }
 
   return value;
@@ -295,13 +417,20 @@ const getEmailEncryptionKey = async () => {
   const secretBytes = new TextEncoder().encode(secret);
   const hash = await crypto.subtle.digest("SHA-256", secretBytes);
 
-  return crypto.subtle.importKey("raw", hash, "AES-GCM", false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", hash, "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
 };
 
 const encryptSetting = async (value: string) => {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encodedValue = new TextEncoder().encode(value);
-  const encrypted = await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, await getEmailEncryptionKey(), encodedValue);
+  const encrypted = await crypto.subtle.encrypt(
+    { iv, name: "AES-GCM" },
+    await getEmailEncryptionKey(),
+    encodedValue
+  );
 
   return `${Buffer.from(iv).toString("base64")}.${Buffer.from(encrypted).toString("base64")}`;
 };
@@ -319,7 +448,11 @@ const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
     throw new Error("SMTP address is required.");
   }
 
-  if (!Number.isInteger(settings.smtpPort) || settings.smtpPort < 1 || settings.smtpPort > 65_535) {
+  if (
+    !Number.isInteger(settings.smtpPort) ||
+    settings.smtpPort < 1 ||
+    settings.smtpPort > 65_535
+  ) {
     throw new Error("SMTP port must be between 1 and 65535.");
   }
 
@@ -331,7 +464,10 @@ const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
     assertValidEmail(settings.smtpUser, "SMTP user");
   }
 
-  if (settings.smtpToken !== undefined && settings.smtpToken.trim().length === 0) {
+  if (
+    settings.smtpToken !== undefined &&
+    settings.smtpToken.trim().length === 0
+  ) {
     throw new Error("SMTP token cannot be blank.");
   }
 
@@ -362,41 +498,125 @@ const ensureDatabase = async () => {
   }
 
   await db.batch([
-    db.prepare("INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)").bind("Planning", "Planning"),
-    db.prepare("INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)").bind("Published", "Published"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("living-hymns", "Living Hymns"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("other-hymn", "Other Hymn"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("song", "Song"),
-    db.prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)").bind("majesty-hymns", "Majesty Hymns"),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("hymn", "Hymn", "Congregational hymn selected from the hymn library."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("prayer", "Prayer", "Prayer led by a selected person."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("scripture_reading", "Scripture Reading", "Bible passage read during service."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("hand_shaking", "Hand Shaking", "Fellowship greeting time."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("offertory", "Offertory", "Offering and offertory music."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("preaching", "Preaching", "Main preaching time."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("invitation", "Invitation", "Invitation following the message."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("special_music", "Special Music", "Special music selection."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("bible_preaching", "Bible Preaching", "Bible study or teaching time."),
-    db.prepare("INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)").bind("custom", "Custom", "Custom activity."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)"
+      )
+      .bind("Planning", "Planning"),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)"
+      )
+      .bind("Published", "Published"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("living-hymns", "Living Hymns"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("other-hymn", "Other Hymn"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("song", "Song"),
+    db
+      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
+      .bind("majesty-hymns", "Majesty Hymns"),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        "hymn",
+        "Hymn",
+        "Congregational hymn selected from the hymn library."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("prayer", "Prayer", "Prayer led by a selected person."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        "scripture_reading",
+        "Scripture Reading",
+        "Bible passage read during service."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("hand_shaking", "Hand Shaking", "Fellowship greeting time."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("offertory", "Offertory", "Offering and offertory music."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("preaching", "Preaching", "Main preaching time."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("invitation", "Invitation", "Invitation following the message."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("special_music", "Special Music", "Special music selection."),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        "bible_preaching",
+        "Bible Preaching",
+        "Bible study or teaching time."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind("custom", "Custom", "Custom activity."),
   ]);
 
   const defaultServiceTypeId = "sunday-service";
   const templateId = "default-sunday-service";
   await db.batch([
-    db.prepare("INSERT OR IGNORE INTO service_types (id, name, description) VALUES (?, ?, ?)").bind(
-      defaultServiceTypeId,
-      "Sunday Service",
-      "Default Sunday service type."
-    ),
-    db.prepare(
-      "INSERT OR IGNORE INTO order_service_templates (id, name, service_type_id, template_json) VALUES (?, ?, ?, ?)"
-    ).bind(
-      templateId,
-      DEFAULT_TEMPLATE.name,
-      defaultServiceTypeId,
-      JSON.stringify(DEFAULT_TEMPLATE)
-    ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO service_types (id, name, description) VALUES (?, ?, ?)"
+      )
+      .bind(
+        defaultServiceTypeId,
+        "Sunday Service",
+        "Default Sunday service type."
+      ),
+    db
+      .prepare(
+        "INSERT OR IGNORE INTO order_service_templates (id, name, service_type_id, template_json) VALUES (?, ?, ?, ?)"
+      )
+      .bind(
+        templateId,
+        DEFAULT_TEMPLATE.name,
+        defaultServiceTypeId,
+        JSON.stringify(DEFAULT_TEMPLATE)
+      ),
   ]);
+
+  await db.batch(
+    DEFAULT_TEAMS.map((seedTeam) =>
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO teams (id, name, parent_team_id) VALUES (?, ?, ?)"
+        )
+        .bind(seedTeam.id, seedTeam.name, seedTeam.parentId ?? null)
+    )
+  );
   databaseInitialized = true;
 };
 
@@ -496,12 +716,93 @@ const assertServiceDateAvailable = async ({
         .bind(serviceDate, excludeOrderId)
         .first<{ id: string }>()
     : await db
-        .prepare("SELECT id FROM orders_of_service WHERE service_date = ? LIMIT 1")
+        .prepare(
+          "SELECT id FROM orders_of_service WHERE service_date = ? LIMIT 1"
+        )
         .bind(serviceDate)
         .first<{ id: string }>();
 
   if (existingOrder) {
     throw new Error(buildServiceDateConflictMessage(serviceDate));
+  }
+};
+
+const mapTeamRow = (row: Record<string, unknown>): Team => {
+  const parentTeamId = asString(row.parent_team_id);
+
+  return {
+    id: asString(row.id),
+    name: asString(row.name),
+    ...(parentTeamId ? { parentTeamId } : {}),
+  };
+};
+
+const splitTeamIds = (value: unknown): string[] =>
+  asString(value)
+    .split(",")
+    .map((teamId) => teamId.trim())
+    .filter(Boolean);
+
+const mapTeamMemberRow = (row: Record<string, unknown>): TeamMember => ({
+  email: asString(row.email),
+  firstName: asString(row.first_name),
+  id: asString(row.id),
+  lastName: asString(row.last_name),
+  notes: asString(row.notes),
+  phone: asString(row.phone),
+  teamIds: splitTeamIds(row.team_ids),
+});
+
+const loadTeamsById = async (db: D1Database) => {
+  const { results } = await db
+    .prepare("SELECT id, name, parent_team_id FROM teams")
+    .all<Record<string, unknown>>();
+
+  return toTeamsById(results.map(mapTeamRow));
+};
+
+/** Live team memberships keyed by team id, for validating order assignments. */
+const loadTeamMemberIds = async (
+  db: D1Database
+): Promise<Map<string, Set<string>>> => {
+  const { results } = await db
+    .prepare("SELECT team_id, member_id FROM team_member_teams")
+    .all<Record<string, unknown>>();
+  const byTeam = new Map<string, Set<string>>();
+
+  for (const row of results) {
+    const teamId = asString(row.team_id);
+    const memberId = asString(row.member_id);
+    const members = byTeam.get(teamId) ?? new Set<string>();
+    members.add(memberId);
+    byTeam.set(teamId, members);
+  }
+
+  return byTeam;
+};
+
+const assertRequiredTeamsStaffed = async (
+  db: D1Database,
+  order: OrderRecord
+): Promise<void> => {
+  const [teamsLookup, membersByTeam] = await Promise.all([
+    loadTeamsById(db),
+    loadTeamMemberIds(db),
+  ]);
+  const missing = findMissingRequiredTeams(
+    order.order,
+    teamsLookup,
+    membersByTeam
+  );
+
+  if (missing.length > 0) {
+    const summary = missing
+      .map((entry) => `${entry.teamName} (${entry.cardName})`)
+      .join(", ");
+
+    throw new Error(
+      `Assign members to every required team before publishing: ${summary}.`
+    );
   }
 };
 
@@ -542,8 +843,11 @@ const RECENT_HYMN_PLAY_COUNT_SQL = `
 
 const CRAFTMYPDF_DEFAULT_API_URL = "https://api.craftmypdf.com/v1/create";
 
-const getPdfObjectKey = (order: Pick<OrderRecord, "id" | "serviceDate" | "title">): string => {
-  const serviceName = order.title.trim().replaceAll(/[\\/:*?"<>|]+/gu, "-") || "Order of Service";
+const getPdfObjectKey = (
+  order: Pick<OrderRecord, "id" | "serviceDate" | "title">
+): string => {
+  const serviceName =
+    order.title.trim().replaceAll(/[\\/:*?"<>|]+/gu, "-") || "Order of Service";
 
   return `oos/${order.id}/${order.serviceDate} - ${serviceName}.pdf`;
 };
@@ -647,7 +951,9 @@ const buildCraftMyPdfOrderPayload = async (
           const payloadActivity: CraftMyPdfOrderPayloadActivity = {
             ...activity,
           };
-          const hymn = activity.hymnId ? hymnsById.get(activity.hymnId) : undefined;
+          const hymn = activity.hymnId
+            ? hymnsById.get(activity.hymnId)
+            : undefined;
 
           if (hymn) {
             payloadActivity.hymn = hymn;
@@ -685,42 +991,89 @@ export const getReferenceData = createServerFn({ method: "GET" }).handler(
   }
 );
 
+const TEAM_SUMMARY_SELECT = `
+  SELECT teams.*, parent.name AS parent_name,
+    (SELECT COUNT(*) FROM team_member_teams WHERE team_id = teams.id) AS member_count
+  FROM teams
+  LEFT JOIN teams AS parent ON parent.id = teams.parent_team_id
+`;
+
+const mapTeamSummaryRow = (row: Record<string, unknown>): TeamSummary => {
+  const parentName = asString(row.parent_name);
+
+  return {
+    ...mapTeamRow(row),
+    memberCount: asNumber(row.member_count),
+    ...(parentName ? { parentName } : {}),
+  };
+};
+
+const getUpcomingSunday = (today: string): string => {
+  const date = new Date(`${today}T00:00:00.000Z`);
+  const daysUntilSunday = (7 - date.getUTCDay()) % 7;
+  date.setUTCDate(date.getUTCDate() + daysUntilSunday);
+
+  return date.toISOString().slice(0, 10);
+};
+
 export const getDashboardData = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardData> => {
     await ensureDatabase();
     const db = getDatabase();
     const today = new Date().toISOString().slice(0, 10);
+    const nextSundayDate = getUpcomingSunday(today);
     const orderSelect = `
       SELECT orders_of_service.*, service_types.name AS service_type_name
       FROM orders_of_service
       JOIN service_types ON service_types.id = orders_of_service.service_type_id
     `;
 
-    const [upcoming, previous, counts] = await Promise.all([
-      db
-        .prepare(`${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`)
-        .bind(today)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare(`${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`)
-        .bind(today)
-        .all<Record<string, unknown>>(),
-      db
-        .prepare(
-          `SELECT
+    const [upcoming, previous, counts, nextSunday, teamRows] =
+      await Promise.all([
+        db
+          .prepare(
+            `${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`
+          )
+          .bind(today)
+          .all<Record<string, unknown>>(),
+        db
+          .prepare(
+            `${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`
+          )
+          .bind(today)
+          .all<Record<string, unknown>>(),
+        db
+          .prepare(
+            `SELECT
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Planning') AS planning_count,
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Published') AS published_count,
             (SELECT COUNT(*) FROM order_service_templates) AS template_count,
-            (SELECT COUNT(*) FROM hymns) AS hymn_count`
-        )
-        .first<Record<string, unknown>>(),
-    ]);
+            (SELECT COUNT(*) FROM hymns) AS hymn_count,
+            (SELECT COUNT(*) FROM team_members) AS team_member_count,
+            (SELECT COUNT(*) FROM teams) AS team_count`
+          )
+          .first<Record<string, unknown>>(),
+        db
+          .prepare(`${orderSelect} WHERE service_date = ? LIMIT 1`)
+          .bind(nextSundayDate)
+          .first<Record<string, unknown>>(),
+        db
+          .prepare(
+            `${TEAM_SUMMARY_SELECT} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
+          )
+          .all<Record<string, unknown>>(),
+      ]);
 
     return {
       hymnCount: asNumber(counts?.hymn_count),
+      nextSundayDate,
+      nextSundayOrder: nextSunday ? mapOrderRow(nextSunday) : null,
       planningCount: asNumber(counts?.planning_count),
       previousOrders: previous.results.map(mapOrderRow),
       publishedCount: asNumber(counts?.published_count),
+      teamCount: asNumber(counts?.team_count),
+      teamMemberCount: asNumber(counts?.team_member_count),
+      teams: teamRows.results.map(mapTeamSummaryRow),
       templateCount: asNumber(counts?.template_count),
       upcomingOrders: upcoming.results.map(mapOrderRow),
     };
@@ -774,31 +1127,619 @@ export const saveTemplate = createServerFn({ method: "POST" })
     const timestamp = nowIso();
 
     await db.batch([
-      db.prepare(
-        `INSERT INTO service_types (id, name, description, updated_at)
+      db
+        .prepare(
+          `INSERT INTO service_types (id, name, description, updated_at)
         VALUES (?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`
-      ).bind(serviceTypeId, name, `${name} order of service template.`, timestamp),
-      db.prepare(
-        `INSERT INTO order_service_templates (id, name, service_type_id, template_json, updated_at)
+        )
+        .bind(
+          serviceTypeId,
+          name,
+          `${name} order of service template.`,
+          timestamp
+        ),
+      db
+        .prepare(
+          `INSERT INTO order_service_templates (id, name, service_type_id, template_json, updated_at)
         VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           name = excluded.name,
           service_type_id = excluded.service_type_id,
           template_json = excluded.template_json,
           updated_at = excluded.updated_at`
-      ).bind(id, name, serviceTypeId, JSON.stringify(template), timestamp),
+        )
+        .bind(id, name, serviceTypeId, JSON.stringify(template), timestamp),
     ]);
 
     return { id };
   });
+
+const parseMonthPlanningSettings = (value: string): MonthPlanningSettings => {
+  try {
+    const parsed = JSON.parse(value) as Partial<MonthPlanningSettings>;
+    const prepopulateDays = Array.isArray(parsed.prepopulateDays)
+      ? parsed.prepopulateDays
+          .map((day) => ({
+            defaultTitle: asString(day?.defaultTitle).trim(),
+            templateId: asString(day?.templateId).trim(),
+            weekday: asNumber(day?.weekday),
+          }))
+          .filter(
+            (day) =>
+              Number.isInteger(day.weekday) &&
+              day.weekday >= 0 &&
+              day.weekday <= 6
+          )
+      : [];
+
+    return { prepopulateDays };
+  } catch {
+    return { prepopulateDays: [] };
+  }
+};
+
+/** Read Month Planner settings, falling back to the Sunday default. */
+const loadMonthPlanningSettings = async (
+  db: D1Database
+): Promise<MonthPlanningSettings> => {
+  const row = await db
+    .prepare("SELECT value FROM app_settings WHERE key = ?")
+    .bind(MONTH_PLANNING_KEY)
+    .first<{ value: string }>();
+
+  if (!row) {
+    return DEFAULT_MONTH_PLANNING_SETTINGS;
+  }
+
+  return parseMonthPlanningSettings(row.value);
+};
+
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+
+/** Validate a YYYY-MM string and return its numeric year/month. */
+const parseMonth = (month: string): { monthNumber: number; year: number } => {
+  const match = /^(?<year>\d{4})-(?<month>\d{2})$/u.exec(month.trim());
+
+  if (!match?.groups) {
+    throw new Error("Month must be in YYYY-MM format.");
+  }
+
+  const year = Number(match.groups.year);
+  const monthNumber = Number(match.groups.month);
+
+  if (monthNumber < 1 || monthNumber > 12) {
+    throw new Error("Month must be between 01 and 12.");
+  }
+
+  return { monthNumber, year };
+};
+
+interface MonthDateEntry {
+  date: string;
+  dayConfig: MonthPlanningDayConfig;
+}
+
+/** Every date in the month whose weekday has a configured day, with its config. */
+const getMonthDatesForDayConfigs = (
+  month: string,
+  dayConfigs: MonthPlanningDayConfig[]
+): MonthDateEntry[] => {
+  const { monthNumber, year } = parseMonth(month);
+  const date = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const dates: MonthDateEntry[] = [];
+
+  while (date.getUTCMonth() === monthNumber - 1) {
+    const dayConfig = dayConfigs.find(
+      (config) => config.weekday === date.getUTCDay()
+    );
+
+    if (dayConfig) {
+      dates.push({ date: date.toISOString().slice(0, 10), dayConfig });
+    }
+
+    date.setUTCDate(date.getUTCDate() + 1);
+  }
+
+  return dates;
+};
+
+/** First day of the month after the given YYYY-MM, as YYYY-MM-DD. */
+const getNextMonthStart = (month: string): string => {
+  const { monthNumber, year } = parseMonth(month);
+
+  return new Date(Date.UTC(year, monthNumber, 1)).toISOString().slice(0, 10);
+};
+
+/** Templates referenced by a month-planning configuration, keyed by id. */
+const findTemplateMonthPlanReferences = (
+  settings: MonthPlanningSettings,
+  templateId: string
+): boolean =>
+  settings.prepopulateDays.some((day) => day.templateId === templateId);
 
 export const deleteTemplate = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     await ensureDatabase();
     const db = getDatabase();
-    await db.prepare("DELETE FROM order_service_templates WHERE id = ?").bind(data).run();
+
+    const [orderRow, settings] = await Promise.all([
+      db
+        .prepare(
+          "SELECT COUNT(*) AS order_count FROM orders_of_service WHERE template_id = ?"
+        )
+        .bind(data)
+        .first<{ order_count: number }>(),
+      loadMonthPlanningSettings(db),
+    ]);
+
+    const orderCount = asNumber(orderRow?.order_count);
+    const monthPlanRef = findTemplateMonthPlanReferences(settings, data);
+
+    if (orderCount > 0 || monthPlanRef) {
+      const parts: string[] = [];
+
+      if (monthPlanRef) {
+        parts.push("the Month Planner pre-populate settings");
+      }
+
+      if (orderCount > 0) {
+        parts.push(`${orderCount} order(s)`);
+      }
+
+      throw new Error(
+        `This template is in use by ${parts.join(" and ")}. Reassign or remove those references before deleting it.`
+      );
+    }
+
+    await db
+      .prepare("DELETE FROM order_service_templates WHERE id = ?")
+      .bind(data)
+      .run();
+
+    return { success: true };
+  });
+
+const getCurrentMonth = (): string => new Date().toISOString().slice(0, 7);
+
+const toOrderSummary = (order: OrderRecord): OrderSummary => ({
+  activityCount: order.activityCount,
+  id: order.id,
+  segmentCount: order.segmentCount,
+  serviceDate: order.serviceDate,
+  serviceTypeName: order.serviceTypeName,
+  status: order.status,
+  title: order.title,
+  updatedAt: order.updatedAt,
+});
+
+const loadTemplatesById = async (
+  db: D1Database,
+  ids: string[]
+): Promise<Map<string, TemplateRecord>> => {
+  const unique = [...new Set(ids.filter(Boolean))];
+
+  if (unique.length === 0) {
+    return new Map();
+  }
+
+  const placeholders = unique.map(() => "?").join(", ");
+  const { results } = await db
+    .prepare(
+      `SELECT order_service_templates.*, service_types.name AS service_type_name
+      FROM order_service_templates
+      JOIN service_types ON service_types.id = order_service_templates.service_type_id
+      WHERE order_service_templates.id IN (${placeholders})`
+    )
+    .bind(...unique)
+    .all<Record<string, unknown>>();
+
+  return new Map(
+    results.map((row) => {
+      const template = mapTemplateRow(row);
+
+      return [template.id, template] as const;
+    })
+  );
+};
+
+/**
+ * Create orders for every configured date in the month that does not already
+ * have one. Existing dates are skipped, and configured weekdays whose template
+ * is missing are left untouched so a stray config never blocks the whole month.
+ */
+const planMonthInternal = async (
+  db: D1Database,
+  month: string,
+  settings: MonthPlanningSettings
+): Promise<{ createdIds: string[] }> => {
+  const configuredDates = getMonthDatesForDayConfigs(
+    month,
+    settings.prepopulateDays
+  );
+
+  if (configuredDates.length === 0) {
+    return { createdIds: [] };
+  }
+
+  const templatesById = await loadTemplatesById(
+    db,
+    settings.prepopulateDays.map((day) => day.templateId)
+  );
+  const start = `${month}-01`;
+  const end = getNextMonthStart(month);
+  const { results } = await db
+    .prepare(
+      "SELECT service_date FROM orders_of_service WHERE service_date >= ? AND service_date < ?"
+    )
+    .bind(start, end)
+    .all<Record<string, unknown>>();
+  const existingDates = new Set(
+    results.map((row) => asString(row.service_date))
+  );
+  const statements: D1PreparedStatement[] = [];
+  const timestamp = nowIso();
+
+  for (const { date, dayConfig } of configuredDates) {
+    if (existingDates.has(date)) {
+      continue;
+    }
+
+    const template = templatesById.get(dayConfig.templateId);
+
+    if (!template) {
+      continue;
+    }
+
+    const order = normalizeTemplate(template.template, template.name);
+    const title =
+      dayConfig.defaultTitle.trim() || `${template.name} Order of Service`;
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO orders_of_service
+            (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
+          VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)
+          ON CONFLICT(service_date) DO NOTHING
+          RETURNING id`
+        )
+        .bind(
+          uuidv4(),
+          title,
+          template.serviceTypeId,
+          date,
+          template.id,
+          JSON.stringify(order),
+          timestamp
+        )
+    );
+  }
+
+  const createdIds: string[] = [];
+
+  if (statements.length > 0) {
+    const batchResults = await db.batch<{ id: string }>(statements);
+
+    for (const result of batchResults) {
+      for (const row of result.results) {
+        createdIds.push(row.id);
+      }
+    }
+  }
+
+  return { createdIds };
+};
+
+export const getMonthPlanningSettings = createServerFn({
+  method: "GET",
+}).handler(async (): Promise<MonthPlanningSettings> => {
+  await ensureDatabase();
+
+  return loadMonthPlanningSettings(getDatabase());
+});
+
+export const saveMonthPlanningSettings = createServerFn({ method: "POST" })
+  .validator((data: MonthPlanningSettings) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const seen = new Set<number>();
+    const prepopulateDays: MonthPlanningDayConfig[] = [];
+
+    for (const day of data.prepopulateDays ?? []) {
+      const weekday = asNumber(day.weekday);
+
+      if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+        continue;
+      }
+
+      if (seen.has(weekday)) {
+        continue;
+      }
+
+      seen.add(weekday);
+      const templateId = asString(day.templateId).trim();
+
+      if (!templateId) {
+        throw new Error(
+          `Select a template for ${WEEKDAY_NAMES[weekday]} before saving. Pre-population cannot be finalized without an associated template.`
+        );
+      }
+
+      prepopulateDays.push({
+        defaultTitle:
+          asString(day.defaultTitle).trim() ||
+          `${WEEKDAY_NAMES[weekday]} Order of Service`,
+        templateId,
+        weekday,
+      });
+    }
+
+    const templatesById = await loadTemplatesById(
+      db,
+      prepopulateDays.map((day) => day.templateId)
+    );
+
+    for (const day of prepopulateDays) {
+      if (!templatesById.has(day.templateId)) {
+        throw new Error(
+          `The template for ${WEEKDAY_NAMES[day.weekday]} no longer exists. Choose another template.`
+        );
+      }
+    }
+
+    await db
+      .prepare(
+        `INSERT INTO app_settings (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = excluded.updated_at`
+      )
+      .bind(MONTH_PLANNING_KEY, JSON.stringify({ prepopulateDays }), nowIso())
+      .run();
+
+    return { success: true };
+  });
+
+export const planMonth = createServerFn({ method: "POST" })
+  .validator((data: PlanMonthInput) => data)
+  .handler(
+    async ({
+      data,
+    }): Promise<{ createdCount: number; createdIds: string[] }> => {
+      await ensureDatabase();
+      const db = getDatabase();
+      const month = (data.month ?? "").trim();
+      parseMonth(month);
+      const settings = await loadMonthPlanningSettings(db);
+      const { createdIds } = await planMonthInternal(db, month, settings);
+
+      return { createdCount: createdIds.length, createdIds };
+    }
+  );
+
+export const getMonthPlan = createServerFn({ method: "GET" })
+  .validator((month?: string) => month ?? "")
+  .handler(async ({ data }): Promise<MonthPlanData> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const month = data.trim() || getCurrentMonth();
+    parseMonth(month);
+    const settings = await loadMonthPlanningSettings(db);
+
+    // Phase 5: pre-populate the current month automatically on first visit.
+    if (month === getCurrentMonth()) {
+      await planMonthInternal(db, month, settings);
+    }
+
+    const configTemplateIds = settings.prepopulateDays.map(
+      (day) => day.templateId
+    );
+    const start = `${month}-01`;
+    const end = getNextMonthStart(month);
+    const [templatesById, orderRows, teamRows, teamMembers] = await Promise.all(
+      [
+        loadTemplatesById(db, configTemplateIds),
+        db
+          .prepare(
+            `SELECT orders_of_service.*, service_types.name AS service_type_name
+          FROM orders_of_service
+          JOIN service_types ON service_types.id = orders_of_service.service_type_id
+          WHERE service_date >= ? AND service_date < ?
+          ORDER BY service_date`
+          )
+          .bind(start, end)
+          .all<Record<string, unknown>>(),
+        db
+          .prepare(`${TEAM_SUMMARY_SELECT} ORDER BY teams.name`)
+          .all<Record<string, unknown>>(),
+        // oxlint-disable-next-line no-use-before-define -- getTeamMembers is a server fn defined later in this module.
+        getTeamMembers(),
+      ]
+    );
+
+    const teams = teamRows.results.map(mapTeamSummaryRow);
+    const teamNamesById = new Map(teams.map((team) => [team.id, team.name]));
+    const orders = orderRows.results.map(mapOrderRow);
+    const ordersByDate = new Map(
+      orders.map((order) => [order.serviceDate, order])
+    );
+
+    const configuredDates = getMonthDatesForDayConfigs(
+      month,
+      settings.prepopulateDays
+    );
+    const serviceDates: MonthPlanServiceDate[] = configuredDates.map(
+      ({ date, dayConfig }) => {
+        const order = ordersByDate.get(date);
+        const template = templatesById.get(dayConfig.templateId);
+
+        return {
+          date,
+          dayConfig,
+          ...(order ? { order: toOrderSummary(order) } : {}),
+          shouldExist: true,
+          templateName: template?.name ?? "",
+        };
+      }
+    );
+    const missingCount = serviceDates.filter((entry) => !entry.order).length;
+    const unconfiguredWeekdays = settings.prepopulateDays
+      .filter((day) => !templatesById.has(day.templateId))
+      .map((day) => day.weekday);
+
+    // Schedule cards from existing orders: teams the order's cards staff.
+    const scheduleCards: Record<string, MonthScheduleCard[]> = {};
+    const targetTeamIds = new Set<string>();
+
+    for (const order of orders) {
+      for (const card of order.order.service_type) {
+        const teamIds = new Set([
+          ...(card.requiredTeamIds ?? []),
+          ...(card.optionalTeamIds ?? []),
+        ]);
+
+        for (const teamId of teamIds) {
+          targetTeamIds.add(teamId);
+          const list = scheduleCards[teamId] ?? [];
+          list.push({
+            cardId: card.id,
+            cardName: card.typeName,
+            date: order.serviceDate,
+            memberIds: getAssignmentMemberIds(card, teamId),
+            optional: isTeamOptional(card, teamId),
+            orderId: order.id,
+            orderTitle: order.title,
+            required: isTeamRequired(card, teamId),
+            requiredCount: getRequiredTeamCount(card, teamId),
+          });
+          scheduleCards[teamId] = list;
+        }
+      }
+    }
+
+    // Also surface teams configured on the assigned templates, so the schedule
+    // bar lists them even before any order in the month has been planned.
+    for (const day of settings.prepopulateDays) {
+      const template = templatesById.get(day.templateId);
+
+      if (!template) {
+        continue;
+      }
+
+      for (const card of template.template.service_type) {
+        for (const teamId of [
+          ...(card.requiredTeamIds ?? []),
+          ...(card.optionalTeamIds ?? []),
+        ]) {
+          targetTeamIds.add(teamId);
+        }
+      }
+    }
+
+    const scheduleTargets: MonthScheduleTarget[] = [...targetTeamIds]
+      .map((teamId) => ({
+        teamId,
+        teamName: teamNamesById.get(teamId) ?? teamId,
+      }))
+      // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target lacks toSorted.
+      .sort((first, second) => first.teamName.localeCompare(second.teamName));
+
+    return {
+      missingCount,
+      month,
+      scheduleCards,
+      scheduleTargets,
+      serviceDates,
+      settings,
+      teamMembers,
+      teams,
+      unconfiguredWeekdays,
+    };
+  });
+
+export const saveMonthSchedule = createServerFn({ method: "POST" })
+  .validator((data: SaveMonthScheduleInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const byOrder = new Map<string, Map<string, string[]>>();
+
+    for (const assignment of data.assignments) {
+      const cards = byOrder.get(assignment.orderId) ?? new Map();
+      cards.set(assignment.cardId, assignment.memberIds);
+      byOrder.set(assignment.orderId, cards);
+    }
+
+    const orderIds = [...byOrder.keys()];
+
+    if (orderIds.length === 0) {
+      return { success: true };
+    }
+
+    const placeholders = orderIds.map(() => "?").join(", ");
+    const [{ results }, membersByTeam] = await Promise.all([
+      db
+        .prepare(
+          `SELECT id, title, order_json FROM orders_of_service WHERE id IN (${placeholders})`
+        )
+        .bind(...orderIds)
+        .all<Record<string, unknown>>(),
+      loadTeamMemberIds(db),
+    ]);
+    const timestamp = nowIso();
+    const statements: D1PreparedStatement[] = [];
+
+    for (const row of results) {
+      const id = asString(row.id);
+      const title = asString(row.title);
+      const order = parseTemplateJson(asString(row.order_json), title);
+      const updatesByCard = byOrder.get(id);
+
+      if (!updatesByCard) {
+        continue;
+      }
+
+      const service_type = order.service_type.map((card) => {
+        if (!updatesByCard.has(card.id)) {
+          return card;
+        }
+
+        return {
+          ...card,
+          teamAssignments: setAssignmentMemberIds(
+            card.teamAssignments,
+            data.teamId,
+            updatesByCard.get(card.id) ?? []
+          ),
+        };
+      });
+      const normalized = pruneStaleAssignments(
+        normalizeTemplate({ ...order, service_type }, title),
+        membersByTeam
+      );
+      statements.push(
+        db
+          .prepare(
+            "UPDATE orders_of_service SET order_json = ?, updated_at = ? WHERE id = ?"
+          )
+          .bind(JSON.stringify(normalized), timestamp, id)
+      );
+    }
+
+    if (statements.length > 0) {
+      await db.batch(statements);
+    }
 
     return { success: true };
   });
@@ -855,7 +1796,9 @@ export const getOrder = createServerFn({ method: "GET" })
 export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
   .validator((data: SendOrderToCraftMyPdfInput) => data)
   .handler(
-    async ({ data }): Promise<{
+    async ({
+      data,
+    }): Promise<{
       craftMyPdfResponseBody?: string;
       craftMyPdfStatus?: number;
       dryRun: boolean;
@@ -873,7 +1816,9 @@ export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
       }
 
       const templateId =
-        data.templateId?.trim() || getEnvValue("CRAFT_PDF_ID") || getEnvValue("CRAFTMYPDF_TEMPLATE_ID");
+        data.templateId?.trim() ||
+        getEnvValue("CRAFT_PDF_ID") ||
+        getEnvValue("CRAFTMYPDF_TEMPLATE_ID");
 
       if (!templateId) {
         throw new Error(
@@ -894,13 +1839,15 @@ export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
         };
       }
 
-      const apiKey = getEnvValue("CRAFTMYPDF_API_KEY") || getEnvValue("CRAFTPDF_API_KEY");
+      const apiKey =
+        getEnvValue("CRAFTMYPDF_API_KEY") || getEnvValue("CRAFTPDF_API_KEY");
 
       if (!apiKey) {
         throw new Error("CRAFTMYPDF_API_KEY secret is not configured.");
       }
 
-      const apiUrl = getEnvValue("CRAFTMYPDF_API_URL") ?? CRAFTMYPDF_DEFAULT_API_URL;
+      const apiUrl =
+        getEnvValue("CRAFTMYPDF_API_URL") ?? CRAFTMYPDF_DEFAULT_API_URL;
       const response = await fetch(apiUrl, {
         body: JSON.stringify(requestBody),
         headers: {
@@ -997,7 +1944,11 @@ export const saveOrder = createServerFn({ method: "POST" })
     });
 
     const timestamp = nowIso();
-    const order = normalizeTemplate(data.order, data.title);
+    const membersByTeam = await loadTeamMemberIds(db);
+    const order = pruneStaleAssignments(
+      normalizeTemplate(data.order, data.title),
+      membersByTeam
+    );
 
     try {
       await db
@@ -1040,13 +1991,18 @@ export const publishOrder = createServerFn({ method: "POST" })
     }
 
     assertHymnActivitiesHaveSelections(order);
+    await assertRequiredTeamsStaffed(db, order);
 
     if (order.status === "Published") {
       return { id: data, pdfObjectKey: order.pdfObjectKey };
     }
 
-    const craftMyPdfResult = await postOrderToCraftMyPdf({ data: { orderId: data } });
-    const pdfUrl = getCraftMyPdfFileUrl(craftMyPdfResult.craftMyPdfResponseBody ?? "{}");
+    const craftMyPdfResult = await postOrderToCraftMyPdf({
+      data: { orderId: data },
+    });
+    const pdfUrl = getCraftMyPdfFileUrl(
+      craftMyPdfResult.craftMyPdfResponseBody ?? "{}"
+    );
     const pdfResponse = await fetch(pdfUrl);
 
     if (!pdfResponse.ok) {
@@ -1056,7 +2012,8 @@ export const publishOrder = createServerFn({ method: "POST" })
     }
 
     const pdfObjectKey = getPdfObjectKey(order);
-    const pdfFilename = pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
+    const pdfFilename =
+      pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
     await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
       httpMetadata: {
         contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
@@ -1087,7 +2044,9 @@ export const publishOrder = createServerFn({ method: "POST" })
     for (const hymnId of hymnIds) {
       statements.push(
         db
-          .prepare("INSERT INTO hymn_plays (id, hymn_id, order_id, played_on) VALUES (?, ?, ?, ?)")
+          .prepare(
+            "INSERT INTO hymn_plays (id, hymn_id, order_id, played_on) VALUES (?, ?, ?, ?)"
+          )
           .bind(uuidv4(), hymnId, data, order.serviceDate),
         db
           .prepare(
@@ -1159,7 +2118,9 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       .first<Record<string, unknown>>();
 
     if (existingDelivery) {
-      throw new Error("Email has already been queued for this order of service.");
+      throw new Error(
+        "Email has already been queued for this order of service."
+      );
     }
 
     const settingsRow = await db
@@ -1173,7 +2134,9 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
       : {};
 
-    if (!(storedSettings.smtpTokenConfigured && storedSettings.smtpUserConfigured)) {
+    if (
+      !(storedSettings.smtpTokenConfigured && storedSettings.smtpUserConfigured)
+    ) {
       throw new Error("SMTP settings are not fully configured.");
     }
 
@@ -1224,7 +2187,11 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
           SET status = 'Failed', error_message = ?, updated_at = ?
           WHERE id = ?`
         )
-        .bind(getErrorMessage(error, "Unable to queue email."), nowIso(), deliveryId)
+        .bind(
+          getErrorMessage(error, "Unable to queue email."),
+          nowIso(),
+          deliveryId
+        )
         .run();
       throw error;
     }
@@ -1258,9 +2225,18 @@ export const getEmailSettings = createServerFn({ method: "GET" }).handler(
 
     return {
       recipients: results.map((row) => row.email),
-      smtpAddress: typeof storedSettings.smtpAddress === "string" ? storedSettings.smtpAddress : "",
-      smtpPort: typeof storedSettings.smtpPort === "number" ? storedSettings.smtpPort : "",
-      smtpSenderName: typeof storedSettings.smtpSenderName === "string" ? storedSettings.smtpSenderName : "",
+      smtpAddress:
+        typeof storedSettings.smtpAddress === "string"
+          ? storedSettings.smtpAddress
+          : "",
+      smtpPort:
+        typeof storedSettings.smtpPort === "number"
+          ? storedSettings.smtpPort
+          : "",
+      smtpSenderName:
+        typeof storedSettings.smtpSenderName === "string"
+          ? storedSettings.smtpSenderName
+          : "",
       smtpTokenConfigured: Boolean(storedSettings.smtpTokenConfigured),
       smtpUserConfigured: Boolean(storedSettings.smtpUserConfigured),
     };
@@ -1274,12 +2250,16 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     assertValidEmailSettings(data);
 
     const db = getDatabase();
-    const trimmedRecipients = [...new Set(data.recipients.map((email) => email.trim().toLowerCase()))];
+    const trimmedRecipients = [
+      ...new Set(data.recipients.map((email) => email.trim().toLowerCase())),
+    ];
     const currentRow = await db
       .prepare("SELECT value FROM app_settings WHERE key = ?")
       .bind(EMAIL_SETTINGS_KEY)
       .first<{ value: string }>();
-    const currentSettings = currentRow ? (JSON.parse(currentRow.value) as Record<string, unknown>) : {};
+    const currentSettings = currentRow
+      ? (JSON.parse(currentRow.value) as Record<string, unknown>)
+      : {};
     const encryptedToken = data.smtpToken
       ? await encryptSetting(data.smtpToken.trim())
       : asString(currentSettings.smtpTokenEncrypted);
@@ -1288,11 +2268,15 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
       : asString(currentSettings.smtpUserEncrypted);
 
     if (!encryptedToken) {
-      throw new Error("SMTP token is required before email settings can be saved.");
+      throw new Error(
+        "SMTP token is required before email settings can be saved."
+      );
     }
 
     if (!encryptedUser) {
-      throw new Error("SMTP user is required before email settings can be saved.");
+      throw new Error(
+        "SMTP user is required before email settings can be saved."
+      );
     }
 
     const settingsToStore = {
@@ -1306,16 +2290,20 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     };
 
     await db.batch([
-      db.prepare(
-        `INSERT INTO app_settings (key, value, updated_at)
+      db
+        .prepare(
+          `INSERT INTO app_settings (key, value, updated_at)
         VALUES (?, ?, ?)
         ON CONFLICT(key) DO UPDATE SET
           value = excluded.value,
           updated_at = excluded.updated_at`
-      ).bind(EMAIL_SETTINGS_KEY, JSON.stringify(settingsToStore), nowIso()),
+        )
+        .bind(EMAIL_SETTINGS_KEY, JSON.stringify(settingsToStore), nowIso()),
       db.prepare("DELETE FROM email_recipients"),
       ...trimmedRecipients.map((email) =>
-        db.prepare("INSERT INTO email_recipients (id, email) VALUES (?, ?)").bind(uuidv4(), email)
+        db
+          .prepare("INSERT INTO email_recipients (id, email) VALUES (?, ?)")
+          .bind(uuidv4(), email)
       ),
     ]);
 
@@ -1330,7 +2318,9 @@ export const addEmailRecipient = createServerFn({ method: "POST" })
     const email = data.trim().toLowerCase();
     assertValidEmail(email, "Recipient");
     await db
-      .prepare("INSERT OR IGNORE INTO email_recipients (id, email) VALUES (?, ?)")
+      .prepare(
+        "INSERT OR IGNORE INTO email_recipients (id, email) VALUES (?, ?)"
+      )
       .bind(uuidv4(), email)
       .run();
 
@@ -1342,7 +2332,10 @@ export const deleteEmailRecipient = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ success: true }> => {
     await ensureDatabase();
     const db = getDatabase();
-    await db.prepare("DELETE FROM email_recipients WHERE email = ?").bind(data.trim().toLowerCase()).run();
+    await db
+      .prepare("DELETE FROM email_recipients WHERE email = ?")
+      .bind(data.trim().toLowerCase())
+      .run();
 
     return { success: true };
   });
@@ -1380,7 +2373,9 @@ export const getHymnOptions = createServerFn({ method: "GET" }).handler(
     return results.map((row) => ({
       hasLyrics: Boolean(asString(row.lyrics_markdown).trim()),
       id: asString(row.id),
-      label: [asString(row.hymn_number), asString(row.name)].filter(Boolean).join(" — "),
+      label: [asString(row.hymn_number), asString(row.name)]
+        .filter(Boolean)
+        .join(" — "),
       lastPlayed: asString(row.last_played),
       musicKey: asString(row.music_key),
       sourceName: asString(row.source_name),
@@ -1490,7 +2485,9 @@ export const renameHymnFile = createServerFn({ method: "POST" })
     }
 
     await db
-      .prepare("UPDATE hymn_files SET filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .prepare(
+        "UPDATE hymn_files SET filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+      )
       .bind(filename, data.id)
       .run();
 
@@ -1599,6 +2596,358 @@ export const deleteHymn = createServerFn({ method: "POST" })
     await ensureDatabase();
     const db = getDatabase();
     await db.prepare("DELETE FROM hymns WHERE id = ?").bind(data).run();
+
+    return { success: true };
+  });
+
+const TEAM_MEMBER_SELECT = `
+  SELECT team_members.*,
+    (SELECT GROUP_CONCAT(team_id) FROM team_member_teams WHERE member_id = team_members.id) AS team_ids
+  FROM team_members
+`;
+
+const attachTeamNames = (
+  members: TeamMember[],
+  teamsLookup: Map<string, Team>
+): TeamMemberSummary[] =>
+  members.map((member) => ({
+    ...member,
+    teamNames: memberTeamNames(member, teamsLookup),
+  }));
+
+export const getTeams = createServerFn({ method: "GET" }).handler(
+  async (): Promise<TeamSummary[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(`${TEAM_SUMMARY_SELECT} ORDER BY teams.name`)
+      .all<Record<string, unknown>>();
+
+    return results.map(mapTeamSummaryRow);
+  }
+);
+
+export const getTeam = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<TeamRecord | null> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const [teamRow, memberRows, teamsLookup] = await Promise.all([
+      db
+        .prepare(`${TEAM_SUMMARY_SELECT} WHERE teams.id = ?`)
+        .bind(data)
+        .first<Record<string, unknown>>(),
+      db
+        .prepare(
+          `${TEAM_MEMBER_SELECT} WHERE team_members.id IN (SELECT member_id FROM team_member_teams WHERE team_id = ?) ORDER BY team_members.last_name, team_members.first_name`
+        )
+        .bind(data)
+        .all<Record<string, unknown>>(),
+      loadTeamsById(db),
+    ]);
+
+    if (!teamRow) {
+      return null;
+    }
+
+    return {
+      ...mapTeamSummaryRow(teamRow),
+      members: attachTeamNames(
+        memberRows.results.map(mapTeamMemberRow),
+        teamsLookup
+      ),
+    };
+  });
+
+export const saveTeam = createServerFn({ method: "POST" })
+  .validator((data: SaveTeamInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const name = data.name.trim();
+
+    if (!name) {
+      throw new Error("Team name is required.");
+    }
+
+    const id = data.id || uuidv4();
+    const parentTeamId = data.parentTeamId?.trim() || null;
+
+    if (parentTeamId) {
+      const { results } = await db
+        .prepare("SELECT id, parent_team_id FROM teams")
+        .all<Record<string, unknown>>();
+      const parentError = validateTeamParent({
+        id,
+        parentTeamId,
+        teams: results.map((row) => ({
+          id: asString(row.id),
+          parentTeamId: asString(row.parent_team_id) || undefined,
+        })),
+      });
+
+      if (parentError) {
+        throw new Error(parentError);
+      }
+    }
+
+    await db
+      .prepare(
+        `INSERT INTO teams (id, name, parent_team_id, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          parent_team_id = excluded.parent_team_id,
+          updated_at = excluded.updated_at`
+      )
+      .bind(id, name, parentTeamId, nowIso())
+      .run();
+
+    return { id };
+  });
+
+const cardReferencesTeam = (
+  card: {
+    optionalTeamIds?: string[];
+    requiredTeamIds?: string[];
+    teamAssignments?: { teamId: string }[];
+  },
+  teamId: string
+): boolean =>
+  (card.requiredTeamIds ?? []).includes(teamId) ||
+  (card.optionalTeamIds ?? []).includes(teamId) ||
+  (card.teamAssignments ?? []).some(
+    (assignment) => assignment.teamId === teamId
+  );
+
+/**
+ * Find templates and orders whose JSON still references a team. Team ids live
+ * inside `template_json`/`order_json`, beyond the reach of D1 foreign keys, so
+ * deletion must consult this before removing the team row.
+ */
+const findTeamReferences = async (
+  db: D1Database,
+  teamId: string
+): Promise<{ orders: string[]; templates: string[] }> => {
+  const [templateRows, orderRows] = await Promise.all([
+    db
+      .prepare("SELECT name, template_json FROM order_service_templates")
+      .all<Record<string, unknown>>(),
+    db
+      .prepare("SELECT title, service_date, order_json FROM orders_of_service")
+      .all<Record<string, unknown>>(),
+  ]);
+
+  const templates = templateRows.results
+    .filter((row) =>
+      parseTemplateJson(
+        asString(row.template_json),
+        asString(row.name)
+      ).service_type.some((card) => cardReferencesTeam(card, teamId))
+    )
+    .map((row) => asString(row.name));
+
+  const orders = orderRows.results
+    .filter((row) =>
+      parseTemplateJson(
+        asString(row.order_json),
+        asString(row.title)
+      ).service_type.some((card) => cardReferencesTeam(card, teamId))
+    )
+    .map((row) => asString(row.title) || asString(row.service_date));
+
+  return { orders, templates };
+};
+
+export const deleteTeam = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+
+    const { orders, templates } = await findTeamReferences(db, data);
+
+    if (templates.length > 0 || orders.length > 0) {
+      const parts: string[] = [];
+
+      if (templates.length > 0) {
+        parts.push(`${templates.length} template(s): ${templates.join(", ")}`);
+      }
+
+      if (orders.length > 0) {
+        parts.push(`${orders.length} order(s): ${orders.join(", ")}`);
+      }
+
+      throw new Error(
+        `Remove this team from ${parts.join(" and ")} before deleting it.`
+      );
+    }
+
+    await db.batch([
+      db
+        .prepare(
+          "UPDATE teams SET parent_team_id = NULL WHERE parent_team_id = ?"
+        )
+        .bind(data),
+      db.prepare("DELETE FROM team_member_teams WHERE team_id = ?").bind(data),
+      db.prepare("DELETE FROM teams WHERE id = ?").bind(data),
+    ]);
+
+    return { success: true };
+  });
+
+export const getTeamTemplates = createServerFn({ method: "GET" })
+  .validator((teamId: string) => teamId)
+  .handler(async ({ data }): Promise<TemplateOption[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const { results } = await db
+      .prepare(
+        "SELECT id, name, template_json FROM order_service_templates ORDER BY name"
+      )
+      .all<Record<string, unknown>>();
+
+    return results
+      .filter((row) => {
+        const template = parseTemplateJson(
+          asString(row.template_json),
+          asString(row.name)
+        );
+
+        return template.service_type.some(
+          (card) =>
+            (card.requiredTeamIds ?? []).includes(data) ||
+            (card.optionalTeamIds ?? []).includes(data)
+        );
+      })
+      .map((row) => ({ id: asString(row.id), name: asString(row.name) }));
+  });
+
+export const getTeamMembers = createServerFn({ method: "GET" }).handler(
+  async (): Promise<TeamMemberSummary[]> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const [memberRows, teamsLookup] = await Promise.all([
+      db
+        .prepare(
+          `${TEAM_MEMBER_SELECT} ORDER BY team_members.last_name, team_members.first_name`
+        )
+        .all<Record<string, unknown>>(),
+      loadTeamsById(db),
+    ]);
+
+    return attachTeamNames(
+      memberRows.results.map(mapTeamMemberRow),
+      teamsLookup
+    );
+  }
+);
+
+export const getTeamMember = createServerFn({ method: "GET" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<TeamMember | null> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    const row = await db
+      .prepare(`${TEAM_MEMBER_SELECT} WHERE team_members.id = ?`)
+      .bind(data)
+      .first<Record<string, unknown>>();
+
+    return row ? mapTeamMemberRow(row) : null;
+  });
+
+export const saveTeamMember = createServerFn({ method: "POST" })
+  .validator((data: SaveTeamMemberInput) => data)
+  .handler(async ({ data }): Promise<{ id: string }> => {
+    await ensureDatabase();
+    const validationErrors = validateTeamMember(data);
+
+    if (validationErrors.length > 0) {
+      throw new Error(validationErrors[0]);
+    }
+
+    const db = getDatabase();
+    const id = data.id || uuidv4();
+    const teamIds = [...new Set(data.teamIds.filter(Boolean))];
+    const timestamp = nowIso();
+
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO team_members (id, first_name, last_name, email, phone, notes, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            first_name = excluded.first_name,
+            last_name = excluded.last_name,
+            email = excluded.email,
+            phone = excluded.phone,
+            notes = excluded.notes,
+            updated_at = excluded.updated_at`
+        )
+        .bind(
+          id,
+          data.firstName.trim(),
+          data.lastName.trim(),
+          data.email.trim(),
+          data.phone.trim(),
+          data.notes,
+          timestamp
+        ),
+      db.prepare("DELETE FROM team_member_teams WHERE member_id = ?").bind(id),
+      ...teamIds.map((teamId) =>
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO team_member_teams (team_id, member_id) VALUES (?, ?)"
+          )
+          .bind(teamId, id)
+      ),
+    ]);
+
+    return { id };
+  });
+
+export const deleteTeamMember = createServerFn({ method: "POST" })
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+
+    await db.batch([
+      db
+        .prepare("DELETE FROM team_member_teams WHERE member_id = ?")
+        .bind(data),
+      db.prepare("DELETE FROM team_members WHERE id = ?").bind(data),
+    ]);
+
+    return { success: true };
+  });
+
+export const addMemberToTeam = createServerFn({ method: "POST" })
+  .validator((data: TeamMembershipInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO team_member_teams (team_id, member_id) VALUES (?, ?)"
+      )
+      .bind(data.teamId, data.memberId)
+      .run();
+
+    return { success: true };
+  });
+
+export const removeMemberFromTeam = createServerFn({ method: "POST" })
+  .validator((data: TeamMembershipInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await ensureDatabase();
+    const db = getDatabase();
+    await db
+      .prepare(
+        "DELETE FROM team_member_teams WHERE team_id = ? AND member_id = ?"
+      )
+      .bind(data.teamId, data.memberId)
+      .run();
 
     return { success: true };
   });
