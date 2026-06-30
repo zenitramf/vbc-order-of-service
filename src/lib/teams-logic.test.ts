@@ -26,6 +26,7 @@ import {
   pruneStaleAssignments,
   removeTeamAssignment,
   setAssignmentMemberIds,
+  syncOrderTeamsFromTemplate,
   teamsById,
   validateTeamMember,
   validateTeamParent,
@@ -600,6 +601,145 @@ describe("pruneStaleAssignments", () => {
     const value = order([card({ requiredTeamIds: ["musicians"] })]);
 
     expect(pruneStaleAssignments(value, new Map())).toEqual(value);
+  });
+});
+
+describe("syncOrderTeamsFromTemplate", () => {
+  it("adds a team required on the template after the order was planned", () => {
+    const planned = order([
+      card({
+        requiredTeamIds: ["counters"],
+        teamAssignments: [{ memberIds: ["m1"], teamId: "counters" }],
+      }),
+    ]);
+    const template = order([
+      card({ requiredTeamIds: ["counters", "song-leaders"] }),
+    ]);
+
+    const { changed, order: synced } = syncOrderTeamsFromTemplate(
+      planned,
+      template
+    );
+
+    expect(changed).toBe(true);
+    expect(synced.service_type[0].requiredTeamIds).toEqual([
+      "counters",
+      "song-leaders",
+    ]);
+    // Existing assignments survive the merge.
+    expect(synced.service_type[0].teamAssignments).toEqual([
+      { memberIds: ["m1"], teamId: "counters" },
+    ]);
+  });
+
+  it("copies the template's required count for a newly-required team", () => {
+    const planned = order([card({ requiredTeamIds: ["counters"] })]);
+    const template = order([
+      card({
+        requiredTeamCounts: { "song-leaders": 3 },
+        requiredTeamIds: ["counters", "song-leaders"],
+      }),
+    ]);
+
+    const { order: synced } = syncOrderTeamsFromTemplate(planned, template);
+
+    expect(synced.service_type[0].requiredTeamCounts).toEqual({
+      "song-leaders": 3,
+    });
+  });
+
+  it("keeps the order's own count over the template's", () => {
+    const planned = order([
+      card({
+        requiredTeamCounts: { counters: 2 },
+        requiredTeamIds: ["counters"],
+      }),
+    ]);
+    const template = order([
+      card({
+        requiredTeamCounts: { counters: 5 },
+        requiredTeamIds: ["counters"],
+      }),
+    ]);
+
+    const { order: synced } = syncOrderTeamsFromTemplate(planned, template);
+
+    expect(synced.service_type[0].requiredTeamCounts).toEqual({ counters: 2 });
+  });
+
+  it("drops an optional team that the template now requires", () => {
+    const planned = order([card({ optionalTeamIds: ["song-leaders"] })]);
+    const template = order([card({ requiredTeamIds: ["song-leaders"] })]);
+
+    const { synced, changed } = (() => {
+      const result = syncOrderTeamsFromTemplate(planned, template);
+
+      return { changed: result.changed, synced: result.order };
+    })();
+
+    expect(changed).toBe(true);
+    expect(synced.service_type[0].requiredTeamIds).toEqual(["song-leaders"]);
+    expect(synced.service_type[0].optionalTeamIds).toEqual([]);
+  });
+
+  it("preserves ad-hoc teams the template does not configure", () => {
+    const planned = order([
+      card({
+        requiredTeamIds: ["counters"],
+        teamAssignments: [{ memberIds: ["m1"], teamId: "ushers" }],
+      }),
+    ]);
+    const template = order([
+      card({ requiredTeamIds: ["counters", "song-leaders"] }),
+    ]);
+
+    const { order: synced } = syncOrderTeamsFromTemplate(planned, template);
+
+    expect(synced.service_type[0].teamAssignments).toEqual([
+      { memberIds: ["m1"], teamId: "ushers" },
+    ]);
+  });
+
+  it("does not remove a team the template later dropped", () => {
+    const planned = order([
+      card({ requiredTeamIds: ["counters", "song-leaders"] }),
+    ]);
+    const template = order([card({ requiredTeamIds: ["counters"] })]);
+
+    const { changed, order: synced } = syncOrderTeamsFromTemplate(
+      planned,
+      template
+    );
+
+    expect(changed).toBe(false);
+    expect(synced.service_type[0].requiredTeamIds).toEqual([
+      "counters",
+      "song-leaders",
+    ]);
+  });
+
+  it("reports no change when the template adds nothing new", () => {
+    const planned = order([card({ requiredTeamIds: ["counters"] })]);
+    const template = order([card({ requiredTeamIds: ["counters"] })]);
+
+    const { changed, order: synced } = syncOrderTeamsFromTemplate(
+      planned,
+      template
+    );
+
+    expect(changed).toBe(false);
+    expect(synced.service_type[0]).toBe(planned.service_type[0]);
+  });
+
+  it("ignores template cards with no matching order card id", () => {
+    const planned = order([card({ id: "card-a" })]);
+    const template = order([
+      card({ id: "card-b", requiredTeamIds: ["song-leaders"] }),
+    ]);
+
+    const { changed } = syncOrderTeamsFromTemplate(planned, template);
+
+    expect(changed).toBe(false);
   });
 });
 

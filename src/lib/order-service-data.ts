@@ -61,6 +61,7 @@ import {
   normalizeServiceCardTeams,
   pruneStaleAssignments,
   setAssignmentMemberIds,
+  syncOrderTeamsFromTemplate,
   teamsById as toTeamsById,
   validateTeamMember,
   validateTeamParent,
@@ -1360,7 +1361,8 @@ const loadTemplatesById = async (
 const planMonthInternal = async (
   db: D1Database,
   month: string,
-  settings: MonthPlanningSettings
+  settings: MonthPlanningSettings,
+  { createMissing = true }: { createMissing?: boolean } = {}
 ): Promise<{ createdIds: string[] }> => {
   const configuredDates = getMonthDatesForDayConfigs(
     month,
@@ -1379,24 +1381,54 @@ const planMonthInternal = async (
   const end = getNextMonthStart(month);
   const { results } = await db
     .prepare(
-      "SELECT service_date FROM orders_of_service WHERE service_date >= ? AND service_date < ?"
+      "SELECT id, title, service_date, status, order_json FROM orders_of_service WHERE service_date >= ? AND service_date < ?"
     )
     .bind(start, end)
     .all<Record<string, unknown>>();
-  const existingDates = new Set(
-    results.map((row) => asString(row.service_date))
+  const existingByDate = new Map(
+    results.map((row) => [asString(row.service_date), row] as const)
   );
   const statements: D1PreparedStatement[] = [];
   const timestamp = nowIso();
 
   for (const { date, dayConfig } of configuredDates) {
-    if (existingDates.has(date)) {
-      continue;
-    }
-
     const template = templatesById.get(dayConfig.templateId);
 
     if (!template) {
+      continue;
+    }
+
+    const existing = existingByDate.get(date);
+
+    if (existing) {
+      // The order already exists. If it is still in Planning, fold in any teams
+      // added to the template after it was created so the scheduler and publish
+      // gate see them. Published orders are left untouched.
+      if (asString(existing.status) !== "Planning") {
+        continue;
+      }
+
+      const title = asString(existing.title);
+      const current = parseTemplateJson(asString(existing.order_json), title);
+      const { changed, order: synced } = syncOrderTeamsFromTemplate(
+        current,
+        normalizeTemplate(template.template, template.name)
+      );
+
+      if (changed) {
+        statements.push(
+          db
+            .prepare(
+              "UPDATE orders_of_service SET order_json = ?, updated_at = ? WHERE id = ?"
+            )
+            .bind(JSON.stringify(synced), timestamp, asString(existing.id))
+        );
+      }
+
+      continue;
+    }
+
+    if (!createMissing) {
       continue;
     }
 
@@ -1538,9 +1570,12 @@ export const getMonthPlan = createServerFn({ method: "GET" })
     const settings = await loadMonthPlanningSettings(db);
 
     // Phase 5: pre-populate the current month automatically on first visit.
-    if (month === getCurrentMonth()) {
-      await planMonthInternal(db, month, settings);
-    }
+    // Other months are not auto-created, but their planned (unpublished) orders
+    // are still synced with the current template so teams added after planning —
+    // e.g. a newly-required Song Leaders team — appear in the scheduler.
+    await planMonthInternal(db, month, settings, {
+      createMissing: month === getCurrentMonth(),
+    });
 
     const configTemplateIds = settings.prepopulateDays.map(
       (day) => day.templateId
