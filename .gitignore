@@ -10,3 +10,4 @@ coverage
 !.dev.vars.example
 !.env.example
 /.tanstack/tmp
+/investigations
