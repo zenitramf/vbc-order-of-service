@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Month Planner Schedule Debug</title>
+    <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css" />
+    <style>
+        body {
+            grid-template-columns: 1fr min(90%, 90%) 1fr;
+        }
+    </style>
+</head>
+
+
+<body>
+    <header>
+        <p><strong>Scheduler Investigation</strong></p>
+        <h1>Month Planner · Template Team Added After Planning</h1>
+        <p>
+            Investigation target: a planned month where the template was later
+            modified to add a required team, <strong>Song Leaders</strong>. Existing
+            Counters and Ushers scheduling works, but Song Leaders scheduling says
+            <em>“No planned services in this month…”</em>.
+        </p>
+        <p>
+            <small>Reviewed code paths in <code>getMonthPlan</code>, <code>planMonthInternal</code>, <code>saveTemplate</code>, and <code>MonthSchedulePanel</code> · Investigated 2026-06-30</small>
+        </p>
+    </header>
+
+    <main>
+        <section>
+            <h2>Summary</h2>
+            <table>
+                <tbody>
+                    <tr>
+                        <th scope="row">Verdict</th>
+                        <td><strong>Confirmed stale-template snapshot bug — now fixed.</strong></td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Status</th>
+                        <td><mark>RESOLVED</mark> Template team metadata is synced into planned orders on plan/view. See <a href="#resolution">Resolution</a>.</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">User-visible symptom</th>
+                        <td>Song Leaders appears as a scheduling target, but its schedule panel has zero cards.</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Root cause</th>
+                        <td>Existing orders keep the old template JSON; the planner target list reads the updated live template.</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Fix shape</th>
+                        <td>Backfill or synchronize template team metadata into already-planned orders.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>Findings</h2>
+
+            <article>
+                <mark>CONFIRMED</mark>
+                <h3>Existing planned orders do not inherit teams added to their template later</h3>
+                <p>
+                    Planning a month copies the current template into
+                    <code>orders_of_service.order_json</code>. When the template is edited
+                    later, <code>saveTemplate</code> updates only
+                    <code>order_service_templates.template_json</code>. Already-created
+                    orders remain snapshots of the older template, so they do not contain
+                    newly-required teams such as Song Leaders.
+                </p>
+                <blockquote>
+                    Evidence: <code>planMonthInternal</code> normalizes
+                    <code>template.template</code> and inserts it as
+                    <code>order_json</code>. It skips dates that already have orders.
+                    <code>saveTemplate</code> updates the template row only and does not
+                    touch <code>orders_of_service</code> rows that reference the template.
+                </blockquote>
+                <details open>
+                    <summary>Why Counters and Ushers work</summary>
+                    <ol>
+                        <li>The month was planned while Counters and Ushers already existed in the template.</li>
+                        <li>The created orders therefore contain those teams in their persisted <code>order_json</code>.</li>
+                        <li><code>getMonthPlan</code> builds scheduler cards from those existing order JSON snapshots.</li>
+                        <li>Because Counters and Ushers are present in the snapshots, their schedule cards are available.</li>
+                    </ol>
+                </details>
+                <details open>
+                    <summary>Why Song Leaders fails</summary>
+                    <ol>
+                        <li>Song Leaders was added to the template after the month's orders already existed.</li>
+                        <li>The existing orders still lack Song Leaders in <code>requiredTeamIds</code> / <code>optionalTeamIds</code>.</li>
+                        <li>The Month Planner target bar includes Song Leaders because it also reads the current assigned template.</li>
+                        <li>The Song Leaders panel receives <code>scheduleCards[teamId] ?? []</code>, and there are no order-sourced cards for that team.</li>
+                        <li>The panel correctly renders the empty-state message from its perspective: no existing planned order cards staff Song Leaders.</li>
+                    </ol>
+                </details>
+            </article>
+
+            <article>
+                <mark>ROOT CAUSE</mark>
+                <h3>The scheduler mixes live template targets with persisted order cards</h3>
+                <p>
+                    <code>getMonthPlan</code> uses two different data sources for the
+                    scheduler. The actual schedule cards come from existing orders only,
+                    while the list of teams that can be opened also includes teams from
+                    the current template configuration.
+                </p>
+                <blockquote>
+                    Evidence: <code>scheduleCards</code> is populated by iterating
+                    <code>orders</code> and each order's <code>order.service_type</code>.
+                    Later, <code>targetTeamIds</code> is augmented by iterating
+                    <code>settings.prepopulateDays</code> and each current
+                    <code>template.template.service_type</code>.
+                </blockquote>
+                <details open>
+                    <summary>Relevant simplified flow</summary>
+                    <pre><code>// Cards users can assign are sourced from planned orders only.
+for (const order of orders) {
+  for (const card of order.order.service_type) {
+    const teamIds = new Set([
+      ...(card.requiredTeamIds ?? []),
+      ...(card.optionalTeamIds ?? []),
+    ]);
+    // push scheduleCards[teamId]
+  }
+}
+
+// Buttons users can open are also sourced from current templates.
+for (const day of settings.prepopulateDays) {
+  const template = templatesById.get(day.templateId);
+  for (const card of template.template.service_type) {
+    for (const teamId of [...requiredTeamIds, ...optionalTeamIds]) {
+      targetTeamIds.add(teamId);
+    }
+  }
+}</code></pre>
+                </details>
+            </article>
+
+            <article>
+                <mark>IMPORTANT</mark>
+                <h3>A UI-only fallback would not fully fix the bug</h3>
+                <p>
+                    It may be tempting to create virtual Song Leaders cards from the
+                    current template when <code>scheduleCards</code> is empty. That would
+                    make the scheduler list appear, but it would not make the existing
+                    order treat Song Leaders as a required team.
+                </p>
+                <blockquote>
+                    Evidence: <code>saveMonthSchedule</code> updates
+                    <code>teamAssignments</code> for an existing order card. It does not add
+                    the team to <code>requiredTeamIds</code>, <code>optionalTeamIds</code>,
+                    or <code>requiredTeamCounts</code>.
+                </blockquote>
+                <details open>
+                    <summary>Impact</summary>
+                    <ul>
+                        <li>The order editor would still not truly know Song Leaders is required.</li>
+                        <li>Publish gating could miss the newly-required team because the order snapshot lacks the requirement.</li>
+                        <li>Future saves would preserve an ad-hoc assignment, not the template's required-team metadata.</li>
+                    </ul>
+                </details>
+            </article>
+        </section>
+
+        <section>
+            <h2>Recommended fix</h2>
+            <article>
+                <h3>Synchronize template team metadata into planned orders</h3>
+                <p>
+                    Add a real synchronization/backfill path for orders that were already
+                    planned from the affected template. The key is to merge team metadata,
+                    not replace entire order cards.
+                </p>
+                <ol>
+                    <li>
+                        Match existing planned order cards to current template cards by stable
+                        <code>card.id</code>.
+                    </li>
+                    <li>
+                        Add missing <code>requiredTeamIds</code> and
+                        <code>optionalTeamIds</code> from the template card into the order card.
+                    </li>
+                    <li>
+                        Copy missing <code>requiredTeamCounts</code> for newly-required teams.
+                    </li>
+                    <li>
+                        Preserve existing assignments, title/status, date, activities, and any
+                        order-specific edits.
+                    </li>
+                    <li>
+                        Prefer limiting automatic changes to orders still in
+                        <code>Planning</code> status, or provide an explicit “Sync template
+                        changes into planned services” action.
+                    </li>
+                </ol>
+                <details open>
+                    <summary>Where to consider wiring it</summary>
+                    <ul>
+                        <li><code>planMonth</code>: after creating missing dates, also sync existing planned dates for that month.</li>
+                        <li><code>getMonthPlan</code>: optionally detect and repair stale planned orders before returning planner data.</li>
+                        <li><code>saveTemplate</code>: optionally enqueue or perform sync for future/planning orders that reference the edited template.</li>
+                    </ul>
+                    <p>
+                        The least surprising user experience may be an explicit Month Planner
+                        action because template changes can be intentional for future services
+                        only. But the scheduler should not expose a team button whose panel can
+                        never save a real requirement into the existing orders.
+                    </p>
+                </details>
+            </article>
+        </section>
+
+        <section id="resolution">
+            <h2>Resolution (implemented)</h2>
+            <article>
+                <mark>RESOLVED</mark>
+                <h3>Planned orders are synced with their template's teams</h3>
+                <p>
+                    A pure <code>syncOrderTeamsFromTemplate(order, template)</code> helper
+                    (<code>src/lib/teams-logic.ts</code>) merges template team metadata into
+                    an existing order by matching cards on their stable <code>card.id</code>.
+                    The merge is <strong>additive and non-destructive</strong>:
+                </p>
+                <ul>
+                    <li>Unions <code>requiredTeamIds</code> and <code>optionalTeamIds</code> from the template into the order (an optional team the template now requires is promoted to required).</li>
+                    <li>Fills in <code>requiredTeamCounts</code> for newly-required teams, but the order's own counts win where it already tracks one.</li>
+                    <li>Preserves assignments, activities, title/status/date, and ad-hoc teams the planner added.</li>
+                    <li>Teams the template later <em>drops</em> are left in place rather than silently removed.</li>
+                    <li>Returns a <code>changed</code> flag so steady-state views perform no writes.</li>
+                </ul>
+                <p>
+                    Wired into <code>planMonthInternal</code>: for each configured date with an
+                    existing order in <code>Planning</code> status, the order is synced and
+                    re-persisted when it changed. Published orders are never touched.
+                    <code>getMonthPlan</code> now runs this on every planner view
+                    (<code>createMissing</code> gates auto-creation to the current month only),
+                    so opening the affected month repairs the snapshot before
+                    <code>scheduleCards</code> are built — the Song Leaders panel populates and a
+                    saved assignment lands on an order that genuinely lists the team as required.
+                </p>
+                <details open>
+                    <summary>Files changed</summary>
+                    <ul>
+                        <li><code>src/lib/teams-logic.ts</code> — new <code>syncOrderTeamsFromTemplate</code> helper.</li>
+                        <li><code>src/lib/order-service-data.ts</code> — sync existing Planning orders in <code>planMonthInternal</code>; add <code>createMissing</code> option; always sync in <code>getMonthPlan</code>.</li>
+                        <li><code>src/lib/teams-logic.test.ts</code> — unit coverage for the merge (additive, count precedence, optional→required, ad-hoc preservation, drop safety, no-op).</li>
+                    </ul>
+                </details>
+            </article>
+        </section>
+
+        <section>
+            <h2>Suggested acceptance check</h2>
+            <article>
+                <ol>
+                    <li>Plan a month using a template that already includes Counters and Ushers.</li>
+                    <li>Add Song Leaders as a required team on a card in that template.</li>
+                    <li>Return to the already-planned month.</li>
+                    <li>Run the new sync/backfill path if it is explicit.</li>
+                    <li>Open the Song Leaders scheduler.</li>
+                    <li>Verify the expected service dates/cards appear instead of the empty-state message.</li>
+                    <li>Assign a Song Leader and save.</li>
+                    <li>
+                        Verify the corresponding order's <code>order_json</code> includes
+                        Song Leaders in <code>requiredTeamIds</code> with the appropriate
+                        <code>requiredTeamCounts</code>, not only in
+                        <code>teamAssignments</code>.
+                    </li>
+                </ol>
+            </article>
+        </section>
+    </main>
+
+    <footer>
+        <p>
+            Investigation based on local source review only; no production data was inspected.
+        </p>
+    </footer>
+</body>
+
+</html>

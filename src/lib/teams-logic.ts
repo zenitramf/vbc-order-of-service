@@ -435,5 +435,70 @@ export const pruneStaleAssignments = (
   }),
 });
 
+/**
+ * Merge a template's team metadata into an already-planned order, matching cards
+ * by their stable id. Teams added to the template after the order was created
+ * (for example a newly-required Song Leaders team) are surfaced on the order so
+ * the month scheduler and the publish gate can see them, while order-specific
+ * data — assignments, activities, ad-hoc teams, and any custom required-member
+ * counts — is preserved. The merge is additive: teams the template later drops
+ * are left on the order rather than removed, so a manual edit is never silently
+ * undone. Returns the merged order and whether any card actually changed, so
+ * callers can skip a redundant write.
+ */
+export const syncOrderTeamsFromTemplate = (
+  order: OrderServiceTemplateJson,
+  template: OrderServiceTemplateJson
+): { changed: boolean; order: OrderServiceTemplateJson } => {
+  const templateCardsById = new Map(
+    template.service_type.map((card) => [card.id, card])
+  );
+  let changed = false;
+
+  const service_type = order.service_type.map((card) => {
+    const templateCard = templateCardsById.get(card.id);
+
+    if (!templateCard) {
+      return card;
+    }
+
+    const requiredTeamIds = uniqueStrings([
+      ...(card.requiredTeamIds ?? []),
+      ...(templateCard.requiredTeamIds ?? []),
+    ]);
+    const optionalTeamIds = uniqueStrings([
+      ...(card.optionalTeamIds ?? []),
+      ...(templateCard.optionalTeamIds ?? []),
+    ]).filter((teamId) => !requiredTeamIds.includes(teamId));
+    // Keep the order's own counts; only fill in the template's count for teams
+    // the order does not already track.
+    const requiredTeamCounts: Record<string, number> = {
+      ...templateCard.requiredTeamCounts,
+      ...card.requiredTeamCounts,
+    };
+
+    const cardChanged =
+      requiredTeamIds.length !== (card.requiredTeamIds?.length ?? 0) ||
+      optionalTeamIds.length !== (card.optionalTeamIds?.length ?? 0) ||
+      Object.keys(requiredTeamCounts).length !==
+        Object.keys(card.requiredTeamCounts ?? {}).length;
+
+    if (!cardChanged) {
+      return card;
+    }
+
+    changed = true;
+
+    return {
+      ...card,
+      optionalTeamIds,
+      requiredTeamCounts,
+      requiredTeamIds,
+    };
+  });
+
+  return { changed, order: { ...order, service_type } };
+};
+
 export const teamsById = (teams: Team[]): Map<string, Team> =>
   new Map(teams.map((team) => [team.id, team]));
