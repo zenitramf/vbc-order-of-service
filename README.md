@@ -24,26 +24,49 @@ The app runs on port `3000`.
 
 ## Database
 
-This project uses Cloudflare D1 via the `DB` binding in `wrangler.jsonc`.
+This project uses **Drizzle ORM** over Cloudflare D1 (the `DB` binding in
+`wrangler.jsonc`). The data layer builds queries with the Drizzle query builder
+and typed `sql` fragments — there is no direct `env.DB.prepare()` in application
+modules, and no runtime schema bootstrap.
 
-Local setup:
+- **Schema (code-first source of truth):** `src/db/schema/*` (one module per
+  domain, re-exported from `src/db/schema/index.ts`).
+- **Client factory:** `src/db/client.ts` — `createDb(binding)` and `getAppDb()`.
+- **Migrations:** plain SQL in `migrations/`, applied only by **Wrangler** (the
+  single migration executor, local + remote, tracked in `d1_migrations`).
+
+### One migration workflow
+
+Drizzle Kit **authors** migration SQL from the schema; Wrangler **applies** it.
+Do not let both tools apply migrations to the same database.
 
 ```sh
-pnpm run db:migrate:local
+# 1. Edit src/db/schema/*, then author SQL from the schema diff:
+pnpm run db:generate        # drizzle-kit generate (writes to ./drizzle)
+#    Review it and copy the SQL into the next migrations/000N_*.sql file.
+# 2. Apply with Wrangler:
+pnpm run db:migrate:local   # local D1
+pnpm run db:migrate:remote  # remote D1
 ```
 
-Remote setup/deploy setup:
+`pnpm run db:check` validates the schema. Use **pnpm** for all dependency
+changes (there is a single `pnpm-lock.yaml`).
+
+### Auth
+
+Better Auth runs on the Drizzle + D1 adapter (`src/lib/auth.ts`), mounted at
+`/api/auth/*` in `src/worker.ts`. Auth tables live in
+`migrations/0009_add_auth_tables.sql` / `src/db/schema/auth.ts`. Set the
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` secrets:
 
 ```sh
-pnpm run db:migrate:remote
+wrangler secret put BETTER_AUTH_SECRET   # openssl rand -base64 32
+wrangler secret put BETTER_AUTH_URL
 ```
 
-Migrations:
-
-- `migrations/0001_order_of_service_schema.sql` creates reference tables, templates, orders, hymns, and hymn play history.
-- `migrations/0002_seed_hymns.sql` seeds the hymn table from `db/song-library-seed.csv`.
-
-If the hymn page is empty in a new environment, apply the migrations above.
+If a new environment's tables are empty, apply all migrations with
+`pnpm run db:migrate:local` (or `:remote`); the seed data lives in the
+migrations, not in runtime code.
 
 ## Build
 

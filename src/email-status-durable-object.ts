@@ -1,8 +1,11 @@
 import { Buffer } from "node:buffer";
 
 import { DurableObject } from "cloudflare:workers";
+import { eq, sql } from "drizzle-orm";
 import nodemailer from "nodemailer";
 
+import { createDb } from "~/db/client";
+import { orderEmailDeliveries } from "~/db/schema";
 import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
 
 interface StoredEmailSettings {
@@ -58,11 +61,9 @@ const decryptSetting = async (env: Env, encryptedValue: string) => {
 };
 
 const getStoredEmailSettings = async (env: Env, key: string) => {
-  const row = await env.DB.prepare(
-    "SELECT value FROM app_settings WHERE key = ?"
-  )
-    .bind(key)
-    .first<{ value: string }>();
+  const row = await createDb(env.DB).get<{ value: string }>(
+    sql`SELECT value FROM app_settings WHERE key = ${key}`
+  );
 
   if (!row) {
     throw new Error("SMTP settings are not configured.");
@@ -98,30 +99,23 @@ const updateDeliveryStatus = async (
 ) => {
   const timestamp = new Date().toISOString();
 
-  await env.DB.prepare(
-    `UPDATE order_email_deliveries
-    SET status = ?, sent_at = CASE WHEN ? = 'Sent' THEN ? ELSE sent_at END,
-      error_message = ?, updated_at = ?
-    WHERE id = ?`
-  )
-    .bind(
-      status,
-      status,
-      timestamp,
-      errorMessage ?? null,
-      timestamp,
-      deliveryId
-    )
-    .run();
+  await createDb(env.DB).run(
+    sql`UPDATE order_email_deliveries
+    SET status = ${status},
+      sent_at = CASE WHEN ${status} = 'Sent' THEN ${timestamp} ELSE sent_at END,
+      error_message = ${errorMessage ?? null},
+      updated_at = ${timestamp}
+    WHERE id = ${deliveryId}`
+  );
 };
 
 export class OrderEmailStatusDurableObject extends DurableObject<Env> {
   async processEmail(message: OrderEmailQueueMessage): Promise<void> {
-    const existingDelivery = await this.env.DB.prepare(
-      "SELECT status FROM order_email_deliveries WHERE id = ?"
-    )
-      .bind(message.deliveryId)
-      .first<{ status: string }>();
+    const existingDelivery = await createDb(this.env.DB)
+      .select({ status: orderEmailDeliveries.status })
+      .from(orderEmailDeliveries)
+      .where(eq(orderEmailDeliveries.id, message.deliveryId))
+      .get();
 
     if (existingDelivery?.status === "Sent") {
       return;
