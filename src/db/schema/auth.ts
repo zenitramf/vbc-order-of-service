@@ -1,19 +1,21 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * Better Auth core schema (v1.6.x): email/password only, no plugins, no
+ * Better Auth schema (v1.6.x): email/password + admin plugin, no OAuth, no
  * secondary storage. Field/property names match Better Auth's default model
  * field names exactly — the Drizzle adapter resolves columns by the JS property
  * key, so these MUST stay in sync with Better Auth. Dates are stored as SQLite
  * integer timestamps and booleans as integers, per the Drizzle sqlite provider.
  *
  * Regenerate/reconcile whenever auth plugins change:
- *   npx @better-auth/cli@latest generate
- * (run against a Node-safe auth config, since the runtime config imports
- * `cloudflare:workers`). See migration 0009_add_auth_tables.sql.
+ *   pnpm dlx auth@latest generate --config auth.ts --yes
+ * See migrations 0009_add_auth_tables.sql and 0010_add_admin_auth_fields.sql.
  */
 
 export const user = sqliteTable("user", {
+  banExpires: integer("ban_expires", { mode: "timestamp" }),
+  banReason: text("ban_reason"),
+  banned: integer("banned", { mode: "boolean" }).default(false),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -24,6 +26,7 @@ export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   image: text("image"),
   name: text("name").notNull(),
+  role: text("role"),
   updatedAt: integer("updated_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
@@ -35,6 +38,7 @@ export const session = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
     id: text("id").primaryKey(),
+    impersonatedBy: text("impersonated_by"),
     ipAddress: text("ip_address"),
     token: text("token").notNull().unique(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),

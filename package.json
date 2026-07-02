@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "deploy": "pnpm build && wrangler deploy",
     "cf-typegen": "wrangler types",
+    "auth:generate": "pnpm dlx auth@latest generate --config auth.ts --yes",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit check",
     "db:migrate:local": "wrangler d1 migrations apply vbc-order-of-service --local",
