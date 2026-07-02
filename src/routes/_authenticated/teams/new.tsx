@@ -10,7 +10,7 @@ const NewTeamRoute = () => {
   return <TeamEditorPage allMembers={[]} allTeams={allTeams} templates={[]} />;
 };
 
-export const Route = createFileRoute("/teams/new")({
+export const Route = createFileRoute("/_authenticated/teams/new")({
   component: NewTeamRoute,
   loader: () => getTeams(),
 });

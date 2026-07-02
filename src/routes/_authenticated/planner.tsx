@@ -92,7 +92,7 @@ const WEEKDAY_NAMES = [
 const getCurrentMonth = () => new Date().toISOString().slice(0, 7);
 
 const isValidMonth = (value: string) =>
-  /^\d{4}-(0[1-9]|1[0-2])$/u.test(value);
+  /^\d{4}-(?<month>0[1-9]|1[0-2])$/u.test(value);
 
 /** Shift a YYYY-MM month by the given number of months. */
 const shiftMonth = (month: string, delta: number): string => {
@@ -872,7 +872,7 @@ const MonthPlannerPage = () => {
   );
 };
 
-export const Route = createFileRoute("/planner")({
+export const Route = createFileRoute("/_authenticated/planner")({
   component: MonthPlannerPage,
   loader: ({ deps }) => getMonthPlan({ data: deps.month ?? "" }),
   loaderDeps: ({ search }: { search: { month?: string } }) => ({

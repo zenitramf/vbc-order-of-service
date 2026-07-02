@@ -657,7 +657,7 @@ const OrderRoute = () => {
   );
 };
 
-export const Route = createFileRoute("/orders/$orderId")({
+export const Route = createFileRoute("/_authenticated/orders/$orderId")({
   component: OrderRoute,
   loader: async ({ params }) => {
     const [

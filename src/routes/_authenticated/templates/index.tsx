@@ -159,7 +159,7 @@ const TemplatesPage = () => {
   );
 };
 
-export const Route = createFileRoute("/templates/")({
+export const Route = createFileRoute("/_authenticated/templates/")({
   component: TemplatesPage,
   loader: () => getTemplates(),
 });

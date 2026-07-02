@@ -6,8 +6,8 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { v4 as uuidv4 } from "uuid";
 
-import { getAppDb } from '~/db/client';
-import type { AppDatabase } from '~/db/client';
+import { getAppDb } from "~/db/client";
+import type { AppDatabase } from "~/db/client";
 import {
   activityTypes,
   appSettings,

@@ -52,7 +52,7 @@ const TeamRoute = () => {
   );
 };
 
-export const Route = createFileRoute("/teams/$teamId")({
+export const Route = createFileRoute("/_authenticated/teams/$teamId")({
   component: TeamRoute,
   loader: async ({ params }) => {
     const [team, allTeams, allMembers, templates] = await Promise.all([

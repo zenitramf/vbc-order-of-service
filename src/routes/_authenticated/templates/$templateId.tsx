@@ -2,7 +2,7 @@ import { PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute } from "@tanstack/react-router";
 
-import { HymnEditorPage } from "~/components/hymn-editor-page";
+import { TemplateEditorPage } from "~/components/template-editor-page";
 import { Button } from "~/components/ui/button";
 import {
   Empty,
@@ -12,28 +12,28 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty";
 import {
-  getHymn,
-  getHymnFiles,
   getReferenceData,
+  getTeams,
+  getTemplate,
 } from "~/lib/order-service-data";
 
-const HymnRoute = () => {
-  const { files, hymn, referenceData } = Route.useLoaderData();
+const TemplateRoute = () => {
+  const { referenceData, teams, template } = Route.useLoaderData();
 
-  if (!hymn) {
+  if (!template) {
     return (
       <Empty>
         <EmptyHeader>
-          <EmptyTitle>Hymn not found</EmptyTitle>
+          <EmptyTitle>Template not found</EmptyTitle>
           <EmptyDescription>
-            The requested hymn may have been deleted.
+            The requested template may have been deleted.
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
-            <Link to="/hymns/new">
+            <Link to="/templates/new">
               <PlusIcon data-icon="inline-start" />
-              Add hymn
+              Create template
             </Link>
           </Button>
         </EmptyContent>
@@ -42,19 +42,23 @@ const HymnRoute = () => {
   }
 
   return (
-    <HymnEditorPage files={files} hymn={hymn} referenceData={referenceData} />
+    <TemplateEditorPage
+      referenceData={referenceData}
+      teams={teams}
+      template={template}
+    />
   );
 };
 
-export const Route = createFileRoute("/hymns/$hymnId")({
-  component: HymnRoute,
+export const Route = createFileRoute("/_authenticated/templates/$templateId")({
+  component: TemplateRoute,
   loader: async ({ params }) => {
-    const [hymn, referenceData, files] = await Promise.all([
-      getHymn({ data: params.hymnId }),
+    const [template, referenceData, teams] = await Promise.all([
+      getTemplate({ data: params.templateId }),
       getReferenceData(),
-      getHymnFiles({ data: params.hymnId }),
+      getTeams(),
     ]);
 
-    return { files, hymn, referenceData };
+    return { referenceData, teams, template };
   },
 });

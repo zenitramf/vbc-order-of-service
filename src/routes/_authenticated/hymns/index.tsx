@@ -525,7 +525,7 @@ const HymnsPage = () => {
   );
 };
 
-export const Route = createFileRoute("/hymns/")({
+export const Route = createFileRoute("/_authenticated/hymns/")({
   component: HymnsPage,
   loader: () => getHymns(),
 });

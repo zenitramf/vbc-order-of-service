@@ -16,7 +16,7 @@ const NewMemberRoute = () => {
   );
 };
 
-export const Route = createFileRoute("/members/new")({
+export const Route = createFileRoute("/_authenticated/members/new")({
   component: NewMemberRoute,
   loader: () => getTeams(),
   validateSearch: (search: Record<string, unknown>): { teamId?: string } => ({

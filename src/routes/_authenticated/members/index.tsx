@@ -397,7 +397,7 @@ const MembersPage = () => {
   );
 };
 
-export const Route = createFileRoute("/members/")({
+export const Route = createFileRoute("/_authenticated/members/")({
   component: MembersPage,
   loader: async () => {
     const [members, teams] = await Promise.all([getTeamMembers(), getTeams()]);

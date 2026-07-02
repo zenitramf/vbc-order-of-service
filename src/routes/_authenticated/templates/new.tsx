@@ -10,7 +10,7 @@ const NewTemplateRoute = () => {
   return <TemplateEditorPage referenceData={referenceData} teams={teams} />;
 };
 
-export const Route = createFileRoute("/templates/new")({
+export const Route = createFileRoute("/_authenticated/templates/new")({
   component: NewTemplateRoute,
   loader: async () => {
     const [referenceData, teams] = await Promise.all([

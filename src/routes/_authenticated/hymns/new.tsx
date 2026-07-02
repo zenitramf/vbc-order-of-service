@@ -10,7 +10,7 @@ const NewHymnRoute = () => {
   return <HymnEditorPage referenceData={referenceData} />;
 };
 
-export const Route = createFileRoute("/hymns/new")({
+export const Route = createFileRoute("/_authenticated/hymns/new")({
   component: NewHymnRoute,
   loader: () => getReferenceData(),
 });

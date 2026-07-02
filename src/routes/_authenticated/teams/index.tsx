@@ -316,7 +316,7 @@ const TeamsPage = () => {
   );
 };
 
-export const Route = createFileRoute("/teams/")({
+export const Route = createFileRoute("/_authenticated/teams/")({
   component: TeamsPage,
   loader: () => getTeams(),
 });

@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { tanstackStartCookies } from "better-auth/tanstack-start";
 
 import { createDb } from "~/db/client";
 import { account, session, user, verification } from "~/db/schema/auth";
@@ -31,7 +32,7 @@ export const createAuth = (env: AuthEnv) =>
       schema: { account, session, user, verification },
     }),
     emailAndPassword: { enabled: true },
-    plugins: [],
+    plugins: [tanstackStartCookies()],
     secret: env.BETTER_AUTH_SECRET,
   });
 

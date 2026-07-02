@@ -40,7 +40,7 @@ const MemberRoute = () => {
   return <MemberEditorPage allTeams={allTeams} member={member} />;
 };
 
-export const Route = createFileRoute("/members/$memberId")({
+export const Route = createFileRoute("/_authenticated/members/$memberId")({
   component: MemberRoute,
   loader: async ({ params }) => {
     const [member, allTeams] = await Promise.all([

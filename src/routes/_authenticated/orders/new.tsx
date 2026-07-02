@@ -208,7 +208,7 @@ const NewOrderPage = () => {
   );
 };
 
-export const Route = createFileRoute("/orders/new")({
+export const Route = createFileRoute("/_authenticated/orders/new")({
   component: NewOrderPage,
   loader: async () => {
     const [templates, existingOrders] = await Promise.all([

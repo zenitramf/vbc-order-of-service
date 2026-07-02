@@ -343,7 +343,7 @@ const SettingsPage = () => {
   );
 };
 
-export const Route = createFileRoute("/settings/")({
+export const Route = createFileRoute("/_authenticated/settings/")({
   component: SettingsPage,
   loader: async () => {
     const [settings, templates, monthPlanning] = await Promise.all([

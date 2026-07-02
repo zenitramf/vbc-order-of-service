@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
-import { index, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
-import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
+import { index, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 /** Mirrors migration 0008 (teams, team_members, team_member_teams). */
 
