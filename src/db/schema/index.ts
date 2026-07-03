@@ -7,5 +7,6 @@ export * from "./auth";
 export * from "./hymns";
 export * from "./orders";
 export * from "./reference";
+export * from "./roles";
 export * from "./settings";
 export * from "./teams";

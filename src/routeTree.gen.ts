@@ -13,11 +13,13 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedPlannerRouteImport } from './routes/_authenticated/planner'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedTemplatesIndexRouteImport } from './routes/_authenticated/templates/index'
 import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedMembersIndexRouteImport } from './routes/_authenticated/members/index'
 import { Route as AuthenticatedHymnsIndexRouteImport } from './routes/_authenticated/hymns/index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedTemplatesNewRouteImport } from './routes/_authenticated/templates/new'
 import { Route as AuthenticatedTemplatesTemplateIdRouteImport } from './routes/_authenticated/templates/$templateId'
@@ -29,6 +31,12 @@ import { Route as AuthenticatedMembersNewRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMembersMemberIdRouteImport } from './routes/_authenticated/members/$memberId'
 import { Route as AuthenticatedHymnsNewRouteImport } from './routes/_authenticated/hymns/new'
 import { Route as AuthenticatedHymnsHymnIdRouteImport } from './routes/_authenticated/hymns/$hymnId'
+import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
+import { Route as AuthenticatedAdminRolesIndexRouteImport } from './routes/_authenticated/admin/roles/index'
+import { Route as AuthenticatedAdminUsersNewRouteImport } from './routes/_authenticated/admin/users/new'
+import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users/$userId'
+import { Route as AuthenticatedAdminRolesNewRouteImport } from './routes/_authenticated/admin/roles/new'
+import { Route as AuthenticatedAdminRolesRoleIdRouteImport } from './routes/_authenticated/admin/roles/$roleId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -47,6 +55,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedPlannerRoute = AuthenticatedPlannerRouteImport.update({
   id: '/planner',
   path: '/planner',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedTemplatesIndexRoute =
@@ -76,6 +89,11 @@ const AuthenticatedHymnsIndexRoute = AuthenticatedHymnsIndexRouteImport.update({
   id: '/hymns/',
   path: '/hymns/',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -138,10 +156,47 @@ const AuthenticatedHymnsHymnIdRoute =
     path: '/hymns/$hymnId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAdminUsersIndexRoute =
+  AuthenticatedAdminUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminRolesIndexRoute =
+  AuthenticatedAdminRolesIndexRouteImport.update({
+    id: '/roles/',
+    path: '/roles/',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminUsersNewRoute =
+  AuthenticatedAdminUsersNewRouteImport.update({
+    id: '/users/new',
+    path: '/users/new',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminUsersUserIdRoute =
+  AuthenticatedAdminUsersUserIdRouteImport.update({
+    id: '/users/$userId',
+    path: '/users/$userId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminRolesNewRoute =
+  AuthenticatedAdminRolesNewRouteImport.update({
+    id: '/roles/new',
+    path: '/roles/new',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminRolesRoleIdRoute =
+  AuthenticatedAdminRolesRoleIdRouteImport.update({
+    id: '/roles/$roleId',
+    path: '/roles/$roleId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/planner': typeof AuthenticatedPlannerRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
@@ -154,11 +209,18 @@ export interface FileRoutesByFullPath {
   '/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
   '/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/hymns/': typeof AuthenticatedHymnsIndexRoute
   '/members/': typeof AuthenticatedMembersIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/teams/': typeof AuthenticatedTeamsIndexRoute
   '/templates/': typeof AuthenticatedTemplatesIndexRoute
+  '/admin/roles/$roleId': typeof AuthenticatedAdminRolesRoleIdRoute
+  '/admin/roles/new': typeof AuthenticatedAdminRolesNewRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/admin/users/new': typeof AuthenticatedAdminUsersNewRoute
+  '/admin/roles/': typeof AuthenticatedAdminRolesIndexRoute
+  '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -175,16 +237,24 @@ export interface FileRoutesByTo {
   '/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
   '/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
   '/hymns': typeof AuthenticatedHymnsIndexRoute
   '/members': typeof AuthenticatedMembersIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/teams': typeof AuthenticatedTeamsIndexRoute
   '/templates': typeof AuthenticatedTemplatesIndexRoute
+  '/admin/roles/$roleId': typeof AuthenticatedAdminRolesRoleIdRoute
+  '/admin/roles/new': typeof AuthenticatedAdminRolesNewRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/admin/users/new': typeof AuthenticatedAdminUsersNewRoute
+  '/admin/roles': typeof AuthenticatedAdminRolesIndexRoute
+  '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/planner': typeof AuthenticatedPlannerRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
@@ -198,17 +268,25 @@ export interface FileRoutesById {
   '/_authenticated/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
   '/_authenticated/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/hymns/': typeof AuthenticatedHymnsIndexRoute
   '/_authenticated/members/': typeof AuthenticatedMembersIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
   '/_authenticated/templates/': typeof AuthenticatedTemplatesIndexRoute
+  '/_authenticated/admin/roles/$roleId': typeof AuthenticatedAdminRolesRoleIdRoute
+  '/_authenticated/admin/roles/new': typeof AuthenticatedAdminRolesNewRoute
+  '/_authenticated/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/_authenticated/admin/users/new': typeof AuthenticatedAdminUsersNewRoute
+  '/_authenticated/admin/roles/': typeof AuthenticatedAdminRolesIndexRoute
+  '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
+    | '/admin'
     | '/planner'
     | '/hymns/$hymnId'
     | '/hymns/new'
@@ -221,11 +299,18 @@ export interface FileRouteTypes {
     | '/templates/$templateId'
     | '/templates/new'
     | '/api/auth/$'
+    | '/admin/'
     | '/hymns/'
     | '/members/'
     | '/settings/'
     | '/teams/'
     | '/templates/'
+    | '/admin/roles/$roleId'
+    | '/admin/roles/new'
+    | '/admin/users/$userId'
+    | '/admin/users/new'
+    | '/admin/roles/'
+    | '/admin/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -242,15 +327,23 @@ export interface FileRouteTypes {
     | '/templates/$templateId'
     | '/templates/new'
     | '/api/auth/$'
+    | '/admin'
     | '/hymns'
     | '/members'
     | '/settings'
     | '/teams'
     | '/templates'
+    | '/admin/roles/$roleId'
+    | '/admin/roles/new'
+    | '/admin/users/$userId'
+    | '/admin/users/new'
+    | '/admin/roles'
+    | '/admin/users'
   id:
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/_authenticated/admin'
     | '/_authenticated/planner'
     | '/_authenticated/'
     | '/_authenticated/hymns/$hymnId'
@@ -264,11 +357,18 @@ export interface FileRouteTypes {
     | '/_authenticated/templates/$templateId'
     | '/_authenticated/templates/new'
     | '/api/auth/$'
+    | '/_authenticated/admin/'
     | '/_authenticated/hymns/'
     | '/_authenticated/members/'
     | '/_authenticated/settings/'
     | '/_authenticated/teams/'
     | '/_authenticated/templates/'
+    | '/_authenticated/admin/roles/$roleId'
+    | '/_authenticated/admin/roles/new'
+    | '/_authenticated/admin/users/$userId'
+    | '/_authenticated/admin/users/new'
+    | '/_authenticated/admin/roles/'
+    | '/_authenticated/admin/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -307,6 +407,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlannerRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/templates/': {
       id: '/_authenticated/templates/'
       path: '/templates'
@@ -341,6 +448,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/hymns/'
       preLoaderRoute: typeof AuthenticatedHymnsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -419,10 +533,76 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHymnsHymnIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin/users/': {
+      id: '/_authenticated/admin/users/'
+      path: '/users'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/roles/': {
+      id: '/_authenticated/admin/roles/'
+      path: '/roles'
+      fullPath: '/admin/roles/'
+      preLoaderRoute: typeof AuthenticatedAdminRolesIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/users/new': {
+      id: '/_authenticated/admin/users/new'
+      path: '/users/new'
+      fullPath: '/admin/users/new'
+      preLoaderRoute: typeof AuthenticatedAdminUsersNewRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/users/$userId': {
+      id: '/_authenticated/admin/users/$userId'
+      path: '/users/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/roles/new': {
+      id: '/_authenticated/admin/roles/new'
+      path: '/roles/new'
+      fullPath: '/admin/roles/new'
+      preLoaderRoute: typeof AuthenticatedAdminRolesNewRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/roles/$roleId': {
+      id: '/_authenticated/admin/roles/$roleId'
+      path: '/roles/$roleId'
+      fullPath: '/admin/roles/$roleId'
+      preLoaderRoute: typeof AuthenticatedAdminRolesRoleIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
   }
 }
 
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminRolesRoleIdRoute: typeof AuthenticatedAdminRolesRoleIdRoute
+  AuthenticatedAdminRolesNewRoute: typeof AuthenticatedAdminRolesNewRoute
+  AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
+  AuthenticatedAdminUsersNewRoute: typeof AuthenticatedAdminUsersNewRoute
+  AuthenticatedAdminRolesIndexRoute: typeof AuthenticatedAdminRolesIndexRoute
+  AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAdminRolesRoleIdRoute: AuthenticatedAdminRolesRoleIdRoute,
+  AuthenticatedAdminRolesNewRoute: AuthenticatedAdminRolesNewRoute,
+  AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
+  AuthenticatedAdminUsersNewRoute: AuthenticatedAdminUsersNewRoute,
+  AuthenticatedAdminRolesIndexRoute: AuthenticatedAdminRolesIndexRoute,
+  AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
 interface AuthenticatedRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedPlannerRoute: typeof AuthenticatedPlannerRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedHymnsHymnIdRoute: typeof AuthenticatedHymnsHymnIdRoute
@@ -443,6 +623,7 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedPlannerRoute: AuthenticatedPlannerRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedHymnsHymnIdRoute: AuthenticatedHymnsHymnIdRoute,

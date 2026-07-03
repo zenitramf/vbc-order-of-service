@@ -1,3 +1,4 @@
+// oxlint-disable no-use-before-define
 import {
   BookOpenTextIcon,
   CalendarCheckIcon,
@@ -7,8 +8,11 @@ import {
   ListChecksIcon,
   MusicNotesIcon,
   PlusIcon,
+  ShieldCheckIcon,
   UserCircleIcon,
+  UsersIcon,
   UsersThreeIcon,
+  UserSwitchIcon,
 } from "@phosphor-icons/react";
 import {
   Link,
@@ -18,6 +22,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { Fragment } from "react";
+import { toast } from "sonner";
 
 import {
   Breadcrumb,
@@ -27,6 +32,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "~/components/ui/breadcrumb";
+import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
 import {
   Sidebar,
@@ -43,7 +49,13 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "~/components/ui/sidebar";
+import { authClient } from "~/lib/auth-client";
 import { getSession } from "~/lib/auth.functions";
+
+const adminItems = [
+  { icon: UsersIcon, label: "Users", to: "/admin/users" },
+  { icon: ShieldCheckIcon, label: "Roles", to: "/admin/roles" },
+] as const;
 
 const navigationItems = [
   { icon: HouseIcon, label: "Dashboard", to: "/" },
@@ -70,6 +82,9 @@ const routeLabels = new Map([
   ["hymns", "Hymns"],
   ["teams", "Teams"],
   ["members", "Team Members"],
+  ["admin", "Admin"],
+  ["users", "Users"],
+  ["roles", "Roles"],
 ]);
 
 const AppBreadcrumb = () => {
@@ -120,6 +135,8 @@ const AppSidebar = () => {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
+  const { user } = Route.useRouteContext();
+  const isAdmin = user?.role === "admin";
 
   return (
     <Sidebar collapsible="icon">
@@ -228,6 +245,25 @@ const AppSidebar = () => {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
+                {isAdmin
+                  ? adminItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive =
+                        pathname === item.to ||
+                        pathname.startsWith(`${item.to}/`);
+
+                      return (
+                        <SidebarMenuItem key={item.to}>
+                          <SidebarMenuButton asChild isActive={isActive}>
+                            <Link to={item.to}>
+                              <Icon />
+                              <span>{item.label}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })
+                  : null}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroupContent>
@@ -242,11 +278,44 @@ const AppSidebar = () => {
   );
 };
 
+const stopImpersonating = async () => {
+  const { error } = await authClient.admin.stopImpersonating();
+
+  if (error) {
+    toast.error(error.message ?? "Unable to stop impersonating.");
+    return;
+  }
+
+  window.location.href = "/admin/users";
+};
+
+const ImpersonationBanner = () => {
+  const { session } = Route.useRouteContext();
+  const impersonatedBy = session?.session?.impersonatedBy;
+
+  if (!impersonatedBy) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500/15 px-4 py-2 text-sm">
+      <span className="flex items-center gap-2 font-medium">
+        <UserSwitchIcon />
+        Impersonating {session.user.name || session.user.email}
+      </span>
+      <Button onClick={stopImpersonating} size="sm" variant="outline">
+        Stop impersonating
+      </Button>
+    </div>
+  );
+};
+
 const AuthenticatedAppShell = () => (
   <SidebarProvider>
     <AppSidebar />
     <SidebarInset>
       <div className="flex min-h-svh flex-col">
+        <ImpersonationBanner />
         <div className="flex h-14 shrink-0 items-center gap-2 px-4">
           <SidebarTrigger />
           <Separator className="h-4" orientation="vertical" />
