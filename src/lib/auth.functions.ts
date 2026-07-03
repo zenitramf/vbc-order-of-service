@@ -4,10 +4,11 @@ import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 
 import { getAppDb } from "~/db/client";
-import { roles } from "~/db/schema";
+import { roles, user } from "~/db/schema";
 import type { RolePermissions } from "~/lib/admin-permissions";
 import { parsePermissions } from "~/lib/admin-permissions";
 import { createAuth } from "~/lib/auth";
+import { isValidEmail } from "~/lib/teams-logic";
 
 const readSession = async () => {
   const headers = getRequestHeaders();
@@ -71,6 +72,54 @@ export const ensureSession = createServerFn({ method: "GET" }).handler(
     return session;
   }
 );
+
+export interface UpdateOwnProfileInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+/**
+ * Update the signed-in user's own first/last name and email. Scoped to the
+ * caller's session so it can be called from the account dialog without admin
+ * rights. The display `name` column is derived from first + last name (kept in
+ * sync the same way the admin editor does it). Writes the `user` row directly
+ * (the app has no email-verification flow) and surfaces the unique-email
+ * constraint as a friendly error.
+ */
+export const updateOwnProfile = createServerFn({ method: "POST" })
+  .validator((data: UpdateOwnProfileInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    const session = await readSession();
+
+    if (!session) {
+      throw new Error("Unauthorized");
+    }
+
+    const firstName = data.firstName.trim();
+    const lastName = data.lastName.trim();
+    const email = data.email.trim();
+    const name = `${firstName} ${lastName}`.trim();
+
+    if (!firstName) {
+      throw new Error("First name is required.");
+    }
+
+    if (!isValidEmail(email)) {
+      throw new Error("Enter a valid email address.");
+    }
+
+    try {
+      await getAppDb()
+        .update(user)
+        .set({ email, firstName, lastName, name, updatedAt: new Date() })
+        .where(eq(user.id, session.user.id));
+    } catch {
+      throw new Error("That email address is already in use.");
+    }
+
+    return { success: true };
+  });
 
 export const requireSessionMiddleware = createMiddleware({
   type: "function",

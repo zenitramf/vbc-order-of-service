@@ -71,7 +71,7 @@ const notify = (result: MutationResult, successMessage: string): boolean => {
   return true;
 };
 
-const formatDateTime = (value: string): string => {
+export const formatDateTime = (value: string): string => {
   if (!value) {
     return "—";
   }
@@ -93,7 +93,7 @@ interface SessionsCardProps {
   sessions: AdminSessionSummary[];
 }
 
-const SessionsCard = ({
+export const SessionsCard = ({
   busy,
   onRevoke,
   onRevokeAll,
@@ -261,7 +261,8 @@ export const UserEditorPage = ({
   const navigate = useNavigate();
   const router = useRouter();
 
-  const [name, setName] = useState(user.name);
+  const [firstName, setFirstName] = useState(user.firstName);
+  const [lastName, setLastName] = useState(user.lastName);
   const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState(user.role ?? "user");
   const [newPassword, setNewPassword] = useState("");
@@ -280,8 +281,16 @@ export const UserEditorPage = ({
 
   const handleSaveProfile = () =>
     run(async () => {
+      const trimmedFirstName = firstName.trim();
+      const trimmedLastName = lastName.trim();
+      const computedName = `${trimmedFirstName} ${trimmedLastName}`.trim();
       const result = await authClient.admin.updateUser({
-        data: { email: email.trim(), name: name.trim() },
+        data: {
+          email: email.trim(),
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+          name: computedName,
+        },
         userId: user.id,
       });
 
@@ -402,16 +411,26 @@ export const UserEditorPage = ({
         <Card>
           <CardHeader>
             <CardTitle>Profile</CardTitle>
-            <CardDescription>Update the user's name and email.</CardDescription>
+            <CardDescription>
+              Update the user's first name, last name, and email.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="user-name">Name</FieldLabel>
+                <FieldLabel htmlFor="user-first-name">First name</FieldLabel>
                 <Input
-                  id="user-name"
-                  onChange={(event) => setName(event.target.value)}
-                  value={name}
+                  id="user-first-name"
+                  onChange={(event) => setFirstName(event.target.value)}
+                  value={firstName}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="user-last-name">Last name</FieldLabel>
+                <Input
+                  id="user-last-name"
+                  onChange={(event) => setLastName(event.target.value)}
+                  value={lastName}
                 />
               </Field>
               <Field>

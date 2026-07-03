@@ -11,3 +11,10 @@ coverage
 !.env.example
 /.tanstack/tmp
 /investigations
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

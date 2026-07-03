@@ -1,6 +1,5 @@
-// oxlint-disable no-use-before-define
 import { ChurchIcon } from "@phosphor-icons/react";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps, FormEvent } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -15,37 +14,11 @@ import {
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import { Spinner } from "~/components/ui/spinner";
-import { authClient } from "~/lib/auth-client";
-import { getSession } from "~/lib/auth.functions";
 import { cn } from "~/lib/utils";
 
 const HOME_PATH = "/";
 const TEMPORARY_LOGIN_IMAGE_URL =
-  "https://source.unsplash.com/1600x1200/?fresno,california,city";
-
-/**
- * Sanitize the `redirect` search parameter so it can only target an
- * in-app path. Rejects protocol-relative URLs (`//evil.com`), absolute
- * URLs (`https://evil.com`), and anything that points back at `/login`
- * (which would create a redirect loop after sign-in).
- */
-const sanitizeRedirect = (raw: unknown): string => {
-  if (typeof raw !== "string" || raw.length === 0) {
-    return HOME_PATH;
-  }
-
-  const target = raw.startsWith("/") ? raw : `/${raw}`;
-
-  if (target.startsWith("//")) {
-    return HOME_PATH;
-  }
-
-  if (target === "/login" || target.startsWith("/login?")) {
-    return HOME_PATH;
-  }
-
-  return target;
-};
+  "https://upload.wikimedia.org/wikipedia/commons/b/bf/Downtown_Fresno_Skyline_2021.jpg";
 
 const GitHubIcon = () => (
   <svg aria-hidden="true" viewBox="0 0 24 24">
@@ -122,9 +95,7 @@ const LoginForm = ({ className, isSubmitting, ...props }: LoginFormProps) => (
   </form>
 );
 
-const LoginPage = () => {
-  const navigate = useNavigate();
-  const { redirect: redirectTarget } = Route.useSearch();
+export const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -134,6 +105,7 @@ const LoginPage = () => {
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
+    const { authClient } = await import("~/lib/auth-client");
     const { error } = await authClient.signIn.email({ email, password });
 
     if (error) {
@@ -142,7 +114,7 @@ const LoginPage = () => {
       return;
     }
 
-    await navigate({ to: redirectTarget });
+    window.location.assign(HOME_PATH);
   };
 
   return (
@@ -174,15 +146,5 @@ const LoginPage = () => {
 };
 
 export const Route = createFileRoute("/login")({
-  beforeLoad: async ({ search }) => {
-    const session = await getSession();
-
-    if (session) {
-      throw redirect({ to: search.redirect });
-    }
-  },
   component: LoginPage,
-  validateSearch: (search: Record<string, unknown>): { redirect: string } => ({
-    redirect: sanitizeRedirect(search.redirect),
-  }),
 });

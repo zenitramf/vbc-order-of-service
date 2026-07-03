@@ -17,7 +17,9 @@ export interface AdminUserSummary {
   createdAt: string;
   email: string;
   emailVerified: boolean;
+  firstName: string;
   id: string;
+  lastName: string;
   name: string;
   role: string | null;
 }
@@ -72,8 +74,8 @@ export const listUsersAdmin = createServerFn({ method: "GET" })
     const page = Math.max(1, Math.floor(data.page ?? 1));
     const offset = (page - 1) * USERS_PAGE_SIZE;
 
-    // Better Auth searches one field at a time; pick email when the query looks
-    // like an address, otherwise search by name.
+    // Search the computed display name for first-name, last-name, or full-name
+    // matches while preserving email-specific search for addresses.
     const where = search
       ? like(search.includes("@") ? user.email : user.name, `%${search}%`)
       : undefined;
@@ -85,7 +87,9 @@ export const listUsersAdmin = createServerFn({ method: "GET" })
           createdAt: user.createdAt,
           email: user.email,
           emailVerified: user.emailVerified,
+          firstName: user.firstName,
           id: user.id,
+          lastName: user.lastName,
           name: user.name,
           role: user.role,
         })
@@ -114,7 +118,9 @@ export const listUsersAdmin = createServerFn({ method: "GET" })
         createdAt: toIso(row.createdAt),
         email: row.email,
         emailVerified: row.emailVerified,
+        firstName: row.firstName,
         id: row.id,
+        lastName: row.lastName,
         name: row.name,
         role: row.role,
       })),
@@ -132,7 +138,9 @@ export const getUserAdmin = createServerFn({ method: "GET" })
         createdAt: user.createdAt,
         email: user.email,
         emailVerified: user.emailVerified,
+        firstName: user.firstName,
         id: user.id,
+        lastName: user.lastName,
         name: user.name,
         role: user.role,
       })
@@ -149,7 +157,9 @@ export const getUserAdmin = createServerFn({ method: "GET" })
       createdAt: toIso(row.createdAt),
       email: row.email,
       emailVerified: row.emailVerified,
+      firstName: row.firstName,
       id: row.id,
+      lastName: row.lastName,
       name: row.name,
       role: row.role,
     };

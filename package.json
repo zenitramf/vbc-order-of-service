@@ -60,6 +60,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.29.0",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22.20.0",
     "@types/react": "^19.0.8",

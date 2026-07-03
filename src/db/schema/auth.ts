@@ -23,8 +23,10 @@ export const user = sqliteTable("user", {
   emailVerified: integer("email_verified", { mode: "boolean" })
     .notNull()
     .default(false),
+  firstName: text("first_name").notNull().default(""),
   id: text("id").primaryKey(),
   image: text("image"),
+  lastName: text("last_name").notNull().default(""),
   name: text("name").notNull(),
   role: text("role"),
   updatedAt: integer("updated_at", { mode: "timestamp" })

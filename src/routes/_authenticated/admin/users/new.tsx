@@ -26,7 +26,8 @@ const NewUserPage = () => {
   const roles = Route.useLoaderData();
   const navigate = useNavigate();
 
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("user");
@@ -40,11 +41,19 @@ const NewUserPage = () => {
       return;
     }
 
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const computedName = `${trimmedFirstName} ${trimmedLastName}`.trim();
+
     setIsSaving(true);
     try {
       const { data, error } = await authClient.admin.createUser({
+        data: {
+          firstName: trimmedFirstName,
+          lastName: trimmedLastName,
+        },
         email: email.trim(),
-        name: name.trim(),
+        name: computedName,
         password,
         role: role as "admin" | "user",
       });
@@ -101,12 +110,21 @@ const NewUserPage = () => {
         <CardContent>
           <FieldGroup className="md:grid md:grid-cols-2">
             <Field>
-              <FieldLabel htmlFor="new-user-name">Name</FieldLabel>
+              <FieldLabel htmlFor="new-user-first-name">First name</FieldLabel>
               <Input
-                id="new-user-name"
-                onChange={(event) => setName(event.target.value)}
+                id="new-user-first-name"
+                onChange={(event) => setFirstName(event.target.value)}
                 required
-                value={name}
+                value={firstName}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-user-last-name">Last name</FieldLabel>
+              <Input
+                id="new-user-last-name"
+                onChange={(event) => setLastName(event.target.value)}
+                required
+                value={lastName}
               />
             </Field>
             <Field>

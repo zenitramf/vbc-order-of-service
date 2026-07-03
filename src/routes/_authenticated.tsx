@@ -2,7 +2,6 @@
 import {
   BookOpenTextIcon,
   CalendarCheckIcon,
-  ChurchIcon,
   GearIcon,
   HouseIcon,
   ListChecksIcon,
@@ -49,6 +48,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "~/components/ui/sidebar";
+import { UserAvatarMenu } from "~/components/user-avatar-menu";
 import type { RolePermissions } from "~/lib/admin-permissions";
 import { hasPermission } from "~/lib/admin-permissions";
 import { authClient } from "~/lib/auth-client";
@@ -119,16 +119,17 @@ const createItems = [
   },
 ] as const;
 
-type NavItem = {
+interface NavItem {
   action?: string;
   label: string;
   resource?: string;
   to: string;
-};
+}
 
 /** True when the user's permissions allow seeing a nav item. */
 const canSee = (permissions: RolePermissions, item: NavItem): boolean =>
-  !item.resource || hasPermission(permissions, item.resource, item.action ?? "view");
+  !item.resource ||
+  hasPermission(permissions, item.resource, item.action ?? "view");
 
 const routeLabels = new Map([
   ["orders", "Month Planner"],
@@ -208,8 +209,7 @@ const AppSidebar = () => {
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg">
               <Link to="/">
-                <ChurchIcon />
-                <span>Order of Service</span>
+                <span>VBC PORTAL</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -223,31 +223,31 @@ const AppSidebar = () => {
               {navigationItems
                 .filter((item) => canSee(permissions, item))
                 .map((item) => {
-                const Icon = item.icon;
-                const matchPaths = [
-                  item.to,
-                  ...("match" in item ? [item.match] : []),
-                ];
-                const isActive =
-                  item.to === "/"
-                    ? pathname === "/"
-                    : matchPaths.some(
-                        (matchPath) =>
-                          pathname === matchPath ||
-                          pathname.startsWith(`${matchPath}/`)
-                      );
+                  const Icon = item.icon;
+                  const matchPaths = [
+                    item.to,
+                    ...("match" in item ? [item.match] : []),
+                  ];
+                  const isActive =
+                    item.to === "/"
+                      ? pathname === "/"
+                      : matchPaths.some(
+                          (matchPath) =>
+                            pathname === matchPath ||
+                            pathname.startsWith(`${matchPath}/`)
+                        );
 
-                return (
-                  <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <Link to={item.to}>
-                        <Icon />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link to={item.to}>
+                          <Icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -339,9 +339,7 @@ const AppSidebar = () => {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="px-3 py-2 text-sidebar-foreground/70 text-xs">
-          Victory Baptist Church
-        </div>
+        <UserAvatarMenu user={user} />
       </SidebarFooter>
     </Sidebar>
   );
@@ -404,7 +402,6 @@ export const Route = createFileRoute("/_authenticated")({
 
     if (!session) {
       throw redirect({
-        search: { redirect: location.href },
         to: "/login",
       });
     }

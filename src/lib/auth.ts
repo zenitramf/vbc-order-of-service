@@ -46,6 +46,18 @@ const createAuthWithDatabase = ({ baseURL, database, secret }: AuthSettings) =>
     emailAndPassword: { enabled: true },
     plugins: [admin(), tanstackStartCookies()],
     secret,
+    user: {
+      additionalFields: {
+        firstName: {
+          required: true,
+          type: "string",
+        },
+        lastName: {
+          required: true,
+          type: "string",
+        },
+      },
+    },
   });
 
 export const createAuth = (env: AuthEnv) =>
