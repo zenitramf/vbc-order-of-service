@@ -17,6 +17,7 @@ import {
   getTeamTemplates,
   getTeams,
 } from "~/lib/order-service-data";
+import { requirePermission } from "~/lib/route-guards";
 
 const TeamRoute = () => {
   const { allMembers, allTeams, team, templates } = Route.useLoaderData();
@@ -53,6 +54,9 @@ const TeamRoute = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/teams/$teamId")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "teams", "view");
+  },
   component: TeamRoute,
   loader: async ({ params }) => {
     const [team, allTeams, allMembers, templates] = await Promise.all([

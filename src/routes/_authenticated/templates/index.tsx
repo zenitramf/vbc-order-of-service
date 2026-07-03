@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { deleteTemplate, getTemplates } from "~/lib/order-service-data";
+import { requirePermission } from "~/lib/route-guards";
 
 const TemplatesPage = () => {
   const templates = Route.useLoaderData();
@@ -160,6 +161,9 @@ const TemplatesPage = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/templates/")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "templates", "view");
+  },
   component: TemplatesPage,
   loader: () => getTemplates(),
 });

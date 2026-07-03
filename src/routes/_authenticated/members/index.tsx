@@ -66,6 +66,7 @@ import {
   getTeams,
 } from "~/lib/order-service-data";
 import type { TeamMemberSummary } from "~/lib/order-service-types";
+import { requirePermission } from "~/lib/route-guards";
 
 interface MemberColumnsOptions {
   isDeleting: boolean;
@@ -398,6 +399,9 @@ const MembersPage = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/members/")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "members", "view");
+  },
   component: MembersPage,
   loader: async () => {
     const [members, teams] = await Promise.all([getTeamMembers(), getTeams()]);

@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { MemberEditorPage } from "~/components/member-editor-page";
 import { getTeams } from "~/lib/order-service-data";
+import { requirePermission } from "~/lib/route-guards";
 
 const NewMemberRoute = () => {
   const allTeams = Route.useLoaderData();
@@ -17,6 +18,9 @@ const NewMemberRoute = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/members/new")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "members", "create");
+  },
   component: NewMemberRoute,
   loader: () => getTeams(),
   validateSearch: (search: Record<string, unknown>): { teamId?: string } => ({

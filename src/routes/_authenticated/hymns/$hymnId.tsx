@@ -16,6 +16,7 @@ import {
   getHymnFiles,
   getReferenceData,
 } from "~/lib/order-service-data";
+import { requirePermission } from "~/lib/route-guards";
 
 const HymnRoute = () => {
   const { files, hymn, referenceData } = Route.useLoaderData();
@@ -47,6 +48,9 @@ const HymnRoute = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/hymns/$hymnId")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "hymns", "view");
+  },
   component: HymnRoute,
   loader: async ({ params }) => {
     const [hymn, referenceData, files] = await Promise.all([

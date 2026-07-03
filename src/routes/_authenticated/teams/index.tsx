@@ -57,6 +57,7 @@ import {
 } from "~/components/ui/table";
 import { deleteTeam, getTeams } from "~/lib/order-service-data";
 import type { TeamSummary } from "~/lib/order-service-types";
+import { requirePermission } from "~/lib/route-guards";
 
 interface TeamColumnsOptions {
   isDeleting: boolean;
@@ -317,6 +318,9 @@ const TeamsPage = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/teams/")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "teams", "view");
+  },
   component: TeamsPage,
   loader: () => getTeams(),
 });

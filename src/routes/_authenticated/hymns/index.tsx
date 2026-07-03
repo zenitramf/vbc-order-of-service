@@ -62,6 +62,7 @@ import {
 } from "~/components/ui/table";
 import { deleteHymn, getHymns } from "~/lib/order-service-data";
 import type { HymnRecord } from "~/lib/order-service-types";
+import { requirePermission } from "~/lib/route-guards";
 
 interface HymnColumnsOptions {
   hymnToDelete: string | null;
@@ -526,6 +527,9 @@ const HymnsPage = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/hymns/")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "hymns", "view");
+  },
   component: HymnsPage,
   loader: () => getHymns(),
 });

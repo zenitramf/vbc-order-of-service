@@ -57,6 +57,7 @@ import type {
   OrderServiceTemplateJson,
   ServiceStatus,
 } from "~/lib/order-service-types";
+import { requirePermission } from "~/lib/route-guards";
 import {
   findMissingRequiredTeams,
   teamsById as toTeamsById,
@@ -658,6 +659,9 @@ const OrderRoute = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/orders/$orderId")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "orders", "view");
+  },
   component: OrderRoute,
   loader: async ({ params }) => {
     const [

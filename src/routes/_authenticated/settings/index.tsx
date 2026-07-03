@@ -30,6 +30,7 @@ import {
   getTemplates,
   saveEmailSettings,
 } from "~/lib/order-service-data";
+import { requirePermission } from "~/lib/route-guards";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
@@ -344,6 +345,9 @@ const SettingsPage = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/settings/")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "settings", "view");
+  },
   component: SettingsPage,
   loader: async () => {
     const [settings, templates, monthPlanning] = await Promise.all([

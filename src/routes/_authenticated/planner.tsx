@@ -66,6 +66,7 @@ import type {
   MonthScheduleCard,
   TeamMemberSummary,
 } from "~/lib/order-service-types";
+import { requirePermission } from "~/lib/route-guards";
 import { filterTeamMembers, getInitials } from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
 
@@ -873,6 +874,9 @@ const MonthPlannerPage = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/planner")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "orders", "view");
+  },
   component: MonthPlannerPage,
   loader: ({ deps }) => getMonthPlan({ data: deps.month ?? "" }),
   loaderDeps: ({ search }: { search: { month?: string } }) => ({

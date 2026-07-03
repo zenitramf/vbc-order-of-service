@@ -32,6 +32,7 @@ import {
   NativeSelectOption,
 } from "~/components/ui/native-select";
 import { createOrder, getOrders, getTemplates } from "~/lib/order-service-data";
+import { requirePermission } from "~/lib/route-guards";
 
 const getNextSunday = () => {
   const date = new Date();
@@ -209,6 +210,9 @@ const NewOrderPage = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/orders/new")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "orders", "create");
+  },
   component: NewOrderPage,
   loader: async () => {
     const [templates, existingOrders] = await Promise.all([

@@ -12,6 +12,7 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty";
 import { getTeamMember, getTeams } from "~/lib/order-service-data";
+import { requirePermission } from "~/lib/route-guards";
 
 const MemberRoute = () => {
   const { allTeams, member } = Route.useLoaderData();
@@ -41,6 +42,9 @@ const MemberRoute = () => {
 };
 
 export const Route = createFileRoute("/_authenticated/members/$memberId")({
+  beforeLoad: ({ context }) => {
+    requirePermission(context.permissions, "members", "view");
+  },
   component: MemberRoute,
   loader: async ({ params }) => {
     const [member, allTeams] = await Promise.all([
