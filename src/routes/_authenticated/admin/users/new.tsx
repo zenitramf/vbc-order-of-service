@@ -55,7 +55,7 @@ const NewUserPage = () => {
         email: email.trim(),
         name: computedName,
         password,
-        role: role as "admin" | "user",
+        role: role as string,
       });
 
       if (error) {
