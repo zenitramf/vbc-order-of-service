@@ -45,6 +45,7 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import type { AdminSessionSummary, AdminUserSummary } from "~/lib/admin-data";
+import { updateUserProfileAdmin } from "~/lib/admin-data";
 import type { RoleRecord } from "~/lib/admin-permissions";
 import {
   revokeUserSessionAdmin,
@@ -290,21 +291,21 @@ export const UserEditorPage = ({
 
   const handleSaveProfile = () =>
     run(async () => {
-      const trimmedFirstName = firstName.trim();
-      const trimmedLastName = lastName.trim();
-      const computedName = `${trimmedFirstName} ${trimmedLastName}`.trim();
-      const result = await authClient.admin.updateUser({
-        data: {
-          email: email.trim(),
-          firstName: trimmedFirstName,
-          lastName: trimmedLastName,
-          name: computedName,
-        },
-        userId: user.id,
-      });
-
-      if (notify(result, "Profile updated.")) {
+      try {
+        await updateUserProfileAdmin({
+          data: {
+            email,
+            firstName,
+            lastName,
+            userId: user.id,
+          },
+        });
+        toast.success("Profile updated.");
         await router.invalidate();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Something went wrong."
+        );
       }
     });
 

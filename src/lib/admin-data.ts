@@ -9,6 +9,7 @@ import { roles as rolesTable, session, user } from "~/db/schema";
 import type { RoleRecord, SaveRoleInput } from "~/lib/admin-permissions";
 import { parsePermissions } from "~/lib/admin-permissions";
 import { createAuth } from "~/lib/auth";
+import { isValidEmail } from "~/lib/teams-logic";
 
 export const USERS_PAGE_SIZE = 10;
 
@@ -44,6 +45,13 @@ export interface AdminSessionSummary {
 export interface ListUsersInput {
   page?: number;
   search?: string;
+}
+
+export interface UpdateUserProfileAdminInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  userId: string;
 }
 
 const toIso = (value: Date | null): string =>
@@ -191,6 +199,57 @@ export const getUserSessionsAdmin = createServerFn({ method: "GET" })
       ipAddress: row.ipAddress,
       userAgent: row.userAgent,
     }));
+  });
+
+export const updateUserProfileAdmin = createServerFn({ method: "POST" })
+  .validator((data: UpdateUserProfileAdminInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    await requireAdmin();
+
+    const firstName = data.firstName.trim();
+    const lastName = data.lastName.trim();
+    const email = data.email.trim();
+    const name = `${firstName} ${lastName}`.trim();
+
+    if (!firstName) {
+      throw new Error("First name is required.");
+    }
+
+    if (!isValidEmail(email)) {
+      throw new Error("Enter a valid email address.");
+    }
+
+    const db = getAppDb();
+    const existing = await db
+      .select({ email: user.email, emailVerified: user.emailVerified })
+      .from(user)
+      .where(eq(user.id, data.userId))
+      .get();
+
+    if (!existing) {
+      throw new Error("User not found.");
+    }
+
+    const emailVerified =
+      existing.email === email ? existing.emailVerified : false;
+
+    try {
+      await db
+        .update(user)
+        .set({
+          email,
+          emailVerified,
+          firstName,
+          lastName,
+          name,
+          updatedAt: new Date(),
+        })
+        .where(eq(user.id, data.userId));
+    } catch {
+      throw new Error("That email address is already in use.");
+    }
+
+    return { success: true };
   });
 
 const mapRoleRow = (row: Record<string, unknown>): RoleRecord => ({
