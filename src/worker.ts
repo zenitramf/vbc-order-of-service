@@ -6,6 +6,10 @@ import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
 export { OrderEmailStatusDurableObject };
 
 export default {
+  // `/api/auth/*` is owned by the TanStack Start server route in
+  // src/routes/api/auth/$.ts, which instantiates Better Auth from the
+  // Cloudflare global `env`. The Worker fetch handler forwards every
+  // request to TanStack Start so that route is reachable.
   async fetch(request: Request): Promise<Response> {
     return await serverEntry.fetch(request);
   },

@@ -9,172 +9,284 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as PlannerRouteImport } from './routes/planner'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as TemplatesIndexRouteImport } from './routes/templates/index'
-import { Route as TeamsIndexRouteImport } from './routes/teams/index'
-import { Route as SettingsIndexRouteImport } from './routes/settings/index'
-import { Route as MembersIndexRouteImport } from './routes/members/index'
-import { Route as HymnsIndexRouteImport } from './routes/hymns/index'
-import { Route as TemplatesNewRouteImport } from './routes/templates/new'
-import { Route as TemplatesTemplateIdRouteImport } from './routes/templates/$templateId'
-import { Route as TeamsNewRouteImport } from './routes/teams/new'
-import { Route as TeamsTeamIdRouteImport } from './routes/teams/$teamId'
-import { Route as OrdersNewRouteImport } from './routes/orders/new'
-import { Route as OrdersOrderIdRouteImport } from './routes/orders/$orderId'
-import { Route as MembersNewRouteImport } from './routes/members/new'
-import { Route as MembersMemberIdRouteImport } from './routes/members/$memberId'
-import { Route as HymnsNewRouteImport } from './routes/hymns/new'
-import { Route as HymnsHymnIdRouteImport } from './routes/hymns/$hymnId'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedPlannerRouteImport } from './routes/_authenticated/planner'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedTemplatesIndexRouteImport } from './routes/_authenticated/templates/index'
+import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
+import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
+import { Route as AuthenticatedMembersIndexRouteImport } from './routes/_authenticated/members/index'
+import { Route as AuthenticatedHymnsIndexRouteImport } from './routes/_authenticated/hymns/index'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AuthenticatedTemplatesNewRouteImport } from './routes/_authenticated/templates/new'
+import { Route as AuthenticatedTemplatesTemplateIdRouteImport } from './routes/_authenticated/templates/$templateId'
+import { Route as AuthenticatedTeamsNewRouteImport } from './routes/_authenticated/teams/new'
+import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams/$teamId'
+import { Route as AuthenticatedOrdersNewRouteImport } from './routes/_authenticated/orders/new'
+import { Route as AuthenticatedOrdersOrderIdRouteImport } from './routes/_authenticated/orders/$orderId'
+import { Route as AuthenticatedMembersNewRouteImport } from './routes/_authenticated/members/new'
+import { Route as AuthenticatedMembersMemberIdRouteImport } from './routes/_authenticated/members/$memberId'
+import { Route as AuthenticatedHymnsNewRouteImport } from './routes/_authenticated/hymns/new'
+import { Route as AuthenticatedHymnsHymnIdRouteImport } from './routes/_authenticated/hymns/$hymnId'
+import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
+import { Route as AuthenticatedAdminRolesIndexRouteImport } from './routes/_authenticated/admin/roles/index'
+import { Route as AuthenticatedAdminUsersNewRouteImport } from './routes/_authenticated/admin/users/new'
+import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_authenticated/admin/users/$userId'
+import { Route as AuthenticatedAdminRolesNewRouteImport } from './routes/_authenticated/admin/roles/new'
+import { Route as AuthenticatedAdminRolesRoleIdRouteImport } from './routes/_authenticated/admin/roles/$roleId'
 
-const PlannerRoute = PlannerRouteImport.update({
-  id: '/planner',
-  path: '/planner',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const TemplatesIndexRoute = TemplatesIndexRouteImport.update({
-  id: '/templates/',
-  path: '/templates/',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedPlannerRoute = AuthenticatedPlannerRouteImport.update({
+  id: '/planner',
+  path: '/planner',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const TeamsIndexRoute = TeamsIndexRouteImport.update({
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedTemplatesIndexRoute =
+  AuthenticatedTemplatesIndexRouteImport.update({
+    id: '/templates/',
+    path: '/templates/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedTeamsIndexRoute = AuthenticatedTeamsIndexRouteImport.update({
   id: '/teams/',
   path: '/teams/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const SettingsIndexRoute = SettingsIndexRouteImport.update({
-  id: '/settings/',
-  path: '/settings/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MembersIndexRoute = MembersIndexRouteImport.update({
-  id: '/members/',
-  path: '/members/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HymnsIndexRoute = HymnsIndexRouteImport.update({
+const AuthenticatedSettingsIndexRoute =
+  AuthenticatedSettingsIndexRouteImport.update({
+    id: '/settings/',
+    path: '/settings/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedMembersIndexRoute =
+  AuthenticatedMembersIndexRouteImport.update({
+    id: '/members/',
+    path: '/members/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedHymnsIndexRoute = AuthenticatedHymnsIndexRouteImport.update({
   id: '/hymns/',
   path: '/hymns/',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TemplatesNewRoute = TemplatesNewRouteImport.update({
-  id: '/templates/new',
-  path: '/templates/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TemplatesTemplateIdRoute = TemplatesTemplateIdRouteImport.update({
-  id: '/templates/$templateId',
-  path: '/templates/$templateId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TeamsNewRoute = TeamsNewRouteImport.update({
+const AuthenticatedTemplatesNewRoute =
+  AuthenticatedTemplatesNewRouteImport.update({
+    id: '/templates/new',
+    path: '/templates/new',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedTemplatesTemplateIdRoute =
+  AuthenticatedTemplatesTemplateIdRouteImport.update({
+    id: '/templates/$templateId',
+    path: '/templates/$templateId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedTeamsNewRoute = AuthenticatedTeamsNewRouteImport.update({
   id: '/teams/new',
   path: '/teams/new',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const TeamsTeamIdRoute = TeamsTeamIdRouteImport.update({
-  id: '/teams/$teamId',
-  path: '/teams/$teamId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrdersNewRoute = OrdersNewRouteImport.update({
+const AuthenticatedTeamsTeamIdRoute =
+  AuthenticatedTeamsTeamIdRouteImport.update({
+    id: '/teams/$teamId',
+    path: '/teams/$teamId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedOrdersNewRoute = AuthenticatedOrdersNewRouteImport.update({
   id: '/orders/new',
   path: '/orders/new',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const OrdersOrderIdRoute = OrdersOrderIdRouteImport.update({
-  id: '/orders/$orderId',
-  path: '/orders/$orderId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const MembersNewRoute = MembersNewRouteImport.update({
+const AuthenticatedOrdersOrderIdRoute =
+  AuthenticatedOrdersOrderIdRouteImport.update({
+    id: '/orders/$orderId',
+    path: '/orders/$orderId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedMembersNewRoute = AuthenticatedMembersNewRouteImport.update({
   id: '/members/new',
   path: '/members/new',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const MembersMemberIdRoute = MembersMemberIdRouteImport.update({
-  id: '/members/$memberId',
-  path: '/members/$memberId',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const HymnsNewRoute = HymnsNewRouteImport.update({
+const AuthenticatedMembersMemberIdRoute =
+  AuthenticatedMembersMemberIdRouteImport.update({
+    id: '/members/$memberId',
+    path: '/members/$memberId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedHymnsNewRoute = AuthenticatedHymnsNewRouteImport.update({
   id: '/hymns/new',
   path: '/hymns/new',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const HymnsHymnIdRoute = HymnsHymnIdRouteImport.update({
-  id: '/hymns/$hymnId',
-  path: '/hymns/$hymnId',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const AuthenticatedHymnsHymnIdRoute =
+  AuthenticatedHymnsHymnIdRouteImport.update({
+    id: '/hymns/$hymnId',
+    path: '/hymns/$hymnId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAdminUsersIndexRoute =
+  AuthenticatedAdminUsersIndexRouteImport.update({
+    id: '/users/',
+    path: '/users/',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminRolesIndexRoute =
+  AuthenticatedAdminRolesIndexRouteImport.update({
+    id: '/roles/',
+    path: '/roles/',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminUsersNewRoute =
+  AuthenticatedAdminUsersNewRouteImport.update({
+    id: '/users/new',
+    path: '/users/new',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminUsersUserIdRoute =
+  AuthenticatedAdminUsersUserIdRouteImport.update({
+    id: '/users/$userId',
+    path: '/users/$userId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminRolesNewRoute =
+  AuthenticatedAdminRolesNewRouteImport.update({
+    id: '/roles/new',
+    path: '/roles/new',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminRolesRoleIdRoute =
+  AuthenticatedAdminRolesRoleIdRouteImport.update({
+    id: '/roles/$roleId',
+    path: '/roles/$roleId',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/planner': typeof PlannerRoute
-  '/hymns/$hymnId': typeof HymnsHymnIdRoute
-  '/hymns/new': typeof HymnsNewRoute
-  '/members/$memberId': typeof MembersMemberIdRoute
-  '/members/new': typeof MembersNewRoute
-  '/orders/$orderId': typeof OrdersOrderIdRoute
-  '/orders/new': typeof OrdersNewRoute
-  '/teams/$teamId': typeof TeamsTeamIdRoute
-  '/teams/new': typeof TeamsNewRoute
-  '/templates/$templateId': typeof TemplatesTemplateIdRoute
-  '/templates/new': typeof TemplatesNewRoute
-  '/hymns/': typeof HymnsIndexRoute
-  '/members/': typeof MembersIndexRoute
-  '/settings/': typeof SettingsIndexRoute
-  '/teams/': typeof TeamsIndexRoute
-  '/templates/': typeof TemplatesIndexRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/login': typeof LoginRoute
+  '/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/planner': typeof AuthenticatedPlannerRoute
+  '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
+  '/hymns/new': typeof AuthenticatedHymnsNewRoute
+  '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
+  '/members/new': typeof AuthenticatedMembersNewRoute
+  '/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
+  '/orders/new': typeof AuthenticatedOrdersNewRoute
+  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/teams/new': typeof AuthenticatedTeamsNewRoute
+  '/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
+  '/templates/new': typeof AuthenticatedTemplatesNewRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/hymns/': typeof AuthenticatedHymnsIndexRoute
+  '/members/': typeof AuthenticatedMembersIndexRoute
+  '/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/templates/': typeof AuthenticatedTemplatesIndexRoute
+  '/admin/roles/$roleId': typeof AuthenticatedAdminRolesRoleIdRoute
+  '/admin/roles/new': typeof AuthenticatedAdminRolesNewRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/admin/users/new': typeof AuthenticatedAdminUsersNewRoute
+  '/admin/roles/': typeof AuthenticatedAdminRolesIndexRoute
+  '/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/planner': typeof PlannerRoute
-  '/hymns/$hymnId': typeof HymnsHymnIdRoute
-  '/hymns/new': typeof HymnsNewRoute
-  '/members/$memberId': typeof MembersMemberIdRoute
-  '/members/new': typeof MembersNewRoute
-  '/orders/$orderId': typeof OrdersOrderIdRoute
-  '/orders/new': typeof OrdersNewRoute
-  '/teams/$teamId': typeof TeamsTeamIdRoute
-  '/teams/new': typeof TeamsNewRoute
-  '/templates/$templateId': typeof TemplatesTemplateIdRoute
-  '/templates/new': typeof TemplatesNewRoute
-  '/hymns': typeof HymnsIndexRoute
-  '/members': typeof MembersIndexRoute
-  '/settings': typeof SettingsIndexRoute
-  '/teams': typeof TeamsIndexRoute
-  '/templates': typeof TemplatesIndexRoute
+  '/login': typeof LoginRoute
+  '/planner': typeof AuthenticatedPlannerRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
+  '/hymns/new': typeof AuthenticatedHymnsNewRoute
+  '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
+  '/members/new': typeof AuthenticatedMembersNewRoute
+  '/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
+  '/orders/new': typeof AuthenticatedOrdersNewRoute
+  '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/teams/new': typeof AuthenticatedTeamsNewRoute
+  '/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
+  '/templates/new': typeof AuthenticatedTemplatesNewRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
+  '/hymns': typeof AuthenticatedHymnsIndexRoute
+  '/members': typeof AuthenticatedMembersIndexRoute
+  '/settings': typeof AuthenticatedSettingsIndexRoute
+  '/teams': typeof AuthenticatedTeamsIndexRoute
+  '/templates': typeof AuthenticatedTemplatesIndexRoute
+  '/admin/roles/$roleId': typeof AuthenticatedAdminRolesRoleIdRoute
+  '/admin/roles/new': typeof AuthenticatedAdminRolesNewRoute
+  '/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/admin/users/new': typeof AuthenticatedAdminUsersNewRoute
+  '/admin/roles': typeof AuthenticatedAdminRolesIndexRoute
+  '/admin/users': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/planner': typeof PlannerRoute
-  '/hymns/$hymnId': typeof HymnsHymnIdRoute
-  '/hymns/new': typeof HymnsNewRoute
-  '/members/$memberId': typeof MembersMemberIdRoute
-  '/members/new': typeof MembersNewRoute
-  '/orders/$orderId': typeof OrdersOrderIdRoute
-  '/orders/new': typeof OrdersNewRoute
-  '/teams/$teamId': typeof TeamsTeamIdRoute
-  '/teams/new': typeof TeamsNewRoute
-  '/templates/$templateId': typeof TemplatesTemplateIdRoute
-  '/templates/new': typeof TemplatesNewRoute
-  '/hymns/': typeof HymnsIndexRoute
-  '/members/': typeof MembersIndexRoute
-  '/settings/': typeof SettingsIndexRoute
-  '/teams/': typeof TeamsIndexRoute
-  '/templates/': typeof TemplatesIndexRoute
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/login': typeof LoginRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
+  '/_authenticated/planner': typeof AuthenticatedPlannerRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
+  '/_authenticated/hymns/new': typeof AuthenticatedHymnsNewRoute
+  '/_authenticated/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
+  '/_authenticated/members/new': typeof AuthenticatedMembersNewRoute
+  '/_authenticated/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
+  '/_authenticated/orders/new': typeof AuthenticatedOrdersNewRoute
+  '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
+  '/_authenticated/teams/new': typeof AuthenticatedTeamsNewRoute
+  '/_authenticated/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
+  '/_authenticated/templates/new': typeof AuthenticatedTemplatesNewRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/hymns/': typeof AuthenticatedHymnsIndexRoute
+  '/_authenticated/members/': typeof AuthenticatedMembersIndexRoute
+  '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
+  '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/_authenticated/templates/': typeof AuthenticatedTemplatesIndexRoute
+  '/_authenticated/admin/roles/$roleId': typeof AuthenticatedAdminRolesRoleIdRoute
+  '/_authenticated/admin/roles/new': typeof AuthenticatedAdminRolesNewRoute
+  '/_authenticated/admin/users/$userId': typeof AuthenticatedAdminUsersUserIdRoute
+  '/_authenticated/admin/users/new': typeof AuthenticatedAdminUsersNewRoute
+  '/_authenticated/admin/roles/': typeof AuthenticatedAdminRolesIndexRoute
+  '/_authenticated/admin/users/': typeof AuthenticatedAdminUsersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
+    | '/admin'
     | '/planner'
     | '/hymns/$hymnId'
     | '/hymns/new'
@@ -186,15 +298,24 @@ export interface FileRouteTypes {
     | '/teams/new'
     | '/templates/$templateId'
     | '/templates/new'
+    | '/api/auth/$'
+    | '/admin/'
     | '/hymns/'
     | '/members/'
     | '/settings/'
     | '/teams/'
     | '/templates/'
+    | '/admin/roles/$roleId'
+    | '/admin/roles/new'
+    | '/admin/users/$userId'
+    | '/admin/users/new'
+    | '/admin/roles/'
+    | '/admin/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
+    | '/login'
     | '/planner'
+    | '/'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -205,194 +326,331 @@ export interface FileRouteTypes {
     | '/teams/new'
     | '/templates/$templateId'
     | '/templates/new'
+    | '/api/auth/$'
+    | '/admin'
     | '/hymns'
     | '/members'
     | '/settings'
     | '/teams'
     | '/templates'
+    | '/admin/roles/$roleId'
+    | '/admin/roles/new'
+    | '/admin/users/$userId'
+    | '/admin/users/new'
+    | '/admin/roles'
+    | '/admin/users'
   id:
     | '__root__'
-    | '/'
-    | '/planner'
-    | '/hymns/$hymnId'
-    | '/hymns/new'
-    | '/members/$memberId'
-    | '/members/new'
-    | '/orders/$orderId'
-    | '/orders/new'
-    | '/teams/$teamId'
-    | '/teams/new'
-    | '/templates/$templateId'
-    | '/templates/new'
-    | '/hymns/'
-    | '/members/'
-    | '/settings/'
-    | '/teams/'
-    | '/templates/'
+    | '/_authenticated'
+    | '/login'
+    | '/_authenticated/admin'
+    | '/_authenticated/planner'
+    | '/_authenticated/'
+    | '/_authenticated/hymns/$hymnId'
+    | '/_authenticated/hymns/new'
+    | '/_authenticated/members/$memberId'
+    | '/_authenticated/members/new'
+    | '/_authenticated/orders/$orderId'
+    | '/_authenticated/orders/new'
+    | '/_authenticated/teams/$teamId'
+    | '/_authenticated/teams/new'
+    | '/_authenticated/templates/$templateId'
+    | '/_authenticated/templates/new'
+    | '/api/auth/$'
+    | '/_authenticated/admin/'
+    | '/_authenticated/hymns/'
+    | '/_authenticated/members/'
+    | '/_authenticated/settings/'
+    | '/_authenticated/teams/'
+    | '/_authenticated/templates/'
+    | '/_authenticated/admin/roles/$roleId'
+    | '/_authenticated/admin/roles/new'
+    | '/_authenticated/admin/users/$userId'
+    | '/_authenticated/admin/users/new'
+    | '/_authenticated/admin/roles/'
+    | '/_authenticated/admin/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  PlannerRoute: typeof PlannerRoute
-  HymnsHymnIdRoute: typeof HymnsHymnIdRoute
-  HymnsNewRoute: typeof HymnsNewRoute
-  MembersMemberIdRoute: typeof MembersMemberIdRoute
-  MembersNewRoute: typeof MembersNewRoute
-  OrdersOrderIdRoute: typeof OrdersOrderIdRoute
-  OrdersNewRoute: typeof OrdersNewRoute
-  TeamsTeamIdRoute: typeof TeamsTeamIdRoute
-  TeamsNewRoute: typeof TeamsNewRoute
-  TemplatesTemplateIdRoute: typeof TemplatesTemplateIdRoute
-  TemplatesNewRoute: typeof TemplatesNewRoute
-  HymnsIndexRoute: typeof HymnsIndexRoute
-  MembersIndexRoute: typeof MembersIndexRoute
-  SettingsIndexRoute: typeof SettingsIndexRoute
-  TeamsIndexRoute: typeof TeamsIndexRoute
-  TemplatesIndexRoute: typeof TemplatesIndexRoute
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/planner': {
-      id: '/planner'
-      path: '/planner'
-      fullPath: '/planner'
-      preLoaderRoute: typeof PlannerRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/templates/': {
-      id: '/templates/'
+    '/_authenticated/planner': {
+      id: '/_authenticated/planner'
+      path: '/planner'
+      fullPath: '/planner'
+      preLoaderRoute: typeof AuthenticatedPlannerRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/templates/': {
+      id: '/_authenticated/templates/'
       path: '/templates'
       fullPath: '/templates/'
-      preLoaderRoute: typeof TemplatesIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedTemplatesIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/teams/': {
-      id: '/teams/'
+    '/_authenticated/teams/': {
+      id: '/_authenticated/teams/'
       path: '/teams'
       fullPath: '/teams/'
-      preLoaderRoute: typeof TeamsIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/settings/': {
-      id: '/settings/'
+    '/_authenticated/settings/': {
+      id: '/_authenticated/settings/'
       path: '/settings'
       fullPath: '/settings/'
-      preLoaderRoute: typeof SettingsIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedSettingsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/members/': {
-      id: '/members/'
+    '/_authenticated/members/': {
+      id: '/_authenticated/members/'
       path: '/members'
       fullPath: '/members/'
-      preLoaderRoute: typeof MembersIndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedMembersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/hymns/': {
-      id: '/hymns/'
+    '/_authenticated/hymns/': {
+      id: '/_authenticated/hymns/'
       path: '/hymns'
       fullPath: '/hymns/'
-      preLoaderRoute: typeof HymnsIndexRouteImport
+      preLoaderRoute: typeof AuthenticatedHymnsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/templates/new': {
-      id: '/templates/new'
+    '/_authenticated/templates/new': {
+      id: '/_authenticated/templates/new'
       path: '/templates/new'
       fullPath: '/templates/new'
-      preLoaderRoute: typeof TemplatesNewRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedTemplatesNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/templates/$templateId': {
-      id: '/templates/$templateId'
+    '/_authenticated/templates/$templateId': {
+      id: '/_authenticated/templates/$templateId'
       path: '/templates/$templateId'
       fullPath: '/templates/$templateId'
-      preLoaderRoute: typeof TemplatesTemplateIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedTemplatesTemplateIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/teams/new': {
-      id: '/teams/new'
+    '/_authenticated/teams/new': {
+      id: '/_authenticated/teams/new'
       path: '/teams/new'
       fullPath: '/teams/new'
-      preLoaderRoute: typeof TeamsNewRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedTeamsNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/teams/$teamId': {
-      id: '/teams/$teamId'
+    '/_authenticated/teams/$teamId': {
+      id: '/_authenticated/teams/$teamId'
       path: '/teams/$teamId'
       fullPath: '/teams/$teamId'
-      preLoaderRoute: typeof TeamsTeamIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedTeamsTeamIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/orders/new': {
-      id: '/orders/new'
+    '/_authenticated/orders/new': {
+      id: '/_authenticated/orders/new'
       path: '/orders/new'
       fullPath: '/orders/new'
-      preLoaderRoute: typeof OrdersNewRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedOrdersNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/orders/$orderId': {
-      id: '/orders/$orderId'
+    '/_authenticated/orders/$orderId': {
+      id: '/_authenticated/orders/$orderId'
       path: '/orders/$orderId'
       fullPath: '/orders/$orderId'
-      preLoaderRoute: typeof OrdersOrderIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedOrdersOrderIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/members/new': {
-      id: '/members/new'
+    '/_authenticated/members/new': {
+      id: '/_authenticated/members/new'
       path: '/members/new'
       fullPath: '/members/new'
-      preLoaderRoute: typeof MembersNewRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedMembersNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/members/$memberId': {
-      id: '/members/$memberId'
+    '/_authenticated/members/$memberId': {
+      id: '/_authenticated/members/$memberId'
       path: '/members/$memberId'
       fullPath: '/members/$memberId'
-      preLoaderRoute: typeof MembersMemberIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedMembersMemberIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/hymns/new': {
-      id: '/hymns/new'
+    '/_authenticated/hymns/new': {
+      id: '/_authenticated/hymns/new'
       path: '/hymns/new'
       fullPath: '/hymns/new'
-      preLoaderRoute: typeof HymnsNewRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedHymnsNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
-    '/hymns/$hymnId': {
-      id: '/hymns/$hymnId'
+    '/_authenticated/hymns/$hymnId': {
+      id: '/_authenticated/hymns/$hymnId'
       path: '/hymns/$hymnId'
       fullPath: '/hymns/$hymnId'
-      preLoaderRoute: typeof HymnsHymnIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedHymnsHymnIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/admin/users/': {
+      id: '/_authenticated/admin/users/'
+      path: '/users'
+      fullPath: '/admin/users/'
+      preLoaderRoute: typeof AuthenticatedAdminUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/roles/': {
+      id: '/_authenticated/admin/roles/'
+      path: '/roles'
+      fullPath: '/admin/roles/'
+      preLoaderRoute: typeof AuthenticatedAdminRolesIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/users/new': {
+      id: '/_authenticated/admin/users/new'
+      path: '/users/new'
+      fullPath: '/admin/users/new'
+      preLoaderRoute: typeof AuthenticatedAdminUsersNewRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/users/$userId': {
+      id: '/_authenticated/admin/users/$userId'
+      path: '/users/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AuthenticatedAdminUsersUserIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/roles/new': {
+      id: '/_authenticated/admin/roles/new'
+      path: '/roles/new'
+      fullPath: '/admin/roles/new'
+      preLoaderRoute: typeof AuthenticatedAdminRolesNewRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/roles/$roleId': {
+      id: '/_authenticated/admin/roles/$roleId'
+      path: '/roles/$roleId'
+      fullPath: '/admin/roles/$roleId'
+      preLoaderRoute: typeof AuthenticatedAdminRolesRoleIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
     }
   }
 }
 
+interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
+  AuthenticatedAdminRolesRoleIdRoute: typeof AuthenticatedAdminRolesRoleIdRoute
+  AuthenticatedAdminRolesNewRoute: typeof AuthenticatedAdminRolesNewRoute
+  AuthenticatedAdminUsersUserIdRoute: typeof AuthenticatedAdminUsersUserIdRoute
+  AuthenticatedAdminUsersNewRoute: typeof AuthenticatedAdminUsersNewRoute
+  AuthenticatedAdminRolesIndexRoute: typeof AuthenticatedAdminRolesIndexRoute
+  AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
+}
+
+const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
+  AuthenticatedAdminRolesRoleIdRoute: AuthenticatedAdminRolesRoleIdRoute,
+  AuthenticatedAdminRolesNewRoute: AuthenticatedAdminRolesNewRoute,
+  AuthenticatedAdminUsersUserIdRoute: AuthenticatedAdminUsersUserIdRoute,
+  AuthenticatedAdminUsersNewRoute: AuthenticatedAdminUsersNewRoute,
+  AuthenticatedAdminRolesIndexRoute: AuthenticatedAdminRolesIndexRoute,
+  AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,
+}
+
+const AuthenticatedAdminRouteWithChildren =
+  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
+  AuthenticatedPlannerRoute: typeof AuthenticatedPlannerRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedHymnsHymnIdRoute: typeof AuthenticatedHymnsHymnIdRoute
+  AuthenticatedHymnsNewRoute: typeof AuthenticatedHymnsNewRoute
+  AuthenticatedMembersMemberIdRoute: typeof AuthenticatedMembersMemberIdRoute
+  AuthenticatedMembersNewRoute: typeof AuthenticatedMembersNewRoute
+  AuthenticatedOrdersOrderIdRoute: typeof AuthenticatedOrdersOrderIdRoute
+  AuthenticatedOrdersNewRoute: typeof AuthenticatedOrdersNewRoute
+  AuthenticatedTeamsTeamIdRoute: typeof AuthenticatedTeamsTeamIdRoute
+  AuthenticatedTeamsNewRoute: typeof AuthenticatedTeamsNewRoute
+  AuthenticatedTemplatesTemplateIdRoute: typeof AuthenticatedTemplatesTemplateIdRoute
+  AuthenticatedTemplatesNewRoute: typeof AuthenticatedTemplatesNewRoute
+  AuthenticatedHymnsIndexRoute: typeof AuthenticatedHymnsIndexRoute
+  AuthenticatedMembersIndexRoute: typeof AuthenticatedMembersIndexRoute
+  AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
+  AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
+  AuthenticatedTemplatesIndexRoute: typeof AuthenticatedTemplatesIndexRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedPlannerRoute: AuthenticatedPlannerRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedHymnsHymnIdRoute: AuthenticatedHymnsHymnIdRoute,
+  AuthenticatedHymnsNewRoute: AuthenticatedHymnsNewRoute,
+  AuthenticatedMembersMemberIdRoute: AuthenticatedMembersMemberIdRoute,
+  AuthenticatedMembersNewRoute: AuthenticatedMembersNewRoute,
+  AuthenticatedOrdersOrderIdRoute: AuthenticatedOrdersOrderIdRoute,
+  AuthenticatedOrdersNewRoute: AuthenticatedOrdersNewRoute,
+  AuthenticatedTeamsTeamIdRoute: AuthenticatedTeamsTeamIdRoute,
+  AuthenticatedTeamsNewRoute: AuthenticatedTeamsNewRoute,
+  AuthenticatedTemplatesTemplateIdRoute: AuthenticatedTemplatesTemplateIdRoute,
+  AuthenticatedTemplatesNewRoute: AuthenticatedTemplatesNewRoute,
+  AuthenticatedHymnsIndexRoute: AuthenticatedHymnsIndexRoute,
+  AuthenticatedMembersIndexRoute: AuthenticatedMembersIndexRoute,
+  AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
+  AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
+  AuthenticatedTemplatesIndexRoute: AuthenticatedTemplatesIndexRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  PlannerRoute: PlannerRoute,
-  HymnsHymnIdRoute: HymnsHymnIdRoute,
-  HymnsNewRoute: HymnsNewRoute,
-  MembersMemberIdRoute: MembersMemberIdRoute,
-  MembersNewRoute: MembersNewRoute,
-  OrdersOrderIdRoute: OrdersOrderIdRoute,
-  OrdersNewRoute: OrdersNewRoute,
-  TeamsTeamIdRoute: TeamsTeamIdRoute,
-  TeamsNewRoute: TeamsNewRoute,
-  TemplatesTemplateIdRoute: TemplatesTemplateIdRoute,
-  TemplatesNewRoute: TemplatesNewRoute,
-  HymnsIndexRoute: HymnsIndexRoute,
-  MembersIndexRoute: MembersIndexRoute,
-  SettingsIndexRoute: SettingsIndexRoute,
-  TeamsIndexRoute: TeamsIndexRoute,
-  TemplatesIndexRoute: TemplatesIndexRoute,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  LoginRoute: LoginRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

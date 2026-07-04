@@ -2,8 +2,28 @@ import { Buffer } from "node:buffer";
 
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
+import { and, eq, ne, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { v4 as uuidv4 } from "uuid";
 
+import { getAppDb } from "~/db/client";
+import type { AppDatabase } from "~/db/client";
+import {
+  activityTypes,
+  appSettings,
+  emailRecipients,
+  hymnFiles,
+  hymnPlays,
+  hymns,
+  hymnSources,
+  orderEmailDeliveries,
+  orderServiceTemplates,
+  ordersOfService,
+  serviceTypes,
+  teamMembers,
+  teamMemberTeams,
+  teams,
+} from "~/db/schema";
 import type {
   CraftMyPdfOrderPayload,
   CraftMyPdfOrderPayloadActivity,
@@ -51,7 +71,6 @@ import type {
   TemplateSummary,
 } from "~/lib/order-service-types";
 import {
-  DEFAULT_TEAMS,
   findMissingRequiredTeams,
   getAssignmentMemberIds,
   getRequiredTeamCount,
@@ -66,249 +85,6 @@ import {
   validateTeamMember,
   validateTeamParent,
 } from "~/lib/teams-logic";
-
-const DEFAULT_TEMPLATE: OrderServiceTemplateJson = {
-  name: "Sunday Service",
-  service_type: [
-    {
-      activities: [
-        {
-          activityName: "Sunday School Hymn",
-          activityType: "hymn",
-          id: "sunday-school-hymn",
-        },
-        {
-          activityName: "Bible Study",
-          activityType: "bible_preaching",
-          id: "bible-study",
-        },
-      ],
-      id: "sunday-school",
-      typeName: "Sunday School",
-    },
-    {
-      activities: [
-        {
-          activityName: "Opening Hymn",
-          activityType: "hymn",
-          id: "opening-hymn",
-        },
-        { activityName: "Prayer", activityType: "prayer", id: "prayer" },
-        {
-          activityName: "Scripture Reading",
-          activityType: "scripture_reading",
-          id: "scripture-reading",
-        },
-        {
-          activityName: "Offertory",
-          activityType: "offertory",
-          id: "offertory",
-        },
-        {
-          activityName: "Preaching",
-          activityType: "preaching",
-          id: "preaching",
-        },
-        {
-          activityName: "Invitation",
-          activityType: "invitation",
-          id: "invitation",
-        },
-      ],
-      id: "sunday-main-service",
-      typeName: "Sunday Main Service",
-    },
-    {
-      activities: [
-        {
-          activityName: "Congregational Hymn",
-          activityType: "hymn",
-          id: "evening-hymn",
-        },
-        {
-          activityName: "Special Music",
-          activityType: "special_music",
-          id: "special-music",
-        },
-        {
-          activityName: "Preaching",
-          activityType: "preaching",
-          id: "evening-preaching",
-        },
-      ],
-      id: "sunday-evening-service",
-      typeName: "Sunday Evening Service",
-    },
-  ],
-};
-
-const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS service_types (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  description TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS service_statuses (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS activity_types (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  description TEXT NOT NULL DEFAULT ''
-);
-
-CREATE TABLE IF NOT EXISTS hymn_sources (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE
-);
-
-CREATE TABLE IF NOT EXISTS hymns (
-  id TEXT PRIMARY KEY,
-  hymn_number TEXT NOT NULL DEFAULT '',
-  name TEXT NOT NULL,
-  lyrics_markdown TEXT NOT NULL DEFAULT '',
-  music_key TEXT NOT NULL DEFAULT '',
-  last_played TEXT NOT NULL DEFAULT '',
-  times_played_last_6_months INTEGER NOT NULL DEFAULT 0,
-  source_id TEXT NOT NULL REFERENCES hymn_sources(id),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS hymns_name_idx ON hymns(name);
-CREATE INDEX IF NOT EXISTS hymns_number_idx ON hymns(hymn_number);
-
-CREATE TABLE IF NOT EXISTS hymn_files (
-  id TEXT PRIMARY KEY,
-  hymn_id TEXT NOT NULL REFERENCES hymns(id) ON DELETE CASCADE,
-  filename TEXT NOT NULL,
-  content_type TEXT NOT NULL,
-  size_bytes INTEGER NOT NULL,
-  object_key TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS hymn_files_hymn_idx ON hymn_files(hymn_id);
-
-CREATE TABLE IF NOT EXISTS order_service_templates (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  service_type_id TEXT NOT NULL REFERENCES service_types(id),
-  template_json TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS order_service_templates_service_type_idx
-  ON order_service_templates(service_type_id);
-
-CREATE TABLE IF NOT EXISTS orders_of_service (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  service_type_id TEXT NOT NULL REFERENCES service_types(id),
-  service_date TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Planning' REFERENCES service_statuses(id),
-  template_id TEXT REFERENCES order_service_templates(id),
-  order_json TEXT NOT NULL,
-  published_at TEXT,
-  pdf_object_key TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS orders_of_service_date_idx ON orders_of_service(service_date);
-CREATE UNIQUE INDEX IF NOT EXISTS orders_of_service_service_date_unique_idx
-  ON orders_of_service(service_date);
-CREATE INDEX IF NOT EXISTS orders_of_service_status_idx ON orders_of_service(status);
-
-ALTER TABLE orders_of_service ADD COLUMN pdf_object_key TEXT;
-
-CREATE TABLE IF NOT EXISTS hymn_plays (
-  id TEXT PRIMARY KEY,
-  hymn_id TEXT NOT NULL REFERENCES hymns(id),
-  order_id TEXT NOT NULL REFERENCES orders_of_service(id),
-  played_on TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS hymn_plays_hymn_date_idx ON hymn_plays(hymn_id, played_on);
-
-CREATE TABLE IF NOT EXISTS app_settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS email_recipients (
-  id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS order_email_deliveries (
-  id TEXT PRIMARY KEY,
-  order_id TEXT NOT NULL UNIQUE REFERENCES orders_of_service(id),
-  subject TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'Queued',
-  queued_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  sent_at TEXT,
-  error_message TEXT,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS order_email_deliveries_order_idx
-  ON order_email_deliveries(order_id);
-
-CREATE TABLE IF NOT EXISTS teams (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  parent_team_id TEXT REFERENCES teams(id),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS teams_parent_idx ON teams(parent_team_id);
-
-CREATE TABLE IF NOT EXISTS team_members (
-  id TEXT PRIMARY KEY,
-  first_name TEXT NOT NULL,
-  last_name TEXT NOT NULL DEFAULT '',
-  email TEXT NOT NULL DEFAULT '',
-  phone TEXT NOT NULL DEFAULT '',
-  notes TEXT NOT NULL DEFAULT '',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS team_members_name_idx
-  ON team_members(last_name, first_name);
-
-CREATE TABLE IF NOT EXISTS team_member_teams (
-  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
-  member_id TEXT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (team_id, member_id)
-);
-
-CREATE INDEX IF NOT EXISTS team_member_teams_member_idx
-  ON team_member_teams(member_id);
-`;
-
-let databaseInitialized = false;
-
-const getDatabase = (): D1Database => {
-  if (!env.DB) {
-    throw new Error("Cloudflare D1 binding DB is not configured.");
-  }
-
-  return env.DB;
-};
 
 const getPdfBucket = (): R2Bucket => {
   if (!env.SERVICE_PDFS) {
@@ -477,159 +253,15 @@ const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
   }
 };
 
-const ensureDatabase = async () => {
-  if (databaseInitialized) {
-    return;
-  }
-
-  const db = getDatabase();
-  const schemaStatements = SCHEMA_SQL.split(";")
-    .map((statement) => statement.trim())
-    .filter((statement) => statement.length > 0);
-
-  for (const statement of schemaStatements) {
-    try {
-      // oxlint-disable-next-line no-await-in-loop -- schema must be applied in order.
-      await db.prepare(statement).run();
-    } catch (error) {
-      if (!String(error).includes("duplicate column name")) {
-        throw error;
-      }
-    }
-  }
-
-  await db.batch([
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)"
-      )
-      .bind("Planning", "Planning"),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO service_statuses (id, name) VALUES (?, ?)"
-      )
-      .bind("Published", "Published"),
-    db
-      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
-      .bind("living-hymns", "Living Hymns"),
-    db
-      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
-      .bind("other-hymn", "Other Hymn"),
-    db
-      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
-      .bind("song", "Song"),
-    db
-      .prepare("INSERT OR IGNORE INTO hymn_sources (id, name) VALUES (?, ?)")
-      .bind("majesty-hymns", "Majesty Hymns"),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind(
-        "hymn",
-        "Hymn",
-        "Congregational hymn selected from the hymn library."
-      ),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind("prayer", "Prayer", "Prayer led by a selected person."),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind(
-        "scripture_reading",
-        "Scripture Reading",
-        "Bible passage read during service."
-      ),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind("hand_shaking", "Hand Shaking", "Fellowship greeting time."),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind("offertory", "Offertory", "Offering and offertory music."),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind("preaching", "Preaching", "Main preaching time."),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind("invitation", "Invitation", "Invitation following the message."),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind("special_music", "Special Music", "Special music selection."),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind(
-        "bible_preaching",
-        "Bible Preaching",
-        "Bible study or teaching time."
-      ),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO activity_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind("custom", "Custom", "Custom activity."),
-  ]);
-
-  const defaultServiceTypeId = "sunday-service";
-  const templateId = "default-sunday-service";
-  await db.batch([
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO service_types (id, name, description) VALUES (?, ?, ?)"
-      )
-      .bind(
-        defaultServiceTypeId,
-        "Sunday Service",
-        "Default Sunday service type."
-      ),
-    db
-      .prepare(
-        "INSERT OR IGNORE INTO order_service_templates (id, name, service_type_id, template_json) VALUES (?, ?, ?, ?)"
-      )
-      .bind(
-        templateId,
-        DEFAULT_TEMPLATE.name,
-        defaultServiceTypeId,
-        JSON.stringify(DEFAULT_TEMPLATE)
-      ),
-  ]);
-
-  await db.batch(
-    DEFAULT_TEAMS.map((seedTeam) =>
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO teams (id, name, parent_team_id) VALUES (?, ?, ?)"
-        )
-        .bind(seedTeam.id, seedTeam.name, seedTeam.parentId ?? null)
-    )
-  );
-  databaseInitialized = true;
-};
-
 const loadReferenceOptions = async (
-  tableName: "activity_types" | "hymn_sources" | "service_types"
+  table: typeof activityTypes | typeof hymnSources | typeof serviceTypes
 ): Promise<ReferenceOption[]> => {
-  const db = getDatabase();
-  const { results } = await db
-    .prepare(`SELECT id, name FROM ${tableName} ORDER BY name`)
-    .all<{ id: string; name: string }>();
+  const rows = await getAppDb()
+    .select({ id: table.id, name: table.name })
+    .from(table)
+    .orderBy(table.name);
 
-  return results.map((row) => ({ id: row.id, name: row.name }));
+  return rows.map((row) => ({ id: row.id, name: row.name }));
 };
 
 const mapTemplateRow = (row: Record<string, unknown>): TemplateRecord => {
@@ -695,33 +327,47 @@ const mapOrderEmailDeliveryRow = (
   subject: asString(row.subject),
 });
 
-const isServiceDateUniqueConstraintError = (error: unknown): boolean =>
-  error instanceof Error &&
-  error.message.includes("UNIQUE constraint failed") &&
-  error.message.includes("orders_of_service.service_date");
+const isServiceDateUniqueConstraintError = (error: unknown): boolean => {
+  // Drizzle wraps the driver error, so the D1 "UNIQUE constraint failed"
+  // message lives on `.cause`; walk the chain to stay robust either way.
+  let current: unknown = error;
+
+  while (current instanceof Error) {
+    if (
+      current.message.includes("UNIQUE constraint failed") &&
+      current.message.includes("orders_of_service.service_date")
+    ) {
+      return true;
+    }
+
+    current = current.cause;
+  }
+
+  return false;
+};
 
 const assertServiceDateAvailable = async ({
   db,
   excludeOrderId,
   serviceDate,
 }: {
-  db: D1Database;
+  db: AppDatabase;
   excludeOrderId?: string;
   serviceDate: string;
 }): Promise<void> => {
-  const existingOrder = excludeOrderId
-    ? await db
-        .prepare(
-          "SELECT id FROM orders_of_service WHERE service_date = ? AND id != ? LIMIT 1"
-        )
-        .bind(serviceDate, excludeOrderId)
-        .first<{ id: string }>()
-    : await db
-        .prepare(
-          "SELECT id FROM orders_of_service WHERE service_date = ? LIMIT 1"
-        )
-        .bind(serviceDate)
-        .first<{ id: string }>();
+  const existingOrder = await db
+    .select({ id: ordersOfService.id })
+    .from(ordersOfService)
+    .where(
+      excludeOrderId
+        ? and(
+            eq(ordersOfService.serviceDate, serviceDate),
+            ne(ordersOfService.id, excludeOrderId)
+          )
+        : eq(ordersOfService.serviceDate, serviceDate)
+    )
+    .limit(1)
+    .get();
 
   if (existingOrder) {
     throw new Error(buildServiceDateConflictMessage(serviceDate));
@@ -754,21 +400,21 @@ const mapTeamMemberRow = (row: Record<string, unknown>): TeamMember => ({
   teamIds: splitTeamIds(row.team_ids),
 });
 
-const loadTeamsById = async (db: D1Database) => {
-  const { results } = await db
-    .prepare("SELECT id, name, parent_team_id FROM teams")
-    .all<Record<string, unknown>>();
+const loadTeamsById = async (db: AppDatabase) => {
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT id, name, parent_team_id FROM teams`
+  );
 
   return toTeamsById(results.map(mapTeamRow));
 };
 
 /** Live team memberships keyed by team id, for validating order assignments. */
 const loadTeamMemberIds = async (
-  db: D1Database
+  db: AppDatabase
 ): Promise<Map<string, Set<string>>> => {
-  const { results } = await db
-    .prepare("SELECT team_id, member_id FROM team_member_teams")
-    .all<Record<string, unknown>>();
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT team_id, member_id FROM team_member_teams`
+  );
   const byTeam = new Map<string, Set<string>>();
 
   for (const row of results) {
@@ -783,7 +429,7 @@ const loadTeamMemberIds = async (
 };
 
 const assertRequiredTeamsStaffed = async (
-  db: D1Database,
+  db: AppDatabase,
   order: OrderRecord
 ): Promise<void> => {
   const [teamsLookup, membersByTeam] = await Promise.all([
@@ -885,23 +531,22 @@ const getEnvValue = (key: string): string | undefined => {
 };
 
 const loadHymnsById = async (
-  db: D1Database,
+  db: AppDatabase,
   hymnIds: string[]
 ): Promise<Map<string, HymnRecord>> => {
   if (hymnIds.length === 0) {
     return new Map<string, HymnRecord>();
   }
 
-  const placeholders = hymnIds.map(() => "?").join(", ");
-  const { results } = await db
-    .prepare(
-      `SELECT hymns.*, hymn_sources.name AS source_name, ${RECENT_HYMN_PLAY_COUNT_SQL}
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT hymns.*, hymn_sources.name AS source_name, ${sql.raw(RECENT_HYMN_PLAY_COUNT_SQL)}
       FROM hymns
       JOIN hymn_sources ON hymn_sources.id = hymns.source_id
-      WHERE hymns.id IN (${placeholders})`
-    )
-    .bind(...hymnIds)
-    .all<Record<string, unknown>>();
+      WHERE hymns.id IN (${sql.join(
+        hymnIds.map((id) => sql`${id}`),
+        sql`, `
+      )})`
+  );
 
   return new Map(
     results.map((row) => {
@@ -928,7 +573,7 @@ const assertHymnActivitiesHaveSelections = (order: OrderRecord): void => {
 };
 
 const buildCraftMyPdfOrderPayload = async (
-  db: D1Database,
+  db: AppDatabase,
   order: OrderRecord
 ): Promise<CraftMyPdfOrderPayload> => {
   const hymnIds = new Set<string>();
@@ -980,15 +625,18 @@ const buildCraftMyPdfOrderPayload = async (
 
 export const getReferenceData = createServerFn({ method: "GET" }).handler(
   async (): Promise<ReferenceData> => {
-    await ensureDatabase();
+    const [serviceTypeOptions, activityTypeOptions, hymnSourceOptions] =
+      await Promise.all([
+        loadReferenceOptions(serviceTypes),
+        loadReferenceOptions(activityTypes),
+        loadReferenceOptions(hymnSources),
+      ]);
 
-    const [serviceTypes, activityTypes, hymnSources] = await Promise.all([
-      loadReferenceOptions("service_types"),
-      loadReferenceOptions("activity_types"),
-      loadReferenceOptions("hymn_sources"),
-    ]);
-
-    return { activityTypes, hymnSources, serviceTypes };
+    return {
+      activityTypes: activityTypeOptions,
+      hymnSources: hymnSourceOptions,
+      serviceTypes: serviceTypeOptions,
+    };
   }
 );
 
@@ -1019,8 +667,7 @@ const getUpcomingSunday = (today: string): string => {
 
 export const getDashboardData = createServerFn({ method: "GET" }).handler(
   async (): Promise<DashboardData> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const today = new Date().toISOString().slice(0, 10);
     const nextSundayDate = getUpcomingSunday(today);
     const orderSelect = `
@@ -1031,38 +678,27 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
 
     const [upcoming, previous, counts, nextSunday, teamRows] =
       await Promise.all([
-        db
-          .prepare(
-            `${orderSelect} WHERE service_date >= ? ORDER BY service_date ASC LIMIT 8`
-          )
-          .bind(today)
-          .all<Record<string, unknown>>(),
-        db
-          .prepare(
-            `${orderSelect} WHERE service_date < ? ORDER BY service_date DESC LIMIT 8`
-          )
-          .bind(today)
-          .all<Record<string, unknown>>(),
-        db
-          .prepare(
-            `SELECT
+        db.all<Record<string, unknown>>(
+          sql`${sql.raw(orderSelect)} WHERE service_date >= ${today} ORDER BY service_date ASC LIMIT 8`
+        ),
+        db.all<Record<string, unknown>>(
+          sql`${sql.raw(orderSelect)} WHERE service_date < ${today} ORDER BY service_date DESC LIMIT 8`
+        ),
+        db.get<Record<string, unknown>>(
+          sql`SELECT
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Planning') AS planning_count,
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Published') AS published_count,
             (SELECT COUNT(*) FROM order_service_templates) AS template_count,
             (SELECT COUNT(*) FROM hymns) AS hymn_count,
             (SELECT COUNT(*) FROM team_members) AS team_member_count,
             (SELECT COUNT(*) FROM teams) AS team_count`
-          )
-          .first<Record<string, unknown>>(),
-        db
-          .prepare(`${orderSelect} WHERE service_date = ? LIMIT 1`)
-          .bind(nextSundayDate)
-          .first<Record<string, unknown>>(),
-        db
-          .prepare(
-            `${TEAM_SUMMARY_SELECT} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
-          )
-          .all<Record<string, unknown>>(),
+        ),
+        db.get<Record<string, unknown>>(
+          sql`${sql.raw(orderSelect)} WHERE service_date = ${nextSundayDate} LIMIT 1`
+        ),
+        db.all<Record<string, unknown>>(
+          sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
+        ),
       ]);
 
     return {
@@ -1070,29 +706,26 @@ export const getDashboardData = createServerFn({ method: "GET" }).handler(
       nextSundayDate,
       nextSundayOrder: nextSunday ? mapOrderRow(nextSunday) : null,
       planningCount: asNumber(counts?.planning_count),
-      previousOrders: previous.results.map(mapOrderRow),
+      previousOrders: previous.map(mapOrderRow),
       publishedCount: asNumber(counts?.published_count),
       teamCount: asNumber(counts?.team_count),
       teamMemberCount: asNumber(counts?.team_member_count),
-      teams: teamRows.results.map(mapTeamSummaryRow),
+      teams: teamRows.map(mapTeamSummaryRow),
       templateCount: asNumber(counts?.template_count),
-      upcomingOrders: upcoming.results.map(mapOrderRow),
+      upcomingOrders: upcoming.map(mapOrderRow),
     };
   }
 );
 
 export const getTemplates = createServerFn({ method: "GET" }).handler(
   async (): Promise<TemplateSummary[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const { results } = await db
-      .prepare(
-        `SELECT order_service_templates.*, service_types.name AS service_type_name
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`SELECT order_service_templates.*, service_types.name AS service_type_name
         FROM order_service_templates
         JOIN service_types ON service_types.id = order_service_templates.service_type_id
         ORDER BY order_service_templates.updated_at DESC, order_service_templates.name ASC`
-      )
-      .all<Record<string, unknown>>();
+    );
 
     return results.map(mapTemplateRow);
   }
@@ -1101,17 +734,13 @@ export const getTemplates = createServerFn({ method: "GET" }).handler(
 export const getTemplate = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<TemplateRecord | null> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const row = await db
-      .prepare(
-        `SELECT order_service_templates.*, service_types.name AS service_type_name
+    const db = getAppDb();
+    const row = await db.get<Record<string, unknown>>(
+      sql`SELECT order_service_templates.*, service_types.name AS service_type_name
         FROM order_service_templates
         JOIN service_types ON service_types.id = order_service_templates.service_type_id
-        WHERE order_service_templates.id = ?`
-      )
-      .bind(data)
-      .first<Record<string, unknown>>();
+        WHERE order_service_templates.id = ${data}`
+    );
 
     return row ? mapTemplateRow(row) : null;
   });
@@ -1119,38 +748,41 @@ export const getTemplate = createServerFn({ method: "GET" })
 export const saveTemplate = createServerFn({ method: "POST" })
   .validator((data: SaveTemplateInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const name = data.name.trim() || "Untitled Template";
     const id = data.id || uuidv4();
     const serviceTypeId = slugify(name);
     const template = normalizeTemplate({ ...data.template, name }, name);
     const timestamp = nowIso();
 
+    const templateJson = JSON.stringify(template);
+
     await db.batch([
       db
-        .prepare(
-          `INSERT INTO service_types (id, name, description, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at`
-        )
-        .bind(
-          serviceTypeId,
+        .insert(serviceTypes)
+        .values({
+          description: `${name} order of service template.`,
+          id: serviceTypeId,
           name,
-          `${name} order of service template.`,
-          timestamp
-        ),
+          updatedAt: timestamp,
+        })
+        .onConflictDoUpdate({
+          set: { name, updatedAt: timestamp },
+          target: serviceTypes.id,
+        }),
       db
-        .prepare(
-          `INSERT INTO order_service_templates (id, name, service_type_id, template_json, updated_at)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          name = excluded.name,
-          service_type_id = excluded.service_type_id,
-          template_json = excluded.template_json,
-          updated_at = excluded.updated_at`
-        )
-        .bind(id, name, serviceTypeId, JSON.stringify(template), timestamp),
+        .insert(orderServiceTemplates)
+        .values({
+          id,
+          name,
+          serviceTypeId,
+          templateJson,
+          updatedAt: timestamp,
+        })
+        .onConflictDoUpdate({
+          set: { name, serviceTypeId, templateJson, updatedAt: timestamp },
+          target: orderServiceTemplates.id,
+        }),
     ]);
 
     return { id };
@@ -1182,12 +814,13 @@ const parseMonthPlanningSettings = (value: string): MonthPlanningSettings => {
 
 /** Read Month Planner settings, falling back to the Sunday default. */
 const loadMonthPlanningSettings = async (
-  db: D1Database
+  db: AppDatabase
 ): Promise<MonthPlanningSettings> => {
   const row = await db
-    .prepare("SELECT value FROM app_settings WHERE key = ?")
-    .bind(MONTH_PLANNING_KEY)
-    .first<{ value: string }>();
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, MONTH_PLANNING_KEY))
+    .get();
 
   if (!row) {
     return DEFAULT_MONTH_PLANNING_SETTINGS;
@@ -1270,16 +903,12 @@ const findTemplateMonthPlanReferences = (
 export const deleteTemplate = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
 
     const [orderRow, settings] = await Promise.all([
-      db
-        .prepare(
-          "SELECT COUNT(*) AS order_count FROM orders_of_service WHERE template_id = ?"
-        )
-        .bind(data)
-        .first<{ order_count: number }>(),
+      db.get<{ order_count: number }>(
+        sql`SELECT COUNT(*) AS order_count FROM orders_of_service WHERE template_id = ${data}`
+      ),
       loadMonthPlanningSettings(db),
     ]);
 
@@ -1303,9 +932,8 @@ export const deleteTemplate = createServerFn({ method: "POST" })
     }
 
     await db
-      .prepare("DELETE FROM order_service_templates WHERE id = ?")
-      .bind(data)
-      .run();
+      .delete(orderServiceTemplates)
+      .where(eq(orderServiceTemplates.id, data));
 
     return { success: true };
   });
@@ -1324,7 +952,7 @@ const toOrderSummary = (order: OrderRecord): OrderSummary => ({
 });
 
 const loadTemplatesById = async (
-  db: D1Database,
+  db: AppDatabase,
   ids: string[]
 ): Promise<Map<string, TemplateRecord>> => {
   const unique = [...new Set(ids.filter(Boolean))];
@@ -1333,16 +961,15 @@ const loadTemplatesById = async (
     return new Map();
   }
 
-  const placeholders = unique.map(() => "?").join(", ");
-  const { results } = await db
-    .prepare(
-      `SELECT order_service_templates.*, service_types.name AS service_type_name
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT order_service_templates.*, service_types.name AS service_type_name
       FROM order_service_templates
       JOIN service_types ON service_types.id = order_service_templates.service_type_id
-      WHERE order_service_templates.id IN (${placeholders})`
-    )
-    .bind(...unique)
-    .all<Record<string, unknown>>();
+      WHERE order_service_templates.id IN (${sql.join(
+        unique.map((id) => sql`${id}`),
+        sql`, `
+      )})`
+  );
 
   return new Map(
     results.map((row) => {
@@ -1359,7 +986,7 @@ const loadTemplatesById = async (
  * is missing are left untouched so a stray config never blocks the whole month.
  */
 const planMonthInternal = async (
-  db: D1Database,
+  db: AppDatabase,
   month: string,
   settings: MonthPlanningSettings,
   { createMissing = true }: { createMissing?: boolean } = {}
@@ -1379,16 +1006,13 @@ const planMonthInternal = async (
   );
   const start = `${month}-01`;
   const end = getNextMonthStart(month);
-  const { results } = await db
-    .prepare(
-      "SELECT id, title, service_date, status, order_json FROM orders_of_service WHERE service_date >= ? AND service_date < ?"
-    )
-    .bind(start, end)
-    .all<Record<string, unknown>>();
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT id, title, service_date, status, order_json FROM orders_of_service WHERE service_date >= ${start} AND service_date < ${end}`
+  );
   const existingByDate = new Map(
     results.map((row) => [asString(row.service_date), row] as const)
   );
-  const statements: D1PreparedStatement[] = [];
+  const statements: BatchItem<"sqlite">[] = [];
   const timestamp = nowIso();
 
   for (const { date, dayConfig } of configuredDates) {
@@ -1418,10 +1042,9 @@ const planMonthInternal = async (
       if (changed) {
         statements.push(
           db
-            .prepare(
-              "UPDATE orders_of_service SET order_json = ?, updated_at = ? WHERE id = ?"
-            )
-            .bind(JSON.stringify(synced), timestamp, asString(existing.id))
+            .update(ordersOfService)
+            .set({ orderJson: JSON.stringify(synced), updatedAt: timestamp })
+            .where(eq(ordersOfService.id, asString(existing.id)))
         );
       }
 
@@ -1437,33 +1060,36 @@ const planMonthInternal = async (
       dayConfig.defaultTitle.trim() || `${template.name} Order of Service`;
     statements.push(
       db
-        .prepare(
-          `INSERT INTO orders_of_service
-            (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
-          VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)
-          ON CONFLICT(service_date) DO NOTHING
-          RETURNING id`
-        )
-        .bind(
-          uuidv4(),
+        .insert(ordersOfService)
+        .values({
+          id: uuidv4(),
+          orderJson: JSON.stringify(order),
+          serviceDate: date,
+          serviceTypeId: template.serviceTypeId,
+          status: "Planning",
+          templateId: template.id,
           title,
-          template.serviceTypeId,
-          date,
-          template.id,
-          JSON.stringify(order),
-          timestamp
-        )
+          updatedAt: timestamp,
+        })
+        .onConflictDoNothing({ target: ordersOfService.serviceDate })
+        .returning({ id: ordersOfService.id })
     );
   }
 
   const createdIds: string[] = [];
 
   if (statements.length > 0) {
-    const batchResults = await db.batch<{ id: string }>(statements);
+    const batchResults = await db.batch(
+      statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
+    );
 
+    // INSERT ... RETURNING statements resolve to a rows array; UPDATE statements
+    // resolve to a D1 result object. Only the former carry created ids.
     for (const result of batchResults) {
-      for (const row of result.results) {
-        createdIds.push(row.id);
+      if (Array.isArray(result)) {
+        for (const row of result as { id: string }[]) {
+          createdIds.push(row.id);
+        }
       }
     }
   }
@@ -1473,17 +1099,15 @@ const planMonthInternal = async (
 
 export const getMonthPlanningSettings = createServerFn({
   method: "GET",
-}).handler(async (): Promise<MonthPlanningSettings> => {
-  await ensureDatabase();
-
-  return loadMonthPlanningSettings(getDatabase());
-});
+}).handler(
+  async (): Promise<MonthPlanningSettings> =>
+    await loadMonthPlanningSettings(getAppDb())
+);
 
 export const saveMonthPlanningSettings = createServerFn({ method: "POST" })
   .validator((data: MonthPlanningSettings) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const seen = new Set<number>();
     const prepopulateDays: MonthPlanningDayConfig[] = [];
 
@@ -1529,16 +1153,15 @@ export const saveMonthPlanningSettings = createServerFn({ method: "POST" })
       }
     }
 
+    const value = JSON.stringify({ prepopulateDays });
+    const timestamp = nowIso();
     await db
-      .prepare(
-        `INSERT INTO app_settings (key, value, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET
-          value = excluded.value,
-          updated_at = excluded.updated_at`
-      )
-      .bind(MONTH_PLANNING_KEY, JSON.stringify({ prepopulateDays }), nowIso())
-      .run();
+      .insert(appSettings)
+      .values({ key: MONTH_PLANNING_KEY, updatedAt: timestamp, value })
+      .onConflictDoUpdate({
+        set: { updatedAt: timestamp, value },
+        target: appSettings.key,
+      });
 
     return { success: true };
   });
@@ -1549,8 +1172,7 @@ export const planMonth = createServerFn({ method: "POST" })
     async ({
       data,
     }): Promise<{ createdCount: number; createdIds: string[] }> => {
-      await ensureDatabase();
-      const db = getDatabase();
+      const db = getAppDb();
       const month = (data.month ?? "").trim();
       parseMonth(month);
       const settings = await loadMonthPlanningSettings(db);
@@ -1563,8 +1185,7 @@ export const planMonth = createServerFn({ method: "POST" })
 export const getMonthPlan = createServerFn({ method: "GET" })
   .validator((month?: string) => month ?? "")
   .handler(async ({ data }): Promise<MonthPlanData> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const month = data.trim() || getCurrentMonth();
     parseMonth(month);
     const settings = await loadMonthPlanningSettings(db);
@@ -1582,30 +1203,28 @@ export const getMonthPlan = createServerFn({ method: "GET" })
     );
     const start = `${month}-01`;
     const end = getNextMonthStart(month);
-    const [templatesById, orderRows, teamRows, teamMembers] = await Promise.all(
-      [
+    const [templatesById, orderRows, teamRows, teamMemberSummaries] =
+      await Promise.all([
         loadTemplatesById(db, configTemplateIds),
-        db
-          .prepare(
-            `SELECT orders_of_service.*, service_types.name AS service_type_name
+        db.all<Record<string, unknown>>(
+          sql`SELECT orders_of_service.*, service_types.name AS service_type_name
           FROM orders_of_service
           JOIN service_types ON service_types.id = orders_of_service.service_type_id
-          WHERE service_date >= ? AND service_date < ?
+          WHERE service_date >= ${start} AND service_date < ${end}
           ORDER BY service_date`
-          )
-          .bind(start, end)
-          .all<Record<string, unknown>>(),
-        db
-          .prepare(`${TEAM_SUMMARY_SELECT} ORDER BY teams.name`)
-          .all<Record<string, unknown>>(),
+        ),
+        db.all<Record<string, unknown>>(
+          sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY teams.name`
+        ),
         // oxlint-disable-next-line no-use-before-define -- getTeamMembers is a server fn defined later in this module.
         getTeamMembers(),
-      ]
-    );
+      ]);
 
-    const teams = teamRows.results.map(mapTeamSummaryRow);
-    const teamNamesById = new Map(teams.map((team) => [team.id, team.name]));
-    const orders = orderRows.results.map(mapOrderRow);
+    const teamSummaries = teamRows.map(mapTeamSummaryRow);
+    const teamNamesById = new Map(
+      teamSummaries.map((team) => [team.id, team.name])
+    );
+    const orders = orderRows.map(mapOrderRow);
     const ordersByDate = new Map(
       orders.map((order) => [order.serviceDate, order])
     );
@@ -1697,8 +1316,8 @@ export const getMonthPlan = createServerFn({ method: "GET" })
       scheduleTargets,
       serviceDates,
       settings,
-      teamMembers,
-      teams,
+      teamMembers: teamMemberSummaries,
+      teams: teamSummaries,
       unconfiguredWeekdays,
     };
   });
@@ -1706,8 +1325,7 @@ export const getMonthPlan = createServerFn({ method: "GET" })
 export const saveMonthSchedule = createServerFn({ method: "POST" })
   .validator((data: SaveMonthScheduleInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const byOrder = new Map<string, Map<string, string[]>>();
 
     for (const assignment of data.assignments) {
@@ -1722,20 +1340,19 @@ export const saveMonthSchedule = createServerFn({ method: "POST" })
       return { success: true };
     }
 
-    const placeholders = orderIds.map(() => "?").join(", ");
-    const [{ results }, membersByTeam] = await Promise.all([
-      db
-        .prepare(
-          `SELECT id, title, order_json FROM orders_of_service WHERE id IN (${placeholders})`
-        )
-        .bind(...orderIds)
-        .all<Record<string, unknown>>(),
+    const [rows, membersByTeam] = await Promise.all([
+      db.all<Record<string, unknown>>(
+        sql`SELECT id, title, order_json FROM orders_of_service WHERE id IN (${sql.join(
+          orderIds.map((id) => sql`${id}`),
+          sql`, `
+        )})`
+      ),
       loadTeamMemberIds(db),
     ]);
     const timestamp = nowIso();
-    const statements: D1PreparedStatement[] = [];
+    const statements: BatchItem<"sqlite">[] = [];
 
-    for (const row of results) {
+    for (const row of rows) {
       const id = asString(row.id);
       const title = asString(row.title);
       const order = parseTemplateJson(asString(row.order_json), title);
@@ -1765,15 +1382,16 @@ export const saveMonthSchedule = createServerFn({ method: "POST" })
       );
       statements.push(
         db
-          .prepare(
-            "UPDATE orders_of_service SET order_json = ?, updated_at = ? WHERE id = ?"
-          )
-          .bind(JSON.stringify(normalized), timestamp, id)
+          .update(ordersOfService)
+          .set({ orderJson: JSON.stringify(normalized), updatedAt: timestamp })
+          .where(eq(ordersOfService.id, id))
       );
     }
 
     if (statements.length > 0) {
-      await db.batch(statements);
+      await db.batch(
+        statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
+      );
     }
 
     return { success: true };
@@ -1781,16 +1399,13 @@ export const saveMonthSchedule = createServerFn({ method: "POST" })
 
 export const getOrders = createServerFn({ method: "GET" }).handler(
   async (): Promise<OrderSummary[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const { results } = await db
-      .prepare(
-        `SELECT orders_of_service.*, service_types.name AS service_type_name
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`SELECT orders_of_service.*, service_types.name AS service_type_name
         FROM orders_of_service
         JOIN service_types ON service_types.id = orders_of_service.service_type_id
         ORDER BY service_date DESC, updated_at DESC`
-      )
-      .all<Record<string, unknown>>();
+    );
 
     return results.map(mapOrderRow);
   }
@@ -1799,12 +1414,11 @@ export const getOrders = createServerFn({ method: "GET" }).handler(
 export const deleteOrder = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
 
     await db.batch([
-      db.prepare("DELETE FROM hymn_plays WHERE order_id = ?").bind(data),
-      db.prepare("DELETE FROM orders_of_service WHERE id = ?").bind(data),
+      db.delete(hymnPlays).where(eq(hymnPlays.orderId, data)),
+      db.delete(ordersOfService).where(eq(ordersOfService.id, data)),
     ]);
 
     return { success: true };
@@ -1813,17 +1427,13 @@ export const deleteOrder = createServerFn({ method: "POST" })
 export const getOrder = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<OrderRecord | null> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const row = await db
-      .prepare(
-        `SELECT orders_of_service.*, service_types.name AS service_type_name
+    const db = getAppDb();
+    const row = await db.get<Record<string, unknown>>(
+      sql`SELECT orders_of_service.*, service_types.name AS service_type_name
         FROM orders_of_service
         JOIN service_types ON service_types.id = orders_of_service.service_type_id
-        WHERE orders_of_service.id = ?`
-      )
-      .bind(data)
-      .first<Record<string, unknown>>();
+        WHERE orders_of_service.id = ${data}`
+    );
 
     return row ? mapOrderRow(row) : null;
   });
@@ -1842,8 +1452,7 @@ export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
         template_id: string;
       };
     }> => {
-      await ensureDatabase();
-      const db = getDatabase();
+      const db = getAppDb();
       const order = await getOrder({ data: data.orderId });
 
       if (!order) {
@@ -1913,8 +1522,7 @@ export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
 export const createOrder = createServerFn({ method: "POST" })
   .validator((data: CreateOrderInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const template = await getTemplate({ data: data.templateId });
     const serviceDate = data.serviceDate.trim();
 
@@ -1932,22 +1540,16 @@ export const createOrder = createServerFn({ method: "POST" })
     const order = normalizeTemplate(template.template, template.name);
 
     try {
-      await db
-        .prepare(
-          `INSERT INTO orders_of_service
-            (id, title, service_type_id, service_date, status, template_id, order_json, updated_at)
-          VALUES (?, ?, ?, ?, 'Planning', ?, ?, ?)`
-        )
-        .bind(
-          id,
-          data.title.trim() || `${template.name} Order of Service`,
-          template.serviceTypeId,
-          serviceDate,
-          template.id,
-          JSON.stringify(order),
-          nowIso()
-        )
-        .run();
+      await db.insert(ordersOfService).values({
+        id,
+        orderJson: JSON.stringify(order),
+        serviceDate,
+        serviceTypeId: template.serviceTypeId,
+        status: "Planning",
+        templateId: template.id,
+        title: data.title.trim() || `${template.name} Order of Service`,
+        updatedAt: nowIso(),
+      });
     } catch (error) {
       if (isServiceDateUniqueConstraintError(error)) {
         throw new Error(buildServiceDateConflictMessage(serviceDate), {
@@ -1964,8 +1566,7 @@ export const createOrder = createServerFn({ method: "POST" })
 export const saveOrder = createServerFn({ method: "POST" })
   .validator((data: SaveOrderInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const serviceDate = data.serviceDate.trim();
 
     if (!serviceDate) {
@@ -1987,20 +1588,15 @@ export const saveOrder = createServerFn({ method: "POST" })
 
     try {
       await db
-        .prepare(
-          `UPDATE orders_of_service
-          SET title = ?, service_type_id = ?, service_date = ?, order_json = ?, updated_at = ?
-          WHERE id = ?`
-        )
-        .bind(
-          data.title.trim() || "Untitled Order of Service",
-          data.serviceTypeId,
+        .update(ordersOfService)
+        .set({
+          orderJson: JSON.stringify(order),
           serviceDate,
-          JSON.stringify(order),
-          timestamp,
-          data.id
-        )
-        .run();
+          serviceTypeId: data.serviceTypeId,
+          title: data.title.trim() || "Untitled Order of Service",
+          updatedAt: timestamp,
+        })
+        .where(eq(ordersOfService.id, data.id));
     } catch (error) {
       if (isServiceDateUniqueConstraintError(error)) {
         throw new Error(buildServiceDateConflictMessage(serviceDate), {
@@ -2017,8 +1613,7 @@ export const saveOrder = createServerFn({ method: "POST" })
 export const publishOrder = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ id: string; pdfObjectKey?: string }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const order = await getOrder({ data });
 
     if (!order) {
@@ -2066,34 +1661,36 @@ export const publishOrder = createServerFn({ method: "POST" })
       }
     }
     const timestamp = nowIso();
-    const statements = [
+    const statements: BatchItem<"sqlite">[] = [
       db
-        .prepare(
-          `UPDATE orders_of_service
-          SET status = 'Published', published_at = ?, pdf_object_key = ?, updated_at = ?
-          WHERE id = ?`
-        )
-        .bind(timestamp, pdfObjectKey, timestamp, data),
+        .update(ordersOfService)
+        .set({
+          pdfObjectKey,
+          publishedAt: timestamp,
+          status: "Published",
+          updatedAt: timestamp,
+        })
+        .where(eq(ordersOfService.id, data)),
     ];
 
     for (const hymnId of hymnIds) {
       statements.push(
+        db.insert(hymnPlays).values({
+          hymnId,
+          id: uuidv4(),
+          orderId: data,
+          playedOn: order.serviceDate,
+        }),
         db
-          .prepare(
-            "INSERT INTO hymn_plays (id, hymn_id, order_id, played_on) VALUES (?, ?, ?, ?)"
-          )
-          .bind(uuidv4(), hymnId, data, order.serviceDate),
-        db
-          .prepare(
-            `UPDATE hymns
-            SET last_played = ?, updated_at = ?
-            WHERE id = ?`
-          )
-          .bind(order.serviceDate, timestamp, hymnId)
+          .update(hymns)
+          .set({ lastPlayed: order.serviceDate, updatedAt: timestamp })
+          .where(eq(hymns.id, hymnId))
       );
     }
 
-    await db.batch(statements);
+    await db.batch(
+      statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
+    );
 
     return { id: data, pdfObjectKey };
   });
@@ -2101,7 +1698,6 @@ export const publishOrder = createServerFn({ method: "POST" })
 export const getPublishedOrderPdf = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ base64: string; filename: string }> => {
-    await ensureDatabase();
     const order = await getOrder({ data });
 
     if (!order || !order.pdfObjectKey) {
@@ -2125,11 +1721,9 @@ export const getPublishedOrderPdf = createServerFn({ method: "GET" })
 export const getOrderEmailDelivery = createServerFn({ method: "GET" })
   .validator((orderId: string) => orderId)
   .handler(async ({ data }): Promise<OrderEmailDeliveryRecord | null> => {
-    await ensureDatabase();
-    const delivery = await getDatabase()
-      .prepare("SELECT * FROM order_email_deliveries WHERE order_id = ?")
-      .bind(data)
-      .first<Record<string, unknown>>();
+    const delivery = await getAppDb().get<Record<string, unknown>>(
+      sql`SELECT * FROM order_email_deliveries WHERE order_id = ${data}`
+    );
 
     return delivery ? mapOrderEmailDeliveryRow(delivery) : null;
   });
@@ -2137,8 +1731,7 @@ export const getOrderEmailDelivery = createServerFn({ method: "GET" })
 export const sendOrderEmail = createServerFn({ method: "POST" })
   .validator((orderId: string) => orderId)
   .handler(async ({ data }): Promise<OrderEmailDeliveryRecord> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const order = await getOrder({ data });
 
     if (!order || order.status !== "Published" || !order.pdfObjectKey) {
@@ -2148,9 +1741,10 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
     assertHymnActivitiesHaveSelections(order);
 
     const existingDelivery = await db
-      .prepare("SELECT * FROM order_email_deliveries WHERE order_id = ?")
-      .bind(data)
-      .first<Record<string, unknown>>();
+      .select({ id: orderEmailDeliveries.id })
+      .from(orderEmailDeliveries)
+      .where(eq(orderEmailDeliveries.orderId, data))
+      .get();
 
     if (existingDelivery) {
       throw new Error(
@@ -2158,13 +1752,17 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       );
     }
 
-    const settingsRow = await db
-      .prepare("SELECT value FROM app_settings WHERE key = ?")
-      .bind(EMAIL_SETTINGS_KEY)
-      .first<{ value: string }>();
-    const { results } = await db
-      .prepare("SELECT email FROM email_recipients ORDER BY email")
-      .all<{ email: string }>();
+    const [settingsRow, recipientRows] = await Promise.all([
+      db
+        .select({ value: appSettings.value })
+        .from(appSettings)
+        .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
+        .get(),
+      db
+        .select({ email: emailRecipients.email })
+        .from(emailRecipients)
+        .orderBy(emailRecipients.email),
+    ]);
     const storedSettings = settingsRow
       ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
       : {};
@@ -2175,7 +1773,7 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       throw new Error("SMTP settings are not fully configured.");
     }
 
-    const recipients = results.map((row) => row.email);
+    const recipients = recipientRows.map((row) => row.email);
 
     if (recipients.length === 0) {
       throw new Error("At least one email recipient must be configured.");
@@ -2205,36 +1803,32 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       subject,
     };
 
-    await db
-      .prepare(
-        `INSERT INTO order_email_deliveries (id, order_id, subject, status, queued_at, updated_at)
-        VALUES (?, ?, ?, 'Queued', ?, ?)`
-      )
-      .bind(deliveryId, data, subject, timestamp, timestamp)
-      .run();
+    await db.insert(orderEmailDeliveries).values({
+      id: deliveryId,
+      orderId: data,
+      queuedAt: timestamp,
+      status: "Queued",
+      subject,
+      updatedAt: timestamp,
+    });
 
     try {
       await getEmailQueue().send(message, { contentType: "json" });
     } catch (error) {
       await db
-        .prepare(
-          `UPDATE order_email_deliveries
-          SET status = 'Failed', error_message = ?, updated_at = ?
-          WHERE id = ?`
-        )
-        .bind(
-          getErrorMessage(error, "Unable to queue email."),
-          nowIso(),
-          deliveryId
-        )
-        .run();
+        .update(orderEmailDeliveries)
+        .set({
+          errorMessage: getErrorMessage(error, "Unable to queue email."),
+          status: "Failed",
+          updatedAt: nowIso(),
+        })
+        .where(eq(orderEmailDeliveries.id, deliveryId));
       throw error;
     }
 
-    const delivery = await db
-      .prepare("SELECT * FROM order_email_deliveries WHERE id = ?")
-      .bind(deliveryId)
-      .first<Record<string, unknown>>();
+    const delivery = await db.get<Record<string, unknown>>(
+      sql`SELECT * FROM order_email_deliveries WHERE id = ${deliveryId}`
+    );
 
     if (!delivery) {
       throw new Error("Email delivery record could not be loaded.");
@@ -2245,21 +1839,24 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
 
 export const getEmailSettings = createServerFn({ method: "GET" }).handler(
   async (): Promise<EmailSettingsRecord> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const settingsRow = await db
-      .prepare("SELECT value FROM app_settings WHERE key = ?")
-      .bind(EMAIL_SETTINGS_KEY)
-      .first<{ value: string }>();
-    const { results } = await db
-      .prepare("SELECT email FROM email_recipients ORDER BY email")
-      .all<{ email: string }>();
+    const db = getAppDb();
+    const [settingsRow, recipientRows] = await Promise.all([
+      db
+        .select({ value: appSettings.value })
+        .from(appSettings)
+        .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
+        .get(),
+      db
+        .select({ email: emailRecipients.email })
+        .from(emailRecipients)
+        .orderBy(emailRecipients.email),
+    ]);
     const storedSettings = settingsRow
       ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
       : {};
 
     return {
-      recipients: results.map((row) => row.email),
+      recipients: recipientRows.map((row) => row.email),
       smtpAddress:
         typeof storedSettings.smtpAddress === "string"
           ? storedSettings.smtpAddress
@@ -2281,17 +1878,17 @@ export const getEmailSettings = createServerFn({ method: "GET" }).handler(
 export const saveEmailSettings = createServerFn({ method: "POST" })
   .validator((data: SaveEmailSettingsInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
     assertValidEmailSettings(data);
 
-    const db = getDatabase();
+    const db = getAppDb();
     const trimmedRecipients = [
       ...new Set(data.recipients.map((email) => email.trim().toLowerCase())),
     ];
     const currentRow = await db
-      .prepare("SELECT value FROM app_settings WHERE key = ?")
-      .bind(EMAIL_SETTINGS_KEY)
-      .first<{ value: string }>();
+      .select({ value: appSettings.value })
+      .from(appSettings)
+      .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
+      .get();
     const currentSettings = currentRow
       ? (JSON.parse(currentRow.value) as Record<string, unknown>)
       : {};
@@ -2324,21 +1921,24 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
       smtpUserEncrypted: encryptedUser,
     };
 
+    const settingsValue = JSON.stringify(settingsToStore);
+    const timestamp = nowIso();
+
     await db.batch([
       db
-        .prepare(
-          `INSERT INTO app_settings (key, value, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET
-          value = excluded.value,
-          updated_at = excluded.updated_at`
-        )
-        .bind(EMAIL_SETTINGS_KEY, JSON.stringify(settingsToStore), nowIso()),
-      db.prepare("DELETE FROM email_recipients"),
+        .insert(appSettings)
+        .values({
+          key: EMAIL_SETTINGS_KEY,
+          updatedAt: timestamp,
+          value: settingsValue,
+        })
+        .onConflictDoUpdate({
+          set: { updatedAt: timestamp, value: settingsValue },
+          target: appSettings.key,
+        }),
+      db.delete(emailRecipients),
       ...trimmedRecipients.map((email) =>
-        db
-          .prepare("INSERT INTO email_recipients (id, email) VALUES (?, ?)")
-          .bind(uuidv4(), email)
+        db.insert(emailRecipients).values({ email, id: uuidv4() })
       ),
     ]);
 
@@ -2348,16 +1948,13 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
 export const addEmailRecipient = createServerFn({ method: "POST" })
   .validator((email: string) => email)
   .handler(async ({ data }): Promise<{ email: string }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const email = data.trim().toLowerCase();
     assertValidEmail(email, "Recipient");
     await db
-      .prepare(
-        "INSERT OR IGNORE INTO email_recipients (id, email) VALUES (?, ?)"
-      )
-      .bind(uuidv4(), email)
-      .run();
+      .insert(emailRecipients)
+      .values({ email, id: uuidv4() })
+      .onConflictDoNothing();
 
     return { email };
   });
@@ -2365,28 +1962,23 @@ export const addEmailRecipient = createServerFn({ method: "POST" })
 export const deleteEmailRecipient = createServerFn({ method: "POST" })
   .validator((email: string) => email)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     await db
-      .prepare("DELETE FROM email_recipients WHERE email = ?")
-      .bind(data.trim().toLowerCase())
-      .run();
+      .delete(emailRecipients)
+      .where(eq(emailRecipients.email, data.trim().toLowerCase()));
 
     return { success: true };
   });
 
 export const getHymns = createServerFn({ method: "GET" }).handler(
   async (): Promise<HymnRecord[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const { results } = await db
-      .prepare(
-        `SELECT hymns.*, hymn_sources.name AS source_name, ${RECENT_HYMN_PLAY_COUNT_SQL}
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`SELECT hymns.*, hymn_sources.name AS source_name, ${sql.raw(RECENT_HYMN_PLAY_COUNT_SQL)}
         FROM hymns
         JOIN hymn_sources ON hymn_sources.id = hymns.source_id
         ORDER BY CAST(NULLIF(hymn_number, '') AS INTEGER), name`
-      )
-      .all<Record<string, unknown>>();
+    );
 
     return results.map(mapHymnRow);
   }
@@ -2394,16 +1986,13 @@ export const getHymns = createServerFn({ method: "GET" }).handler(
 
 export const getHymnOptions = createServerFn({ method: "GET" }).handler(
   async (): Promise<HymnOption[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const { results } = await db
-      .prepare(
-        `SELECT hymns.id, hymns.hymn_number, hymns.name, hymns.lyrics_markdown, hymns.last_played, hymns.music_key, hymn_sources.name AS source_name
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`SELECT hymns.id, hymns.hymn_number, hymns.name, hymns.lyrics_markdown, hymns.last_played, hymns.music_key, hymn_sources.name AS source_name
         FROM hymns
         JOIN hymn_sources ON hymn_sources.id = hymns.source_id
         ORDER BY hymn_sources.name, CAST(NULLIF(hymns.hymn_number, '') AS INTEGER), hymns.name`
-      )
-      .all<Record<string, unknown>>();
+    );
 
     return results.map((row) => ({
       hasLyrics: Boolean(asString(row.lyrics_markdown).trim()),
@@ -2421,17 +2010,13 @@ export const getHymnOptions = createServerFn({ method: "GET" }).handler(
 export const getHymn = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<HymnRecord | null> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const row = await db
-      .prepare(
-        `SELECT hymns.*, hymn_sources.name AS source_name, ${RECENT_HYMN_PLAY_COUNT_SQL}
+    const db = getAppDb();
+    const row = await db.get<Record<string, unknown>>(
+      sql`SELECT hymns.*, hymn_sources.name AS source_name, ${sql.raw(RECENT_HYMN_PLAY_COUNT_SQL)}
         FROM hymns
         JOIN hymn_sources ON hymn_sources.id = hymns.source_id
-        WHERE hymns.id = ?`
-      )
-      .bind(data)
-      .first<Record<string, unknown>>();
+        WHERE hymns.id = ${data}`
+    );
 
     return row ? mapHymnRow(row) : null;
   });
@@ -2439,12 +2024,10 @@ export const getHymn = createServerFn({ method: "GET" })
 export const getHymnFiles = createServerFn({ method: "GET" })
   .validator((hymnId: string) => hymnId)
   .handler(async ({ data }): Promise<HymnFileRecord[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const { results } = await db
-      .prepare("SELECT * FROM hymn_files WHERE hymn_id = ? ORDER BY filename")
-      .bind(data)
-      .all<Record<string, unknown>>();
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`SELECT * FROM hymn_files WHERE hymn_id = ${data} ORDER BY filename`
+    );
 
     return results.map(mapHymnFileRow);
   });
@@ -2452,8 +2035,7 @@ export const getHymnFiles = createServerFn({ method: "GET" })
 export const uploadHymnFile = createServerFn({ method: "POST" })
   .validator((data: UploadHymnFileInput) => data)
   .handler(async ({ data }): Promise<HymnFileRecord> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const bucket = getPdfBucket();
     const id = uuidv4();
     const filename = data.filename.trim();
@@ -2463,9 +2045,10 @@ export const uploadHymnFile = createServerFn({ method: "POST" })
     }
 
     const hymn = await db
-      .prepare("SELECT id FROM hymns WHERE id = ?")
-      .bind(data.hymnId)
-      .first<{ id: string }>();
+      .select({ id: hymns.id })
+      .from(hymns)
+      .where(eq(hymns.id, data.hymnId))
+      .get();
 
     if (!hymn) {
       throw new Error("Hymn not found.");
@@ -2481,25 +2064,18 @@ export const uploadHymnFile = createServerFn({ method: "POST" })
       },
     });
 
-    await db
-      .prepare(
-        `INSERT INTO hymn_files (id, hymn_id, filename, content_type, size_bytes, object_key)
-        VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        id,
-        data.hymnId,
-        filename,
-        data.contentType || "application/octet-stream",
-        bytes.byteLength,
-        objectKey
-      )
-      .run();
+    await db.insert(hymnFiles).values({
+      contentType: data.contentType || "application/octet-stream",
+      filename,
+      hymnId: data.hymnId,
+      id,
+      objectKey,
+      sizeBytes: bytes.byteLength,
+    });
 
-    const row = await db
-      .prepare("SELECT * FROM hymn_files WHERE id = ?")
-      .bind(id)
-      .first<Record<string, unknown>>();
+    const row = await db.get<Record<string, unknown>>(
+      sql`SELECT * FROM hymn_files WHERE id = ${id}`
+    );
 
     if (!row) {
       throw new Error("Uploaded hymn file could not be loaded.");
@@ -2511,8 +2087,7 @@ export const uploadHymnFile = createServerFn({ method: "POST" })
 export const renameHymnFile = createServerFn({ method: "POST" })
   .validator((data: RenameHymnFileInput) => data)
   .handler(async ({ data }): Promise<HymnFileRecord> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const filename = data.filename.trim();
 
     if (!filename) {
@@ -2520,16 +2095,13 @@ export const renameHymnFile = createServerFn({ method: "POST" })
     }
 
     await db
-      .prepare(
-        "UPDATE hymn_files SET filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-      )
-      .bind(filename, data.id)
-      .run();
+      .update(hymnFiles)
+      .set({ filename, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(hymnFiles.id, data.id));
 
-    const row = await db
-      .prepare("SELECT * FROM hymn_files WHERE id = ?")
-      .bind(data.id)
-      .first<Record<string, unknown>>();
+    const row = await db.get<Record<string, unknown>>(
+      sql`SELECT * FROM hymn_files WHERE id = ${data.id}`
+    );
 
     if (!row) {
       throw new Error("Hymn file not found.");
@@ -2541,32 +2113,30 @@ export const renameHymnFile = createServerFn({ method: "POST" })
 export const deleteHymnFile = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<void> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const bucket = getPdfBucket();
     const row = await db
-      .prepare("SELECT object_key FROM hymn_files WHERE id = ?")
-      .bind(data)
-      .first<Record<string, unknown>>();
+      .select({ objectKey: hymnFiles.objectKey })
+      .from(hymnFiles)
+      .where(eq(hymnFiles.id, data))
+      .get();
 
     if (!row) {
       return;
     }
 
-    await bucket.delete(asString(row.object_key));
-    await db.prepare("DELETE FROM hymn_files WHERE id = ?").bind(data).run();
+    await bucket.delete(row.objectKey);
+    await db.delete(hymnFiles).where(eq(hymnFiles.id, data));
   });
 
 export const getHymnFileDownload = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<HymnFileDownload> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const bucket = getPdfBucket();
-    const row = await db
-      .prepare("SELECT * FROM hymn_files WHERE id = ?")
-      .bind(data)
-      .first<Record<string, unknown>>();
+    const row = await db.get<Record<string, unknown>>(
+      sql`SELECT * FROM hymn_files WHERE id = ${data}`
+    );
 
     if (!row) {
       throw new Error("Hymn file not found.");
@@ -2591,36 +2161,34 @@ export const getHymnFileDownload = createServerFn({ method: "GET" })
 export const saveHymn = createServerFn({ method: "POST" })
   .validator((data: SaveHymnInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const id = data.id || uuidv4();
     const timestamp = nowIso();
+    const values = {
+      hymnNumber: data.hymnNumber.trim(),
+      id,
+      lastPlayed: data.lastPlayed.trim(),
+      lyricsMarkdown: data.lyricsMarkdown,
+      musicKey: data.musicKey.trim(),
+      name: data.name.trim() || "Untitled Hymn",
+      sourceId: data.sourceId,
+      updatedAt: timestamp,
+    };
     await db
-      .prepare(
-        `INSERT INTO hymns
-          (id, hymn_number, name, lyrics_markdown, music_key, last_played,
-            source_id, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          hymn_number = excluded.hymn_number,
-          name = excluded.name,
-          lyrics_markdown = excluded.lyrics_markdown,
-          music_key = excluded.music_key,
-          last_played = excluded.last_played,
-          source_id = excluded.source_id,
-          updated_at = excluded.updated_at`
-      )
-      .bind(
-        id,
-        data.hymnNumber.trim(),
-        data.name.trim() || "Untitled Hymn",
-        data.lyricsMarkdown,
-        data.musicKey.trim(),
-        data.lastPlayed.trim(),
-        data.sourceId,
-        timestamp
-      )
-      .run();
+      .insert(hymns)
+      .values(values)
+      .onConflictDoUpdate({
+        set: {
+          hymnNumber: values.hymnNumber,
+          lastPlayed: values.lastPlayed,
+          lyricsMarkdown: values.lyricsMarkdown,
+          musicKey: values.musicKey,
+          name: values.name,
+          sourceId: values.sourceId,
+          updatedAt: timestamp,
+        },
+        target: hymns.id,
+      });
 
     return { id };
   });
@@ -2628,9 +2196,8 @@ export const saveHymn = createServerFn({ method: "POST" })
 export const deleteHymn = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    await db.prepare("DELETE FROM hymns WHERE id = ?").bind(data).run();
+    const db = getAppDb();
+    await db.delete(hymns).where(eq(hymns.id, data));
 
     return { success: true };
   });
@@ -2652,11 +2219,10 @@ const attachTeamNames = (
 
 export const getTeams = createServerFn({ method: "GET" }).handler(
   async (): Promise<TeamSummary[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const { results } = await db
-      .prepare(`${TEAM_SUMMARY_SELECT} ORDER BY teams.name`)
-      .all<Record<string, unknown>>();
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY teams.name`
+    );
 
     return results.map(mapTeamSummaryRow);
   }
@@ -2665,19 +2231,14 @@ export const getTeams = createServerFn({ method: "GET" }).handler(
 export const getTeam = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<TeamRecord | null> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const [teamRow, memberRows, teamsLookup] = await Promise.all([
-      db
-        .prepare(`${TEAM_SUMMARY_SELECT} WHERE teams.id = ?`)
-        .bind(data)
-        .first<Record<string, unknown>>(),
-      db
-        .prepare(
-          `${TEAM_MEMBER_SELECT} WHERE team_members.id IN (SELECT member_id FROM team_member_teams WHERE team_id = ?) ORDER BY team_members.last_name, team_members.first_name`
-        )
-        .bind(data)
-        .all<Record<string, unknown>>(),
+      db.get<Record<string, unknown>>(
+        sql`${sql.raw(TEAM_SUMMARY_SELECT)} WHERE teams.id = ${data}`
+      ),
+      db.all<Record<string, unknown>>(
+        sql`${sql.raw(TEAM_MEMBER_SELECT)} WHERE team_members.id IN (SELECT member_id FROM team_member_teams WHERE team_id = ${data}) ORDER BY team_members.last_name, team_members.first_name`
+      ),
       loadTeamsById(db),
     ]);
 
@@ -2687,18 +2248,14 @@ export const getTeam = createServerFn({ method: "GET" })
 
     return {
       ...mapTeamSummaryRow(teamRow),
-      members: attachTeamNames(
-        memberRows.results.map(mapTeamMemberRow),
-        teamsLookup
-      ),
+      members: attachTeamNames(memberRows.map(mapTeamMemberRow), teamsLookup),
     };
   });
 
 export const saveTeam = createServerFn({ method: "POST" })
   .validator((data: SaveTeamInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const name = data.name.trim();
 
     if (!name) {
@@ -2709,13 +2266,13 @@ export const saveTeam = createServerFn({ method: "POST" })
     const parentTeamId = data.parentTeamId?.trim() || null;
 
     if (parentTeamId) {
-      const { results } = await db
-        .prepare("SELECT id, parent_team_id FROM teams")
-        .all<Record<string, unknown>>();
+      const teamRows = await db.all<Record<string, unknown>>(
+        sql`SELECT id, parent_team_id FROM teams`
+      );
       const parentError = validateTeamParent({
         id,
         parentTeamId,
-        teams: results.map((row) => ({
+        teams: teamRows.map((row) => ({
           id: asString(row.id),
           parentTeamId: asString(row.parent_team_id) || undefined,
         })),
@@ -2726,17 +2283,14 @@ export const saveTeam = createServerFn({ method: "POST" })
       }
     }
 
+    const timestamp = nowIso();
     await db
-      .prepare(
-        `INSERT INTO teams (id, name, parent_team_id, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          name = excluded.name,
-          parent_team_id = excluded.parent_team_id,
-          updated_at = excluded.updated_at`
-      )
-      .bind(id, name, parentTeamId, nowIso())
-      .run();
+      .insert(teams)
+      .values({ id, name, parentTeamId, updatedAt: timestamp })
+      .onConflictDoUpdate({
+        set: { name, parentTeamId, updatedAt: timestamp },
+        target: teams.id,
+      });
 
     return { id };
   });
@@ -2761,19 +2315,19 @@ const cardReferencesTeam = (
  * deletion must consult this before removing the team row.
  */
 const findTeamReferences = async (
-  db: D1Database,
+  db: AppDatabase,
   teamId: string
 ): Promise<{ orders: string[]; templates: string[] }> => {
   const [templateRows, orderRows] = await Promise.all([
-    db
-      .prepare("SELECT name, template_json FROM order_service_templates")
-      .all<Record<string, unknown>>(),
-    db
-      .prepare("SELECT title, service_date, order_json FROM orders_of_service")
-      .all<Record<string, unknown>>(),
+    db.all<Record<string, unknown>>(
+      sql`SELECT name, template_json FROM order_service_templates`
+    ),
+    db.all<Record<string, unknown>>(
+      sql`SELECT title, service_date, order_json FROM orders_of_service`
+    ),
   ]);
 
-  const templates = templateRows.results
+  const templates = templateRows
     .filter((row) =>
       parseTemplateJson(
         asString(row.template_json),
@@ -2782,7 +2336,7 @@ const findTeamReferences = async (
     )
     .map((row) => asString(row.name));
 
-  const orders = orderRows.results
+  const orders = orderRows
     .filter((row) =>
       parseTemplateJson(
         asString(row.order_json),
@@ -2797,8 +2351,7 @@ const findTeamReferences = async (
 export const deleteTeam = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
 
     const { orders, templates } = await findTeamReferences(db, data);
 
@@ -2820,12 +2373,11 @@ export const deleteTeam = createServerFn({ method: "POST" })
 
     await db.batch([
       db
-        .prepare(
-          "UPDATE teams SET parent_team_id = NULL WHERE parent_team_id = ?"
-        )
-        .bind(data),
-      db.prepare("DELETE FROM team_member_teams WHERE team_id = ?").bind(data),
-      db.prepare("DELETE FROM teams WHERE id = ?").bind(data),
+        .update(teams)
+        .set({ parentTeamId: null })
+        .where(eq(teams.parentTeamId, data)),
+      db.delete(teamMemberTeams).where(eq(teamMemberTeams.teamId, data)),
+      db.delete(teams).where(eq(teams.id, data)),
     ]);
 
     return { success: true };
@@ -2834,13 +2386,10 @@ export const deleteTeam = createServerFn({ method: "POST" })
 export const getTeamTemplates = createServerFn({ method: "GET" })
   .validator((teamId: string) => teamId)
   .handler(async ({ data }): Promise<TemplateOption[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const { results } = await db
-      .prepare(
-        "SELECT id, name, template_json FROM order_service_templates ORDER BY name"
-      )
-      .all<Record<string, unknown>>();
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`SELECT id, name, template_json FROM order_service_templates ORDER BY name`
+    );
 
     return results
       .filter((row) => {
@@ -2860,33 +2409,25 @@ export const getTeamTemplates = createServerFn({ method: "GET" })
 
 export const getTeamMembers = createServerFn({ method: "GET" }).handler(
   async (): Promise<TeamMemberSummary[]> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     const [memberRows, teamsLookup] = await Promise.all([
-      db
-        .prepare(
-          `${TEAM_MEMBER_SELECT} ORDER BY team_members.last_name, team_members.first_name`
-        )
-        .all<Record<string, unknown>>(),
+      db.all<Record<string, unknown>>(
+        sql`${sql.raw(TEAM_MEMBER_SELECT)} ORDER BY team_members.last_name, team_members.first_name`
+      ),
       loadTeamsById(db),
     ]);
 
-    return attachTeamNames(
-      memberRows.results.map(mapTeamMemberRow),
-      teamsLookup
-    );
+    return attachTeamNames(memberRows.map(mapTeamMemberRow), teamsLookup);
   }
 );
 
 export const getTeamMember = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<TeamMember | null> => {
-    await ensureDatabase();
-    const db = getDatabase();
-    const row = await db
-      .prepare(`${TEAM_MEMBER_SELECT} WHERE team_members.id = ?`)
-      .bind(data)
-      .first<Record<string, unknown>>();
+    const db = getAppDb();
+    const row = await db.get<Record<string, unknown>>(
+      sql`${sql.raw(TEAM_MEMBER_SELECT)} WHERE team_members.id = ${data}`
+    );
 
     return row ? mapTeamMemberRow(row) : null;
   });
@@ -2894,47 +2435,36 @@ export const getTeamMember = createServerFn({ method: "GET" })
 export const saveTeamMember = createServerFn({ method: "POST" })
   .validator((data: SaveTeamMemberInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
-    await ensureDatabase();
     const validationErrors = validateTeamMember(data);
 
     if (validationErrors.length > 0) {
       throw new Error(validationErrors[0]);
     }
 
-    const db = getDatabase();
+    const db = getAppDb();
     const id = data.id || uuidv4();
     const teamIds = [...new Set(data.teamIds.filter(Boolean))];
     const timestamp = nowIso();
+    const memberValues = {
+      email: data.email.trim(),
+      firstName: data.firstName.trim(),
+      lastName: data.lastName.trim(),
+      notes: data.notes,
+      phone: data.phone.trim(),
+      updatedAt: timestamp,
+    };
 
     await db.batch([
       db
-        .prepare(
-          `INSERT INTO team_members (id, first_name, last_name, email, phone, notes, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(id) DO UPDATE SET
-            first_name = excluded.first_name,
-            last_name = excluded.last_name,
-            email = excluded.email,
-            phone = excluded.phone,
-            notes = excluded.notes,
-            updated_at = excluded.updated_at`
-        )
-        .bind(
-          id,
-          data.firstName.trim(),
-          data.lastName.trim(),
-          data.email.trim(),
-          data.phone.trim(),
-          data.notes,
-          timestamp
-        ),
-      db.prepare("DELETE FROM team_member_teams WHERE member_id = ?").bind(id),
+        .insert(teamMembers)
+        .values({ id, ...memberValues })
+        .onConflictDoUpdate({ set: memberValues, target: teamMembers.id }),
+      db.delete(teamMemberTeams).where(eq(teamMemberTeams.memberId, id)),
       ...teamIds.map((teamId) =>
         db
-          .prepare(
-            "INSERT OR IGNORE INTO team_member_teams (team_id, member_id) VALUES (?, ?)"
-          )
-          .bind(teamId, id)
+          .insert(teamMemberTeams)
+          .values({ memberId: id, teamId })
+          .onConflictDoNothing()
       ),
     ]);
 
@@ -2944,14 +2474,11 @@ export const saveTeamMember = createServerFn({ method: "POST" })
 export const deleteTeamMember = createServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
 
     await db.batch([
-      db
-        .prepare("DELETE FROM team_member_teams WHERE member_id = ?")
-        .bind(data),
-      db.prepare("DELETE FROM team_members WHERE id = ?").bind(data),
+      db.delete(teamMemberTeams).where(eq(teamMemberTeams.memberId, data)),
+      db.delete(teamMembers).where(eq(teamMembers.id, data)),
     ]);
 
     return { success: true };
@@ -2960,14 +2487,11 @@ export const deleteTeamMember = createServerFn({ method: "POST" })
 export const addMemberToTeam = createServerFn({ method: "POST" })
   .validator((data: TeamMembershipInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     await db
-      .prepare(
-        "INSERT OR IGNORE INTO team_member_teams (team_id, member_id) VALUES (?, ?)"
-      )
-      .bind(data.teamId, data.memberId)
-      .run();
+      .insert(teamMemberTeams)
+      .values({ memberId: data.memberId, teamId: data.teamId })
+      .onConflictDoNothing();
 
     return { success: true };
   });
@@ -2975,14 +2499,15 @@ export const addMemberToTeam = createServerFn({ method: "POST" })
 export const removeMemberFromTeam = createServerFn({ method: "POST" })
   .validator((data: TeamMembershipInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
-    await ensureDatabase();
-    const db = getDatabase();
+    const db = getAppDb();
     await db
-      .prepare(
-        "DELETE FROM team_member_teams WHERE team_id = ? AND member_id = ?"
-      )
-      .bind(data.teamId, data.memberId)
-      .run();
+      .delete(teamMemberTeams)
+      .where(
+        and(
+          eq(teamMemberTeams.teamId, data.teamId),
+          eq(teamMemberTeams.memberId, data.memberId)
+        )
+      );
 
     return { success: true };
   });
