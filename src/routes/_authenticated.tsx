@@ -397,7 +397,7 @@ const AuthenticatedAppShell = () => (
 );
 
 export const Route = createFileRoute("/_authenticated")({
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async () => {
     const { permissions, session } = await getSessionWithPermissions();
 
     if (!session) {

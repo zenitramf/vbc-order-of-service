@@ -22,6 +22,10 @@ import {
 import { getRoles } from "~/lib/admin-data";
 import { authClient } from "~/lib/auth-client";
 
+type CreateUserRole = Parameters<
+  typeof authClient.admin.createUser
+>[0]["role"];
+
 const NewUserPage = () => {
   const roles = Route.useLoaderData();
   const navigate = useNavigate();
@@ -55,7 +59,7 @@ const NewUserPage = () => {
         email: email.trim(),
         name: computedName,
         password,
-        role: role as string,
+        role: role as CreateUserRole,
       });
 
       if (error) {
