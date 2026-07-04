@@ -11,9 +11,11 @@ import {
 } from "~/components/ui/empty";
 import { UserEditorPage } from "~/components/user-editor-page";
 import { getRoles, getUserAdmin, getUserSessionsAdmin } from "~/lib/admin-data";
+import { listUserPasskeysAdmin } from "~/lib/passkey-data";
 
 const UserRoute = () => {
-  const { currentUserId, roles, sessions, user } = Route.useLoaderData();
+  const { currentUserId, passkeys, roles, sessions, user } =
+    Route.useLoaderData();
 
   if (!user) {
     return (
@@ -36,6 +38,7 @@ const UserRoute = () => {
   return (
     <UserEditorPage
       currentUserId={currentUserId}
+      passkeys={passkeys}
       roles={roles}
       sessions={sessions}
       user={user}
@@ -46,12 +49,13 @@ const UserRoute = () => {
 export const Route = createFileRoute("/_authenticated/admin/users/$userId")({
   component: UserRoute,
   loader: async ({ context, params }) => {
-    const [user, sessions, roles] = await Promise.all([
+    const [user, sessions, roles, passkeys] = await Promise.all([
       getUserAdmin({ data: params.userId }),
       getUserSessionsAdmin({ data: params.userId }),
       getRoles(),
+      listUserPasskeysAdmin({ data: { userId: params.userId } }),
     ]);
 
-    return { currentUserId: context.user.id, roles, sessions, user };
+    return { currentUserId: context.user.id, passkeys, roles, sessions, user };
   },
 });

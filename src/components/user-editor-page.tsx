@@ -10,6 +10,7 @@ import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { PasskeysCard } from "~/components/passkeys-card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,9 +53,12 @@ import {
   revokeUserSessionsAdmin,
 } from "~/lib/admin-revoke";
 import { authClient } from "~/lib/auth-client";
+import type { PasskeySummary } from "~/lib/passkey-data";
+import { deleteUserPasskeyAdmin } from "~/lib/passkey-data";
 
 interface UserEditorPageProps {
   currentUserId: string;
+  passkeys: PasskeySummary[];
   roles: RoleRecord[];
   sessions: AdminSessionSummary[];
   user: AdminUserSummary;
@@ -264,6 +268,7 @@ const DangerZoneCard = ({
 
 export const UserEditorPage = ({
   currentUserId,
+  passkeys,
   roles,
   sessions,
   user,
@@ -398,6 +403,19 @@ export const UserEditorPage = ({
 
       if (notify(result, "User removed.")) {
         await navigate({ to: "/admin/users" });
+      }
+    });
+
+  const handleDeletePasskey = (passkeyId: string) =>
+    run(async () => {
+      try {
+        await deleteUserPasskeyAdmin({ data: { passkeyId, userId: user.id } });
+        toast.success("Passkey removed.");
+        await router.invalidate();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to remove passkey."
+        );
       }
     });
 
@@ -551,6 +569,13 @@ export const UserEditorPage = ({
           onToggleBan={handleToggleBan}
         />
       </div>
+
+      <PasskeysCard
+        busy={busy}
+        description="Passkeys this user has registered. You can revoke any of them, but only the user can add or rename their own."
+        onDelete={handleDeletePasskey}
+        passkeys={passkeys}
+      />
 
       <SessionsCard
         busy={busy}

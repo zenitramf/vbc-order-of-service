@@ -1,11 +1,16 @@
-import { ChurchIcon } from "@phosphor-icons/react";
+import { ChurchIcon, FingerprintIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps, FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "~/components/ui/field";
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldSeparator,
+} from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import { Spinner } from "~/components/ui/spinner";
 import { cn } from "~/lib/utils";
@@ -16,9 +21,15 @@ const TEMPORARY_LOGIN_IMAGE_URL =
 
 type LoginFormProps = ComponentProps<"form"> & {
   isSubmitting: boolean;
+  onPasskeySignIn: () => void;
 };
 
-const LoginForm = ({ className, isSubmitting, ...props }: LoginFormProps) => (
+const LoginForm = ({
+  className,
+  isSubmitting,
+  onPasskeySignIn,
+  ...props
+}: LoginFormProps) => (
   <form className={cn("flex flex-col gap-6", className)} {...props}>
     <FieldGroup>
       <div className="flex flex-col items-center gap-1 text-center">
@@ -29,8 +40,10 @@ const LoginForm = ({ className, isSubmitting, ...props }: LoginFormProps) => (
       </div>
       <Field>
         <FieldLabel htmlFor="email">Email</FieldLabel>
+        {/* `webauthn` opts the field into passkey autofill (conditional UI). */}
         <Input
           autoCapitalize="none"
+          autoComplete="username webauthn"
           id="email"
           name="email"
           placeholder="me@example.com"
@@ -49,6 +62,7 @@ const LoginForm = ({ className, isSubmitting, ...props }: LoginFormProps) => (
           </button>*/}
         </div>
         <Input
+          autoComplete="current-password webauthn"
           id="password"
           minLength={8}
           name="password"
@@ -61,24 +75,68 @@ const LoginForm = ({ className, isSubmitting, ...props }: LoginFormProps) => (
           {isSubmitting ? <Spinner /> : "Login"}
         </Button>
       </Field>
-      {/*<FieldSeparator>Or continue with</FieldSeparator>*/}
-      {/*<Field>
-        <Button disabled type="button" variant="outline">
-          Login with GitHub
+      <FieldSeparator>Or</FieldSeparator>
+      <Field>
+        <Button
+          disabled={isSubmitting}
+          onClick={onPasskeySignIn}
+          type="button"
+          variant="outline"
+        >
+          <FingerprintIcon data-icon="inline-start" />
+          Sign in with a passkey
         </Button>
-        <FieldDescription className="text-center">
-          Don&apos;t have an account?{" "}
-          <button className="underline underline-offset-4" type="button">
-            Sign up
-          </button>
-        </FieldDescription>
-      </Field>*/}
+      </Field>
     </FieldGroup>
   </form>
 );
 
+interface ConditionalMediationCapable {
+  isConditionalMediationAvailable?: () => Promise<boolean>;
+}
+
 export const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Conditional UI: if the browser supports it, preload passkeys so they surface
+  // in the email field's autofill dropdown. Selecting one signs the user in
+  // without a password. Errors (including the user ignoring the prompt) are
+  // swallowed — this is an enhancement layered on top of the password form.
+  useEffect(() => {
+    let cancelled = false;
+
+    const preloadPasskeys = async () => {
+      if (typeof window === "undefined" || !window.PublicKeyCredential) {
+        return;
+      }
+
+      const credential =
+        window.PublicKeyCredential as unknown as ConditionalMediationCapable;
+
+      if (typeof credential.isConditionalMediationAvailable !== "function") {
+        return;
+      }
+
+      const available = await credential.isConditionalMediationAvailable();
+
+      if (!available || cancelled) {
+        return;
+      }
+
+      const { authClient } = await import("~/lib/auth-client");
+      const { data } = await authClient.signIn.passkey({ autoFill: true });
+
+      if (data && !cancelled) {
+        window.location.assign(HOME_PATH);
+      }
+    };
+
+    void preloadPasskeys();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -99,6 +157,25 @@ export const LoginPage = () => {
     window.location.assign(HOME_PATH);
   };
 
+  const handlePasskeySignIn = async () => {
+    setIsSubmitting(true);
+    const { authClient } = await import("~/lib/auth-client");
+    const { data, error } = await authClient.signIn.passkey();
+
+    if (error) {
+      setIsSubmitting(false);
+      toast.error(error.message ?? "Passkey sign-in failed. Please try again.");
+      return;
+    }
+
+    if (data) {
+      window.location.assign(HOME_PATH);
+      return;
+    }
+
+    setIsSubmitting(false);
+  };
+
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
@@ -112,7 +189,11 @@ export const LoginPage = () => {
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <LoginForm isSubmitting={isSubmitting} onSubmit={handleSubmit} />
+            <LoginForm
+              isSubmitting={isSubmitting}
+              onPasskeySignIn={handlePasskeySignIn}
+              onSubmit={handleSubmit}
+            />
           </div>
         </div>
       </div>
