@@ -9,6 +9,7 @@ import { roles as rolesTable, session, user } from "~/db/schema";
 import type { RoleRecord, SaveRoleInput } from "~/lib/admin-permissions";
 import { parsePermissions } from "~/lib/admin-permissions";
 import { createAuth } from "~/lib/auth";
+import { resolveEmailVerifiedAfterEmailUpdate } from "~/lib/email-verification";
 import { isValidEmail } from "~/lib/teams-logic";
 
 export const USERS_PAGE_SIZE = 10;
@@ -230,8 +231,11 @@ export const updateUserProfileAdmin = createServerFn({ method: "POST" })
       throw new Error("User not found.");
     }
 
-    const emailVerified =
-      existing.email === email ? existing.emailVerified : false;
+    const emailVerified = resolveEmailVerifiedAfterEmailUpdate({
+      currentEmail: existing.email,
+      currentEmailVerified: existing.emailVerified,
+      nextEmail: email,
+    });
 
     try {
       await db

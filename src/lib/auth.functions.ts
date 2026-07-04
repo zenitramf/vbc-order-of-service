@@ -8,6 +8,7 @@ import { roles, user } from "~/db/schema";
 import type { RolePermissions } from "~/lib/admin-permissions";
 import { parsePermissions } from "~/lib/admin-permissions";
 import { createAuth } from "~/lib/auth";
+import { resolveEmailVerifiedAfterEmailUpdate } from "~/lib/email-verification";
 import { isValidEmail } from "~/lib/teams-logic";
 
 const readSession = async () => {
@@ -84,8 +85,8 @@ export interface UpdateOwnProfileInput {
  * caller's session so it can be called from the account dialog without admin
  * rights. The display `name` column is derived from first + last name (kept in
  * sync the same way the admin editor does it). Writes the `user` row directly
- * (the app has no email-verification flow) and surfaces the unique-email
- * constraint as a friendly error.
+ * and clears `emailVerified` only when the stored email changes. Surfaces the
+ * unique-email constraint as a friendly error.
  */
 export const updateOwnProfile = createServerFn({ method: "POST" })
   .validator((data: UpdateOwnProfileInput) => data)
@@ -100,7 +101,6 @@ export const updateOwnProfile = createServerFn({ method: "POST" })
     const lastName = data.lastName.trim();
     const email = data.email.trim();
     const name = `${firstName} ${lastName}`.trim();
-    const emailVerified = false;
 
     if (!firstName) {
       throw new Error("First name is required.");
@@ -110,8 +110,25 @@ export const updateOwnProfile = createServerFn({ method: "POST" })
       throw new Error("Enter a valid email address.");
     }
 
+    const db = getAppDb();
+    const existing = await db
+      .select({ email: user.email, emailVerified: user.emailVerified })
+      .from(user)
+      .where(eq(user.id, session.user.id))
+      .get();
+
+    if (!existing) {
+      throw new Error("Unauthorized");
+    }
+
+    const emailVerified = resolveEmailVerifiedAfterEmailUpdate({
+      currentEmail: existing.email,
+      currentEmailVerified: existing.emailVerified,
+      nextEmail: email,
+    });
+
     try {
-      await getAppDb()
+      await db
         .update(user)
         .set({
           email,
