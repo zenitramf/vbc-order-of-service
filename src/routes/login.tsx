@@ -50,7 +50,7 @@ const LoginForm = ({ className, isSubmitting, ...props }: LoginFormProps) => (
         </div>
         <Input
           id="password"
-          minLength={4}
+          minLength={8}
           name="password"
           required
           type="password"
