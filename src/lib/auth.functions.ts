@@ -100,6 +100,7 @@ export const updateOwnProfile = createServerFn({ method: "POST" })
     const lastName = data.lastName.trim();
     const email = data.email.trim();
     const name = `${firstName} ${lastName}`.trim();
+    const emailVerified = false;
 
     if (!firstName) {
       throw new Error("First name is required.");
@@ -112,7 +113,14 @@ export const updateOwnProfile = createServerFn({ method: "POST" })
     try {
       await getAppDb()
         .update(user)
-        .set({ email, firstName, lastName, name, updatedAt: new Date() })
+        .set({
+          email,
+          emailVerified,
+          firstName,
+          lastName,
+          name,
+          updatedAt: new Date(),
+        })
         .where(eq(user.id, session.user.id));
     } catch {
       throw new Error("That email address is already in use.");
