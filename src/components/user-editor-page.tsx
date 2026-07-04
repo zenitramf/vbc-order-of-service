@@ -1,4 +1,3 @@
-// oxlint-disable no-use-before-define
 import {
   ArrowLeftIcon,
   FloppyDiskIcon,
@@ -47,6 +46,10 @@ import {
 } from "~/components/ui/table";
 import type { AdminSessionSummary, AdminUserSummary } from "~/lib/admin-data";
 import type { RoleRecord } from "~/lib/admin-permissions";
+import {
+  revokeUserSessionAdmin,
+  revokeUserSessionsAdmin,
+} from "~/lib/admin-revoke";
 import { authClient } from "~/lib/auth-client";
 
 interface UserEditorPageProps {
@@ -86,11 +89,15 @@ export const formatDateTime = (value: string): string => {
       }).format(date);
 };
 
+export interface SessionCardRow extends AdminSessionSummary {
+  revokeId?: string;
+}
+
 interface SessionsCardProps {
   busy: boolean;
-  onRevoke: (token: string) => void;
+  onRevoke: (revokeId: string) => void;
   onRevokeAll: () => void;
-  sessions: AdminSessionSummary[];
+  sessions: SessionCardRow[];
 }
 
 export const SessionsCard = ({
@@ -153,7 +160,9 @@ export const SessionsCard = ({
                 <TableCell>
                   <Button
                     disabled={busy}
-                    onClick={() => onRevoke(sessionRow.token)}
+                    onClick={() =>
+                      onRevoke(sessionRow.revokeId ?? sessionRow.id)
+                    }
                     size="sm"
                     type="button"
                     variant="ghost"
@@ -329,25 +338,29 @@ export const UserEditorPage = ({
     });
   };
 
-  const handleRevokeSession = (token: string) =>
+  const handleRevokeSession = (sessionId: string) =>
     run(async () => {
-      const result = await authClient.admin.revokeUserSession({
-        sessionToken: token,
-      });
-
-      if (notify(result, "Session revoked.")) {
+      try {
+        await revokeUserSessionAdmin({ data: { sessionId, userId: user.id } });
+        toast.success("Session revoked.");
         await router.invalidate();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to revoke session."
+        );
       }
     });
 
   const handleRevokeAll = () =>
     run(async () => {
-      const result = await authClient.admin.revokeUserSessions({
-        userId: user.id,
-      });
-
-      if (notify(result, "All sessions revoked.")) {
+      try {
+        await revokeUserSessionsAdmin({ data: { userId: user.id } });
+        toast.success("All sessions revoked.");
         await router.invalidate();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to revoke sessions."
+        );
       }
     });
 

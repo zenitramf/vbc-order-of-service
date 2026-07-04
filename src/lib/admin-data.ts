@@ -38,7 +38,6 @@ export interface AdminSessionSummary {
   id: string;
   impersonatedBy: string | null;
   ipAddress: string | null;
-  token: string;
   userAgent: string | null;
 }
 
@@ -177,7 +176,6 @@ export const getUserSessionsAdmin = createServerFn({ method: "GET" })
         id: session.id,
         impersonatedBy: session.impersonatedBy,
         ipAddress: session.ipAddress,
-        token: session.token,
         userAgent: session.userAgent,
       })
       .from(session)
@@ -191,7 +189,6 @@ export const getUserSessionsAdmin = createServerFn({ method: "GET" })
       id: row.id,
       impersonatedBy: row.impersonatedBy,
       ipAddress: row.ipAddress,
-      token: row.token,
       userAgent: row.userAgent,
     }));
   });

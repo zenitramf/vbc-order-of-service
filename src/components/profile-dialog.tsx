@@ -23,8 +23,8 @@ import {
 } from "~/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
+import type { SessionCardRow } from "~/components/user-editor-page";
 import { SessionsCard } from "~/components/user-editor-page";
-import type { AdminSessionSummary } from "~/lib/admin-data";
 import { authClient } from "~/lib/auth-client";
 import { updateOwnProfile } from "~/lib/auth.functions";
 import { getInitials } from "~/lib/teams-logic";
@@ -80,7 +80,7 @@ export const ProfileDialog = ({
   const [email, setEmail] = useState(user.email);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [sessions, setSessions] = useState<AdminSessionSummary[]>([]);
+  const [sessions, setSessions] = useState<SessionCardRow[]>([]);
   const [busy, setBusy] = useState(false);
 
   const loadSessions = useCallback(async () => {
@@ -93,7 +93,7 @@ export const ProfileDialog = ({
         id: row.id,
         impersonatedBy: null,
         ipAddress: row.ipAddress ?? null,
-        token: row.token,
+        revokeId: row.token,
         userAgent: row.userAgent ?? null,
       }))
     );
