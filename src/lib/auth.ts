@@ -1,3 +1,4 @@
+import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin } from "better-auth/plugins/admin";
@@ -5,7 +6,13 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { drizzle } from "drizzle-orm/d1";
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 
-import { account, session, user, verification } from "../db/schema/auth";
+import {
+  account,
+  passkey as passkeyTable,
+  session,
+  user,
+  verification,
+} from "../db/schema/auth";
 
 /**
  * Better Auth on Drizzle + Cloudflare D1.
@@ -34,7 +41,13 @@ interface AuthSettings {
   secret?: string;
 }
 
-const authSchema = { account, session, user, verification };
+const authSchema = {
+  account,
+  passkey: passkeyTable,
+  session,
+  user,
+  verification,
+};
 
 const createAuthWithDatabase = ({ baseURL, database, secret }: AuthSettings) =>
   betterAuth({
@@ -44,7 +57,7 @@ const createAuthWithDatabase = ({ baseURL, database, secret }: AuthSettings) =>
       schema: authSchema,
     }),
     emailAndPassword: { enabled: true },
-    plugins: [admin(), tanstackStartCookies()],
+    plugins: [admin(), passkey(), tanstackStartCookies()],
     secret,
     user: {
       additionalFields: {

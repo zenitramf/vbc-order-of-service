@@ -90,3 +90,19 @@ export const verification = sqliteTable(
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)]
 );
+
+export const passkey = sqliteTable("passkey", {
+  aaguid: text("aaguid"),
+  backedUp: integer("backedUp", { mode: "boolean" }).notNull(),
+  counter: integer("counter").notNull(),
+  createdAt: text("createdAt"),
+  credentialID: text("credentialID").notNull(),
+  deviceType: text("deviceType").notNull(),
+  id: text("id").primaryKey(),
+  name: text("name"),
+  publicKey: text("publicKey").notNull(),
+  transports: text("transports"),
+  userId: text("userId")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+});

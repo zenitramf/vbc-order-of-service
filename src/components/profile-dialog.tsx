@@ -4,6 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { PasskeysCard } from "~/components/passkeys-card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -27,6 +28,13 @@ import type { SessionCardRow } from "~/components/user-editor-page";
 import { SessionsCard } from "~/components/user-editor-page";
 import { authClient } from "~/lib/auth-client";
 import { updateOwnProfile } from "~/lib/auth.functions";
+import type { PasskeySummary } from "~/lib/passkey-data";
+import {
+  applyDefaultPasskeyName,
+  deleteMyPasskey,
+  listMyPasskeys,
+  renameMyPasskey,
+} from "~/lib/passkey-data";
 import { getInitials } from "~/lib/teams-logic";
 
 export interface ProfileDialogUser {
@@ -81,7 +89,9 @@ export const ProfileDialog = ({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [sessions, setSessions] = useState<SessionCardRow[]>([]);
+  const [passkeys, setPasskeys] = useState<PasskeySummary[]>([]);
   const [busy, setBusy] = useState(false);
+  const [addingPasskey, setAddingPasskey] = useState(false);
 
   const loadSessions = useCallback(async () => {
     const { data } = await authClient.listSessions();
@@ -99,6 +109,19 @@ export const ProfileDialog = ({
     );
   }, []);
 
+  const loadPasskeys = useCallback(async () => {
+    try {
+      setPasskeys(await listMyPasskeys());
+    } catch (error) {
+      setPasskeys([]);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to load passkeys. Please try again."
+      );
+    }
+  }, []);
+
   // Reset the form to the live user and load sessions each time the dialog
   // opens so it never shows stale values from a previous session.
   useEffect(() => {
@@ -112,7 +135,15 @@ export const ProfileDialog = ({
     setCurrentPassword("");
     setNewPassword("");
     void loadSessions();
-  }, [open, user.firstName, user.lastName, user.email, loadSessions]);
+    void loadPasskeys();
+  }, [
+    open,
+    user.firstName,
+    user.lastName,
+    user.email,
+    loadSessions,
+    loadPasskeys,
+  ]);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -183,6 +214,61 @@ export const ProfileDialog = ({
         // Every session — including this one — is gone, so send the user to
         // the login screen from a clean load.
         window.location.href = "/login";
+      }
+    });
+
+  const handleAddPasskey = async () => {
+    setAddingPasskey(true);
+    try {
+      // The WebAuthn registration ceremony must run in the browser, so this
+      // (and this alone) goes through the Better Auth client rather than a
+      // server function. It uses the session cookie — no tokens are handled.
+      const { data, error } = await authClient.passkey.addPasskey();
+
+      if (error) {
+        toast.error(error.message ?? "Could not add passkey.");
+        return;
+      }
+
+      if (data?.id) {
+        // Name it after the authenticator when the user didn't pick a name.
+        try {
+          await applyDefaultPasskeyName({ data: { id: data.id } });
+        } catch {
+          // A missing default name is non-fatal; the passkey still works.
+        }
+      }
+
+      toast.success("Passkey added.");
+      await loadPasskeys();
+    } finally {
+      setAddingPasskey(false);
+    }
+  };
+
+  const handleRenamePasskey = (id: string, name: string) =>
+    run(async () => {
+      try {
+        await renameMyPasskey({ data: { id, name } });
+        toast.success("Passkey renamed.");
+        await loadPasskeys();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to rename passkey."
+        );
+      }
+    });
+
+  const handleDeletePasskey = (id: string) =>
+    run(async () => {
+      try {
+        await deleteMyPasskey({ data: { id } });
+        toast.success("Passkey removed.");
+        await loadPasskeys();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to remove passkey."
+        );
       }
     });
 
@@ -320,6 +406,15 @@ export const ProfileDialog = ({
             </CardContent>
           </Card>
         </div>
+
+        <PasskeysCard
+          adding={addingPasskey}
+          busy={busy || addingPasskey}
+          onAdd={handleAddPasskey}
+          onDelete={handleDeletePasskey}
+          onRename={handleRenamePasskey}
+          passkeys={passkeys}
+        />
 
         <SessionsCard
           busy={busy}
