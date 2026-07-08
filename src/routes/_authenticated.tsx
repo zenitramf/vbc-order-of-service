@@ -142,6 +142,7 @@ const routeLabels = new Map([
   ["admin", "Admin"],
   ["users", "Users"],
   ["roles", "Roles"],
+  ["profile", "Profile"],
 ]);
 
 const AppBreadcrumb = () => {
