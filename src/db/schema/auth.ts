@@ -95,7 +95,7 @@ export const passkey = sqliteTable("passkey", {
   aaguid: text("aaguid"),
   backedUp: integer("backedUp", { mode: "boolean" }).notNull(),
   counter: integer("counter").notNull(),
-  createdAt: text("createdAt"),
+  createdAt: integer("createdAt", { mode: "timestamp" }),
   credentialID: text("credentialID").notNull(),
   deviceType: text("deviceType").notNull(),
   id: text("id").primaryKey(),
