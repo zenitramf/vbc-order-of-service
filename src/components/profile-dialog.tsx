@@ -112,8 +112,13 @@ export const ProfileDialog = ({
   const loadPasskeys = useCallback(async () => {
     try {
       setPasskeys(await listMyPasskeys());
-    } catch {
+    } catch (error) {
       setPasskeys([]);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to load passkeys. Please try again."
+      );
     }
   }, []);
 
