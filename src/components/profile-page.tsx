@@ -15,13 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import type { SessionCardRow } from "~/components/user-editor-page";
@@ -37,7 +30,7 @@ import {
 } from "~/lib/passkey-data";
 import { getInitials } from "~/lib/teams-logic";
 
-export interface ProfileDialogUser {
+export interface ProfilePageUser {
   email: string;
   firstName: string;
   id: string;
@@ -47,10 +40,8 @@ export interface ProfileDialogUser {
   role?: string | null;
 }
 
-interface ProfileDialogProps {
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-  user: ProfileDialogUser;
+interface ProfilePageProps {
+  user: ProfilePageUser;
 }
 
 interface MutationResult {
@@ -76,11 +67,7 @@ const toIso = (value: unknown): string => {
   return typeof value === "string" ? value : "";
 };
 
-export const ProfileDialog = ({
-  onOpenChange,
-  open,
-  user,
-}: ProfileDialogProps) => {
+export const ProfilePage = ({ user }: ProfilePageProps) => {
   const router = useRouter();
 
   const [firstName, setFirstName] = useState(user.firstName);
@@ -122,28 +109,11 @@ export const ProfileDialog = ({
     }
   }, []);
 
-  // Reset the form to the live user and load sessions each time the dialog
-  // opens so it never shows stale values from a previous session.
+  // Load the live sessions and passkeys once the page mounts.
   useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    setFirstName(user.firstName);
-    setLastName(user.lastName);
-    setEmail(user.email);
-    setCurrentPassword("");
-    setNewPassword("");
     void loadSessions();
     void loadPasskeys();
-  }, [
-    open,
-    user.firstName,
-    user.lastName,
-    user.email,
-    loadSessions,
-    loadPasskeys,
-  ]);
+  }, [loadSessions, loadPasskeys]);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -278,151 +248,140 @@ export const ProfileDialog = ({
   );
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent
-        className="max-h-[90svh] gap-6 overflow-y-auto sm:max-w-2xl"
-        showCloseButton
-      >
-        <DialogHeader>
-          <div className="flex items-center gap-4">
-            <Avatar size="lg">
-              {user.image ? (
-                <AvatarImage alt={user.name} src={user.image} />
-              ) : null}
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col gap-1">
-              <DialogTitle>{user.name || "Your account"}</DialogTitle>
-              <DialogDescription className="flex flex-wrap items-center gap-2">
-                <span>{user.email}</span>
-                {user.role ? (
-                  <Badge variant="secondary">{user.role}</Badge>
-                ) : null}
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile</CardTitle>
-              <CardDescription>
-                Update your name and email. Your display name is built from your
-                first and last name.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="profile-first-name">
-                    First name
-                  </FieldLabel>
-                  <Input
-                    id="profile-first-name"
-                    onChange={(event) => setFirstName(event.target.value)}
-                    value={firstName}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="profile-last-name">Last name</FieldLabel>
-                  <Input
-                    id="profile-last-name"
-                    onChange={(event) => setLastName(event.target.value)}
-                    value={lastName}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="profile-email">Email</FieldLabel>
-                  <Input
-                    id="profile-email"
-                    onChange={(event) => setEmail(event.target.value)}
-                    type="email"
-                    value={email}
-                  />
-                </Field>
-                <Button
-                  className="w-fit"
-                  disabled={busy}
-                  onClick={handleSaveProfile}
-                  type="button"
-                >
-                  <FloppyDiskIcon data-icon="inline-start" />
-                  Save profile
-                </Button>
-              </FieldGroup>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Password</CardTitle>
-              <CardDescription>
-                Change your password. You will stay signed in.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor="profile-current-password">
-                    Current password
-                  </FieldLabel>
-                  <Input
-                    autoComplete="current-password"
-                    id="profile-current-password"
-                    onChange={(event) => setCurrentPassword(event.target.value)}
-                    type="password"
-                    value={currentPassword}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="profile-new-password">
-                    New password
-                  </FieldLabel>
-                  <Input
-                    autoComplete="new-password"
-                    id="profile-new-password"
-                    onChange={(event) => setNewPassword(event.target.value)}
-                    placeholder="At least 8 characters"
-                    type="password"
-                    value={newPassword}
-                  />
-                </Field>
-                <Button
-                  className="w-fit"
-                  disabled={
-                    busy ||
-                    currentPassword.length === 0 ||
-                    newPassword.length === 0
-                  }
-                  onClick={handleChangePassword}
-                  type="button"
-                  variant="outline"
-                >
-                  <KeyIcon data-icon="inline-start" />
-                  Change password
-                </Button>
-              </FieldGroup>
-            </CardContent>
-          </Card>
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-4">
+        <Avatar size="lg">
+          {user.image ? <AvatarImage alt={user.name} src={user.image} /> : null}
+          <AvatarFallback>{initials}</AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col gap-1">
+          <h1 className="font-heading text-3xl font-semibold tracking-tight">
+            {user.name || "Your account"}
+          </h1>
+          <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
+            <span>{user.email}</span>
+            {user.role ? <Badge variant="secondary">{user.role}</Badge> : null}
+          </p>
         </div>
+      </div>
 
-        <PasskeysCard
-          adding={addingPasskey}
-          busy={busy || addingPasskey}
-          onAdd={handleAddPasskey}
-          onDelete={handleDeletePasskey}
-          onRename={handleRenamePasskey}
-          passkeys={passkeys}
-        />
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile</CardTitle>
+            <CardDescription>
+              Update your name and email. Your display name is built from your
+              first and last name.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="profile-first-name">First name</FieldLabel>
+                <Input
+                  id="profile-first-name"
+                  onChange={(event) => setFirstName(event.target.value)}
+                  value={firstName}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="profile-last-name">Last name</FieldLabel>
+                <Input
+                  id="profile-last-name"
+                  onChange={(event) => setLastName(event.target.value)}
+                  value={lastName}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="profile-email">Email</FieldLabel>
+                <Input
+                  id="profile-email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  type="email"
+                  value={email}
+                />
+              </Field>
+              <Button
+                className="w-fit"
+                disabled={busy}
+                onClick={handleSaveProfile}
+                type="button"
+              >
+                <FloppyDiskIcon data-icon="inline-start" />
+                Save profile
+              </Button>
+            </FieldGroup>
+          </CardContent>
+        </Card>
 
-        <SessionsCard
-          busy={busy}
-          onRevoke={handleRevokeSession}
-          onRevokeAll={handleRevokeAll}
-          sessions={sessions}
-        />
-      </DialogContent>
-    </Dialog>
+        <Card>
+          <CardHeader>
+            <CardTitle>Password</CardTitle>
+            <CardDescription>
+              Change your password. You will stay signed in.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="profile-current-password">
+                  Current password
+                </FieldLabel>
+                <Input
+                  autoComplete="current-password"
+                  id="profile-current-password"
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  type="password"
+                  value={currentPassword}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="profile-new-password">
+                  New password
+                </FieldLabel>
+                <Input
+                  autoComplete="new-password"
+                  id="profile-new-password"
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  placeholder="At least 8 characters"
+                  type="password"
+                  value={newPassword}
+                />
+              </Field>
+              <Button
+                className="w-fit"
+                disabled={
+                  busy ||
+                  currentPassword.length === 0 ||
+                  newPassword.length === 0
+                }
+                onClick={handleChangePassword}
+                type="button"
+                variant="outline"
+              >
+                <KeyIcon data-icon="inline-start" />
+                Change password
+              </Button>
+            </FieldGroup>
+          </CardContent>
+        </Card>
+      </div>
+
+      <PasskeysCard
+        adding={addingPasskey}
+        busy={busy || addingPasskey}
+        onAdd={handleAddPasskey}
+        onDelete={handleDeletePasskey}
+        onRename={handleRenamePasskey}
+        passkeys={passkeys}
+      />
+
+      <SessionsCard
+        busy={busy}
+        onRevoke={handleRevokeSession}
+        onRevokeAll={handleRevokeAll}
+        sessions={sessions}
+      />
+    </div>
   );
 };
