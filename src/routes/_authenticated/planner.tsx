@@ -94,14 +94,15 @@ const getCurrentMonth = () => new Date().toISOString().slice(0, 7);
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
-/** First service on/after today is "next"; the one after that is "upcoming". */
+/**
+ * First service on/after today is "next"; the one after that is "upcoming".
+ * Expects ascending YYYY-MM-DD dates (as produced by getMonthDatesForDayConfigs).
+ */
 const getTimelineDates = (
   dates: string[]
 ): { nextDate?: string; upcomingDate?: string } => {
   const today = getTodayDate();
-  const upcoming = [...dates]
-    .filter((date) => date >= today)
-    .sort((first, second) => first.localeCompare(second));
+  const upcoming = dates.filter((date) => date >= today);
 
   return {
     ...(upcoming[0] ? { nextDate: upcoming[0] } : {}),
@@ -615,10 +616,17 @@ const MonthPlannerPage = () => {
     void navigate({ search: { month: next }, to: "/planner" });
   };
 
-  const { nextDate, upcomingDate } = React.useMemo(
-    () => getTimelineDates(serviceDates.map((entry) => entry.date)),
-    [serviceDates]
-  );
+  // Only badge the current month — other months lack intervening dates, so
+  // labeling their first rows "Next"/"Upcoming" would be misleading.
+  const { nextDate, upcomingDate } = React.useMemo(() => {
+    if (month !== getCurrentMonth()) {
+      return {};
+    }
+
+    return getTimelineDates(serviceDates.map((entry) => entry.date));
+  }, [month, serviceDates]);
+
+  const todayDate = getTodayDate();
 
   const openOrder = (orderId: string) => {
     void navigate({ params: { orderId }, to: "/orders/$orderId" });
@@ -672,7 +680,7 @@ const MonthPlannerPage = () => {
             const hasOrder = Boolean(entry.order);
             const isNext = entry.date === nextDate;
             const isUpcoming = entry.date === upcomingDate;
-            const isPast = nextDate ? entry.date < nextDate : true;
+            const isPast = entry.date < todayDate;
 
             return (
               <TableRow
