@@ -616,17 +616,21 @@ const MonthPlannerPage = () => {
     void navigate({ search: { month: next }, to: "/planner" });
   };
 
-  // Only badge the current month — other months lack intervening dates, so
-  // labeling their first rows "Next"/"Upcoming" would be misleading.
-  const { nextDate, upcomingDate } = React.useMemo(() => {
+  // Snapshot today with the badge dates so a midnight rollover cannot leave a
+  // row both dimmed and labelled "Next". Only badge the current month — other
+  // months lack intervening dates, so labeling their first rows would mislead.
+  const { nextDate, todayDate, upcomingDate } = React.useMemo(() => {
+    const today = getTodayDate();
+
     if (month !== getCurrentMonth()) {
-      return {};
+      return { todayDate: today };
     }
 
-    return getTimelineDates(serviceDates.map((entry) => entry.date));
+    return {
+      todayDate: today,
+      ...getTimelineDates(serviceDates.map((entry) => entry.date)),
+    };
   }, [month, serviceDates]);
-
-  const todayDate = getTodayDate();
 
   const openOrder = (orderId: string) => {
     void navigate({ params: { orderId }, to: "/orders/$orderId" });
