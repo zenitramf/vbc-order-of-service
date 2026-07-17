@@ -92,6 +92,24 @@ const WEEKDAY_NAMES = [
 
 const getCurrentMonth = () => new Date().toISOString().slice(0, 7);
 
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * First service on/after today is "next"; the one after that is "upcoming".
+ * Expects ascending YYYY-MM-DD dates (as produced by getMonthDatesForDayConfigs).
+ */
+const getTimelineDates = (
+  dates: string[]
+): { nextDate?: string; upcomingDate?: string } => {
+  const today = getTodayDate();
+  const upcoming = dates.filter((date) => date >= today);
+
+  return {
+    ...(upcoming[0] ? { nextDate: upcoming[0] } : {}),
+    ...(upcoming[1] ? { upcomingDate: upcoming[1] } : {}),
+  };
+};
+
 const isValidMonth = (value: string) =>
   /^\d{4}-(?<month>0[1-9]|1[0-2])$/u.test(value);
 
@@ -598,6 +616,22 @@ const MonthPlannerPage = () => {
     void navigate({ search: { month: next }, to: "/planner" });
   };
 
+  // Snapshot today with the badge dates so a midnight rollover cannot leave a
+  // row both dimmed and labelled "Next". Only badge the current month — other
+  // months lack intervening dates, so labeling their first rows would mislead.
+  const { nextDate, todayDate, upcomingDate } = React.useMemo(() => {
+    const today = getTodayDate();
+
+    if (month !== getCurrentMonth()) {
+      return { todayDate: today };
+    }
+
+    return {
+      todayDate: today,
+      ...getTimelineDates(serviceDates.map((entry) => entry.date)),
+    };
+  }, [month, serviceDates]);
+
   const openOrder = (orderId: string) => {
     void navigate({ params: { orderId }, to: "/orders/$orderId" });
   };
@@ -648,10 +682,16 @@ const MonthPlannerPage = () => {
         <TableBody>
           {serviceDates.map((entry) => {
             const hasOrder = Boolean(entry.order);
+            const isNext = entry.date === nextDate;
+            const isUpcoming = entry.date === upcomingDate;
+            const isPast = entry.date < todayDate;
 
             return (
               <TableRow
-                className={hasOrder ? "cursor-pointer" : undefined}
+                className={cn(
+                  hasOrder && "cursor-pointer",
+                  isPast && "opacity-70"
+                )}
                 key={entry.date}
                 onClick={() => {
                   if (entry.order) {
@@ -660,7 +700,13 @@ const MonthPlannerPage = () => {
                 }}
               >
                 <TableCell className="whitespace-nowrap font-medium">
-                  {formatServiceDate(entry.date)}
+                  <span className="inline-flex items-center gap-2">
+                    {formatServiceDate(entry.date)}
+                    {isNext ? <Badge>Next</Badge> : null}
+                    {isUpcoming ? (
+                      <Badge variant="secondary">Upcoming</Badge>
+                    ) : null}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary">
