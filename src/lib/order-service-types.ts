@@ -404,6 +404,42 @@ export interface PlanMonthInput {
   month: string;
 }
 
+/**
+ * Input for loading a month plan. Pass `autoCreate: false` for read-only peeks
+ * (MCP resources). When omitted, the current month still auto-creates missing
+ * orders (UI default); other months never auto-create unless `autoCreate: true`.
+ */
+export interface GetMonthPlanInput {
+  autoCreate?: boolean;
+  month?: string;
+}
+
+/** A hymn activity that still needs a selected hymn before publish. */
+export interface MissingHymnActivity {
+  activityId: string;
+  activityName: string;
+  cardId: string;
+  cardName: string;
+}
+
+/** Structured publish gate result (no CraftMyPDF / R2 side effects). */
+export interface PublishReadinessResult {
+  alreadyPublished: boolean;
+  hasPdf: boolean;
+  missingHymnActivities: MissingHymnActivity[];
+  missingRequiredTeams: {
+    cardId: string;
+    cardName: string;
+    teamId: string;
+    teamName: string;
+  }[];
+  orderId: string;
+  ready: boolean;
+  serviceDate: string;
+  status: ServiceStatus;
+  title: string;
+}
+
 /** One card's new member ids for a team, used by the monthly scheduler. */
 export interface MonthScheduleAssignmentInput {
   cardId: string;

@@ -2,9 +2,19 @@
 
 Victory Baptist Church Order of Service — remote MCP server over the existing Cloudflare Workers + D1 domain.
 
-**Status:** planning (not implemented)  
-**Stack fit:** Cloudflare Agents SDK (`createMcpHandler` / optional `McpAgent`) + existing `src/lib/*` domain layer  
+**Status:** MVP implemented (Phase A reads + readiness on `/mcp`)  
+**Stack fit:** Cloudflare Agents SDK (`createMcpHandler`) + existing `src/lib/*` domain layer  
 **Primary clients:** Cursor, Claude Desktop, MCP Inspector, Cloudflare AI Playground
+
+MVP shipped in-repo:
+
+- Worker route `/mcp` via `src/mcp/` + `src/worker.ts`
+- Bearer auth (`MCP_API_TOKEN`) with open-access fallback when unset (local/dev)
+- Phase A tools/resources/prompts wrapping domain server functions
+- `getMonthPlan` supports `autoCreate: false` peeks; MCP defaults to non-mutating
+- `getPublishReadiness` + `findMissingHymnActivities` for publish gate diagnostics
+
+Not yet in MVP: OAuth/Better Auth user bridge, mutation tools, publish/email tools.
 
 ---
 
@@ -35,11 +45,11 @@ without reimplementing business rules that already live in `src/lib/order-servic
 
 Mount MCP on the **same** Worker as the TanStack Start app:
 
-| Option | Verdict |
-| --- | --- |
-| **Same Worker, `/mcp` route** (recommended) | Shares D1/R2/Queue/DO bindings; one deploy; reuses domain libs |
-| Separate Worker + service binding | Cleaner isolation, but dual deploys and duplicated env secrets |
-| Local stdio-only server | Fine for personal scripting; not the target for shared church ops |
+| Option                                      | Verdict                                                           |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| **Same Worker, `/mcp` route** (recommended) | Shares D1/R2/Queue/DO bindings; one deploy; reuses domain libs    |
+| Separate Worker + service binding           | Cleaner isolation, but dual deploys and duplicated env secrets    |
+| Local stdio-only server                     | Fine for personal scripting; not the target for shared church ops |
 
 **Worker change (conceptual):** in `src/worker.ts`, route `/mcp` (and later OAuth `/authorize`, `/token`, `/register`, `/callback`) to an MCP handler; everything else continues to TanStack Start.
 
@@ -56,10 +66,10 @@ async fetch(request, env, ctx) {
 
 ### 2.2 Server style: stateless first
 
-| Approach | When |
-| --- | --- |
+| Approach                                                              | When                                                                                      |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | **`createMcpHandler` + per-request `McpServer`** (recommended for v1) | Tools are request-scoped; auth context from OAuth props; no session Durable Object needed |
-| `McpAgent` / stateful Agent | Later, if we need elicitation (“Confirm publish?”), multi-step drafts, or sampling |
+| `McpAgent` / stateful Agent                                           | Later, if we need elicitation (“Confirm publish?”), multi-step drafts, or sampling        |
 
 Follow current Agents SDK guidance: **create a new `McpServer` per request** (MCP SDK ≥ 1.26.0) to avoid cross-client response leakage.
 
@@ -114,16 +124,16 @@ Use **Workers OAuth Provider** (`@cloudflare/workers-oauth-provider`) in front o
 
 Reuse `PERMISSION_RESOURCES` / `hasPermission`:
 
-| MCP surface | Required permission |
-| --- | --- |
-| Read orders / planner | `orders:view` |
-| Create / update / delete orders | `orders:create` / `update` / `delete` |
-| Publish / PDF / email send | `orders:update` (+ explicit “destructive” confirmations) |
-| Templates | `templates:*` |
-| Hymns / files | `hymns:*` |
-| Teams / members | `teams:*` / `members:*` |
-| Email / month planning settings | `settings:view` / `settings:update` |
-| Admin users/roles | `user.role === "admin"` **and** matching `users:*` / `roles:*` |
+| MCP surface                     | Required permission                                            |
+| ------------------------------- | -------------------------------------------------------------- |
+| Read orders / planner           | `orders:view`                                                  |
+| Create / update / delete orders | `orders:create` / `update` / `delete`                          |
+| Publish / PDF / email send      | `orders:update` (+ explicit “destructive” confirmations)       |
+| Templates                       | `templates:*`                                                  |
+| Hymns / files                   | `hymns:*`                                                      |
+| Teams / members                 | `teams:*` / `members:*`                                        |
+| Email / month planning settings | `settings:view` / `settings:update`                            |
+| Admin users/roles               | `user.role === "admin"` **and** matching `users:*` / `roles:*` |
 
 Wildcard admin (`{ "*": ["*"] }`) continues to grant all.
 
@@ -147,26 +157,26 @@ Never expose impersonation via MCP.
 
 URI scheme: `vbc://…`
 
-| URI | Source | Notes |
-| --- | --- | --- |
-| `vbc://dashboard` | `getDashboardData` | |
-| `vbc://reference` | `getReferenceData` | service/activity/hymn catalogs |
-| `vbc://orders` | `getOrders` | summaries |
-| `vbc://orders/{id}` | `getOrder` | full `order_json` |
-| `vbc://orders/{id}/email-delivery` | `getOrderEmailDelivery` | |
-| `vbc://templates` | `getTemplates` | |
-| `vbc://templates/{id}` | `getTemplate` | |
-| `vbc://planner/{yyyy-mm}` | **read-only plan view** | Do **not** call `getMonthPlan` as-is for resources — it auto-creates current-month orders. Add `peekMonthPlan` / `autoCreate: false` flag. |
-| `vbc://planner/settings` | `getMonthPlanningSettings` | |
-| `vbc://hymns` | `getHymns` | |
-| `vbc://hymns/{id}` | `getHymn` | |
-| `vbc://hymns/{id}/files` | `getHymnFiles` | metadata only |
-| `vbc://teams` | `getTeams` | |
-| `vbc://teams/{id}` | `getTeam` | |
-| `vbc://members` | `getTeamMembers` | |
-| `vbc://members/{id}` | `getTeamMember` | |
-| `vbc://settings/email` | `getEmailSettings` | secrets redacted |
-| `vbc://me` | session + permissions | |
+| URI                                | Source                     | Notes                                                                                                                                      |
+| ---------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `vbc://dashboard`                  | `getDashboardData`         |                                                                                                                                            |
+| `vbc://reference`                  | `getReferenceData`         | service/activity/hymn catalogs                                                                                                             |
+| `vbc://orders`                     | `getOrders`                | summaries                                                                                                                                  |
+| `vbc://orders/{id}`                | `getOrder`                 | full `order_json`                                                                                                                          |
+| `vbc://orders/{id}/email-delivery` | `getOrderEmailDelivery`    |                                                                                                                                            |
+| `vbc://templates`                  | `getTemplates`             |                                                                                                                                            |
+| `vbc://templates/{id}`             | `getTemplate`              |                                                                                                                                            |
+| `vbc://planner/{yyyy-mm}`          | **read-only plan view**    | Do **not** call `getMonthPlan` as-is for resources — it auto-creates current-month orders. Add `peekMonthPlan` / `autoCreate: false` flag. |
+| `vbc://planner/settings`           | `getMonthPlanningSettings` |                                                                                                                                            |
+| `vbc://hymns`                      | `getHymns`                 |                                                                                                                                            |
+| `vbc://hymns/{id}`                 | `getHymn`                  |                                                                                                                                            |
+| `vbc://hymns/{id}/files`           | `getHymnFiles`             | metadata only                                                                                                                              |
+| `vbc://teams`                      | `getTeams`                 |                                                                                                                                            |
+| `vbc://teams/{id}`                 | `getTeam`                  |                                                                                                                                            |
+| `vbc://members`                    | `getTeamMembers`           |                                                                                                                                            |
+| `vbc://members/{id}`               | `getTeamMember`            |                                                                                                                                            |
+| `vbc://settings/email`             | `getEmailSettings`         | secrets redacted                                                                                                                           |
+| `vbc://me`                         | session + permissions      |                                                                                                                                            |
 
 Binary PDFs / hymn files: **metadata in resources; bytes via download tools** (base64 or temporary signed R2 URL if added later).
 
@@ -174,41 +184,41 @@ Binary PDFs / hymn files: **metadata in resources; bytes via download tools** (b
 
 #### Phase A — read + readiness (ship first)
 
-| Tool | Permission | Wraps |
-| --- | --- | --- |
-| `get_dashboard` | any authed | `getDashboardData` |
-| `list_orders` / `get_order` | `orders:view` | list/get |
-| `list_templates` / `get_template` | `templates:view` | |
-| `list_hymns` / `get_hymn` / `list_hymn_options` | `hymns:view` | |
-| `list_teams` / `get_team` / `list_members` | teams/members view | |
-| `get_month_plan` | `orders:view` | peek without auto-create by default; `createMissing?: boolean` |
-| `check_publish_readiness` | `orders:view` | compose `findMissingRequiredTeams` + hymn activity validation (extract from `publishOrder`) |
+| Tool                                            | Permission         | Wraps                                                                                       |
+| ----------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------- |
+| `get_dashboard`                                 | any authed         | `getDashboardData`                                                                          |
+| `list_orders` / `get_order`                     | `orders:view`      | list/get                                                                                    |
+| `list_templates` / `get_template`               | `templates:view`   |                                                                                             |
+| `list_hymns` / `get_hymn` / `list_hymn_options` | `hymns:view`       |                                                                                             |
+| `list_teams` / `get_team` / `list_members`      | teams/members view |                                                                                             |
+| `get_month_plan`                                | `orders:view`      | peek without auto-create by default; `createMissing?: boolean`                              |
+| `check_publish_readiness`                       | `orders:view`      | compose `findMissingRequiredTeams` + hymn activity validation (extract from `publishOrder`) |
 
 #### Phase B — planning mutations
 
-| Tool | Permission | Wraps |
-| --- | --- | --- |
-| `create_order_from_template` | `orders:create` | `createOrder` |
-| `update_order` | `orders:update` | `saveOrder` |
-| `delete_order` | `orders:delete` | `deleteOrder` + `confirm` |
-| `save_template` / `delete_template` | templates | |
-| `plan_month` | `orders:create` | `planMonth` |
-| `save_month_planning_settings` | `settings:update` | |
-| `save_month_schedule` | `orders:update` | `saveMonthSchedule` |
-| `save_hymn` / `delete_hymn` | hymns | |
-| `save_team` / `delete_team` / membership tools | teams | |
-| `save_member` / `delete_member` | members | |
+| Tool                                           | Permission        | Wraps                     |
+| ---------------------------------------------- | ----------------- | ------------------------- |
+| `create_order_from_template`                   | `orders:create`   | `createOrder`             |
+| `update_order`                                 | `orders:update`   | `saveOrder`               |
+| `delete_order`                                 | `orders:delete`   | `deleteOrder` + `confirm` |
+| `save_template` / `delete_template`            | templates         |                           |
+| `plan_month`                                   | `orders:create`   | `planMonth`               |
+| `save_month_planning_settings`                 | `settings:update` |                           |
+| `save_month_schedule`                          | `orders:update`   | `saveMonthSchedule`       |
+| `save_hymn` / `delete_hymn`                    | hymns             |                           |
+| `save_team` / `delete_team` / membership tools | teams             |                           |
+| `save_member` / `delete_member`                | members           |                           |
 
 #### Phase C — publish / email / files
 
-| Tool | Permission | Wraps |
-| --- | --- | --- |
-| `preview_order_pdf_payload` | `orders:view` | `postOrderToCraftMyPdf({ dryRun: true })` |
-| `publish_order` | `orders:update` + `confirm` | `publishOrder` |
-| `download_published_order_pdf` | `orders:view` | `getPublishedOrderPdf` |
-| `send_order_email` | `orders:update` + `confirm` | `sendOrderEmail` |
-| Hymn file upload/rename/delete/download | `hymns:*` | existing file helpers |
-| Email settings / recipients | `settings:update` | redacted reads; confirm on secret writes |
+| Tool                                    | Permission                  | Wraps                                     |
+| --------------------------------------- | --------------------------- | ----------------------------------------- |
+| `preview_order_pdf_payload`             | `orders:view`               | `postOrderToCraftMyPdf({ dryRun: true })` |
+| `publish_order`                         | `orders:update` + `confirm` | `publishOrder`                            |
+| `download_published_order_pdf`          | `orders:view`               | `getPublishedOrderPdf`                    |
+| `send_order_email`                      | `orders:update` + `confirm` | `sendOrderEmail`                          |
+| Hymn file upload/rename/delete/download | `hymns:*`                   | existing file helpers                     |
+| Email settings / recipients             | `settings:update`           | redacted reads; confirm on secret writes  |
 
 #### Phase D — admin (optional, gated)
 
@@ -216,14 +226,14 @@ Only if product owners want agents to manage access: list users, update profile 
 
 ### 4.3 Prompts (agent playbooks)
 
-| Prompt | Purpose |
-| --- | --- |
-| `publish_readiness_check` | Load order + teams + hymns; report blockers |
-| `month_staffing_review` | Unstaffed required teams, missing orders, overloaded members |
-| `hymn_rotation_suggestions` | Prefer low `timesPlayedLastSixMonths`, match key/source |
-| `draft_order_from_theme` | Build `OrderServiceTemplateJson`-shaped draft from theme + catalog |
-| `template_builder` | Segments, activities, required/optional teams + counts |
-| `email_order_announcement` | Human summary before `send_order_email` |
+| Prompt                      | Purpose                                                            |
+| --------------------------- | ------------------------------------------------------------------ |
+| `publish_readiness_check`   | Load order + teams + hymns; report blockers                        |
+| `month_staffing_review`     | Unstaffed required teams, missing orders, overloaded members       |
+| `hymn_rotation_suggestions` | Prefer low `timesPlayedLastSixMonths`, match key/source            |
+| `draft_order_from_theme`    | Build `OrderServiceTemplateJson`-shaped draft from theme + catalog |
+| `template_builder`          | Segments, activities, required/optional teams + counts             |
+| `email_order_announcement`  | Human summary before `send_order_email`                            |
 
 Prompts should instruct the model to **read resources / call readiness tools before mutating**.
 
@@ -288,12 +298,12 @@ Encode these in tool descriptions and server-side validation (already enforced i
 
 ## 7. Testing strategy
 
-| Layer | What |
-| --- | --- |
-| Unit | Zod schemas; permission denials; readiness helpers; month peek without create |
-| Integration | Local D1 + tool handlers for create order → update hymns/teams → readiness |
-| Manual | MCP Inspector OAuth flow; Cursor remote MCP config |
-| Regression | Existing Vitest (`teams-logic`, email verification) stays green |
+| Layer       | What                                                                          |
+| ----------- | ----------------------------------------------------------------------------- |
+| Unit        | Zod schemas; permission denials; readiness helpers; month peek without create |
+| Integration | Local D1 + tool handlers for create order → update hymns/teams → readiness    |
+| Manual      | MCP Inspector OAuth flow; Cursor remote MCP config                            |
+| Regression  | Existing Vitest (`teams-logic`, email verification) stays green               |
 
 Do not use Playwright as the primary MCP test path.
 
@@ -319,15 +329,15 @@ Local development may use `mcp-remote` proxy if the client lacks native Streamab
 
 ## 9. Open decisions (defaults proposed)
 
-| Decision | Recommendation | Rationale |
-| --- | --- | --- |
-| Same Worker vs separate | **Same Worker `/mcp`** | Shared bindings + domain code |
-| Stateless vs McpAgent | **Stateless `createMcpHandler` v1** | Domain is request-scoped |
-| Auth | **OAuth → email → Better Auth user** | Matches existing users/roles |
-| Month plan resource | **Non-mutating peek by default** | Avoid surprise order creation |
-| Admin tools | **Omit from v1** | High blast radius |
-| Confirm pattern | **`confirm: true` arg** until elicitation | Simple, works with all clients |
-| Binary delivery | **Base64 tools v1** | Matches existing helpers; add signed URLs later |
+| Decision                | Recommendation                            | Rationale                                       |
+| ----------------------- | ----------------------------------------- | ----------------------------------------------- |
+| Same Worker vs separate | **Same Worker `/mcp`**                    | Shared bindings + domain code                   |
+| Stateless vs McpAgent   | **Stateless `createMcpHandler` v1**       | Domain is request-scoped                        |
+| Auth                    | **OAuth → email → Better Auth user**      | Matches existing users/roles                    |
+| Month plan resource     | **Non-mutating peek by default**          | Avoid surprise order creation                   |
+| Admin tools             | **Omit from v1**                          | High blast radius                               |
+| Confirm pattern         | **`confirm: true` arg** until elicitation | Simple, works with all clients                  |
+| Binary delivery         | **Base64 tools v1**                       | Matches existing helpers; add signed URLs later |
 
 ---
 
@@ -344,9 +354,9 @@ Local development may use `mcp-remote` proxy if the client lacks native Streamab
 
 ## 11. Suggested first PR after this plan
 
-1. `getMonthPlan` / peek flag + `assertPublishable` extraction  
-2. `src/mcp` scaffold + `/mcp` route + Phase A tools behind a feature flag / auth stub  
-3. Auth bridge PR  
-4. Mutation tools PR  
+1. `getMonthPlan` / peek flag + `assertPublishable` extraction
+2. `src/mcp` scaffold + `/mcp` route + Phase A tools behind a feature flag / auth stub
+3. Auth bridge PR
+4. Mutation tools PR
 
 This document is the design baseline; implementation should update it when open decisions are resolved differently.

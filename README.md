@@ -68,6 +68,22 @@ If a new environment's tables are empty, apply all migrations with
 `pnpm run db:migrate:local` (or `:remote`); the seed data lives in the
 migrations, not in runtime code.
 
+## MCP (Model Context Protocol)
+
+The Worker also serves a remote MCP endpoint at `/mcp` (Streamable HTTP via the
+Cloudflare Agents SDK). MVP tools are read-only Phase A: dashboard, orders,
+templates, hymns, teams, members, month plan peek, and publish readiness.
+
+Locally (no `MCP_API_TOKEN`), the endpoint is open with wildcard permissions.
+In production, set a bearer token:
+
+```sh
+wrangler secret put MCP_API_TOKEN
+```
+
+Connect MCP Inspector or Cursor with `Authorization: Bearer <token>` when the
+secret is configured. Design notes: `docs/mcp-server-plan.md`.
+
 ## Build
 
 ```sh

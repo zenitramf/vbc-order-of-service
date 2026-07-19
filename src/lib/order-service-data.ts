@@ -30,6 +30,7 @@ import type {
   CreateOrderInput,
   DashboardData,
   EmailSettingsRecord,
+  GetMonthPlanInput,
   HymnFileDownload,
   HymnFileRecord,
   HymnOption,
@@ -47,6 +48,7 @@ import type {
   OrderServiceTemplateJson,
   OrderSummary,
   PlanMonthInput,
+  PublishReadinessResult,
   ReferenceData,
   ReferenceOption,
   RenameHymnFileInput,
@@ -70,6 +72,7 @@ import type {
   TemplateRecord,
   TemplateSummary,
 } from "~/lib/order-service-types";
+import { findMissingHymnActivities } from "~/lib/publish-readiness";
 import {
   findMissingRequiredTeams,
   getAssignmentMemberIds,
@@ -558,11 +561,7 @@ const loadHymnsById = async (
 };
 
 const hasHymnActivityWithoutSelection = (order: OrderRecord): boolean =>
-  order.order.service_type.some((segment) =>
-    segment.activities.some(
-      (activity) => activity.activityType === "hymn" && !activity.hymnId
-    )
-  );
+  findMissingHymnActivities(order.order).length > 0;
 
 const assertHymnActivitiesHaveSelections = (order: OrderRecord): void => {
   if (hasHymnActivityWithoutSelection(order)) {
@@ -570,6 +569,19 @@ const assertHymnActivitiesHaveSelections = (order: OrderRecord): void => {
       "Select a hymn for every hymn activity before publishing or sending."
     );
   }
+};
+
+const normalizeGetMonthPlanInput = (
+  input?: string | GetMonthPlanInput
+): { autoCreate?: boolean; month: string } => {
+  if (typeof input === "string" || input === undefined) {
+    return { month: input ?? "" };
+  }
+
+  return {
+    autoCreate: input.autoCreate,
+    month: input.month ?? "",
+  };
 };
 
 const buildCraftMyPdfOrderPayload = async (
@@ -1183,19 +1195,22 @@ export const planMonth = createServerFn({ method: "POST" })
   );
 
 export const getMonthPlan = createServerFn({ method: "GET" })
-  .validator((month?: string) => month ?? "")
+  .validator((input?: string | GetMonthPlanInput) =>
+    normalizeGetMonthPlanInput(input)
+  )
   .handler(async ({ data }): Promise<MonthPlanData> => {
     const db = getAppDb();
-    const month = data.trim() || getCurrentMonth();
+    const month = data.month.trim() || getCurrentMonth();
     parseMonth(month);
     const settings = await loadMonthPlanningSettings(db);
 
-    // Phase 5: pre-populate the current month automatically on first visit.
-    // Other months are not auto-created, but their planned (unpublished) orders
-    // are still synced with the current template so teams added after planning —
-    // e.g. a newly-required Song Leaders team — appear in the scheduler.
+    // Pre-populate the current month automatically on first visit unless the
+    // caller opts out (MCP peek). Other months are not auto-created unless
+    // `autoCreate: true`. Planned (unpublished) orders are still synced with
+    // the current template so teams added after planning appear in the scheduler.
+    const createMissing = data.autoCreate ?? month === getCurrentMonth();
     await planMonthInternal(db, month, settings, {
-      createMissing: month === getCurrentMonth(),
+      createMissing,
     });
 
     const configTemplateIds = settings.prepopulateDays.map(
@@ -1436,6 +1451,48 @@ export const getOrder = createServerFn({ method: "GET" })
     );
 
     return row ? mapOrderRow(row) : null;
+  });
+
+/**
+ * Inspect whether an order can be published without calling CraftMyPDF or
+ * writing to R2. Used by the MCP readiness tool and publish gate diagnostics.
+ */
+export const getPublishReadiness = createServerFn({ method: "GET" })
+  .validator((orderId: string) => orderId)
+  .handler(async ({ data }): Promise<PublishReadinessResult> => {
+    const db = getAppDb();
+    const order = await getOrder({ data });
+
+    if (!order) {
+      throw new Error("Order of service not found.");
+    }
+
+    const [teamsLookup, membersByTeam] = await Promise.all([
+      loadTeamsById(db),
+      loadTeamMemberIds(db),
+    ]);
+    const missingHymnActivities = findMissingHymnActivities(order.order);
+    const missingRequiredTeams = findMissingRequiredTeams(
+      order.order,
+      teamsLookup,
+      membersByTeam
+    );
+    const alreadyPublished = order.status === "Published";
+    const hasPdf = Boolean(order.pdfObjectKey);
+    const ready =
+      missingHymnActivities.length === 0 && missingRequiredTeams.length === 0;
+
+    return {
+      alreadyPublished,
+      hasPdf,
+      missingHymnActivities,
+      missingRequiredTeams,
+      orderId: order.id,
+      ready,
+      serviceDate: order.serviceDate,
+      status: order.status,
+      title: order.title,
+    };
   });
 
 export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
