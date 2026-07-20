@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import { getAppDb } from "~/db/client";
 import { apiKeys } from "~/db/schema";
+import { hashApiKey } from "~/lib/api-key-crypto";
 import { createAuth } from "~/lib/auth";
 
 export interface ApiKeySummary {
@@ -59,17 +60,6 @@ const requireAdmin = async () => {
   }
 
   return session;
-};
-
-const hashKey = async (key: string): Promise<string> => {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(key)
-  );
-
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
 };
 
 const generateKey = (): string => {
@@ -128,7 +118,7 @@ export const createMyApiKey = createServerFn({ method: "POST" })
       .insert(apiKeys)
       .values({
         ...row,
-        keyHash: await hashKey(key),
+        keyHash: await hashApiKey(key),
       });
 
     return { ...toSummary(row), key };
@@ -173,32 +163,3 @@ export const deleteUserApiKeyAdmin = createServerFn({ method: "POST" })
 
     return { success: true };
   });
-
-export const resolveApiKey = async (
-  key: string
-): Promise<{ id: string; userId: string } | null> => {
-  const normalized = key.trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  const hash = await hashKey(normalized);
-  const db = getAppDb();
-  const row = await db
-    .select({ id: apiKeys.id, userId: apiKeys.userId })
-    .from(apiKeys)
-    .where(eq(apiKeys.keyHash, hash))
-    .get();
-
-  if (!row) {
-    return null;
-  }
-
-  await db
-    .update(apiKeys)
-    .set({ lastUsedAt: new Date() })
-    .where(eq(apiKeys.id, row.id));
-
-  return row;
-};

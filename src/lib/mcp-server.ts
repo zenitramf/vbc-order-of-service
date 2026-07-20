@@ -10,7 +10,7 @@ import { getAppDb } from "~/db/client";
 import { roles, user } from "~/db/schema";
 import type { RolePermissions } from "~/lib/admin-permissions";
 import { hasPermission, parsePermissions } from "~/lib/admin-permissions";
-import { resolveApiKey } from "~/lib/api-key-data";
+import { resolveApiKey } from "~/lib/api-key-server";
 import { isSupportedMusicKey } from "~/lib/music-keys";
 import {
   addMemberToTeam,
