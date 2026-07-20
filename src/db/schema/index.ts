@@ -4,6 +4,7 @@
  * Grouped by domain in sibling modules.
  */
 export * from "./auth";
+export * from "./api-keys";
 export * from "./hymns";
 export * from "./orders";
 export * from "./reference";

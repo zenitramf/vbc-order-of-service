@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { getAppDb } from "~/db/client";
 import { roles, user } from "~/db/schema";
 import type { RolePermissions } from "~/lib/admin-permissions";
-import { parsePermissions } from "~/lib/admin-permissions";
+import { hasPermission, parsePermissions } from "~/lib/admin-permissions";
 import { createAuth } from "~/lib/auth";
 import { resolveEmailVerifiedAfterEmailUpdate } from "~/lib/email-verification";
 import { isValidEmail } from "~/lib/teams-logic";
@@ -151,9 +151,74 @@ export const requireSessionMiddleware = createMiddleware({
 }).server(async ({ next }) => {
   const session = await readSession();
 
-  if (!session) {
+  if (session) {
+    return next();
+  }
+
+  const authorization = getRequestHeaders().get("authorization") ?? "";
+  const match = /^(?<scheme>Bearer)\s+(?<token>.+)$/iu.exec(authorization);
+
+  const token = match?.groups?.token;
+  const apiKey = token
+    ? await import("~/lib/api-key-server").then(({ resolveApiKey }) =>
+        resolveApiKey(token)
+      )
+    : null;
+
+  if (apiKey) {
+    return next();
+  }
+
+  throw new Error("Unauthorized");
+});
+
+const requirePermission = async (
+  resource: string,
+  action: string
+): Promise<void> => {
+  if (await readSession()) {
+    return;
+  }
+
+  const authorization = getRequestHeaders().get("authorization") ?? "";
+  const match = /^(?<scheme>Bearer)\s+(?<token>.+)$/iu.exec(authorization);
+  const token = match?.groups?.token;
+  const apiKey = token
+    ? await import("~/lib/api-key-server").then(({ resolveApiKey }) =>
+        resolveApiKey(token)
+      )
+    : null;
+
+  if (!apiKey) {
     throw new Error("Unauthorized");
   }
 
-  return next({ context: { session } });
+  const account = await getAppDb()
+    .select({ permissions: roles.permissions, role: user.role })
+    .from(user)
+    .leftJoin(roles, eq(user.role, roles.id))
+    .where(eq(user.id, apiKey.userId))
+    .get();
+  const permissions =
+    account?.role === "admin"
+      ? { "*": ["*"] }
+      : parsePermissions(account?.permissions ?? "{}");
+
+  if (!hasPermission(permissions, resource, action)) {
+    throw new Error(`Permission required: ${resource}:${action}.`);
+  }
+};
+
+export const requirePublishPermissionMiddleware = createMiddleware({
+  type: "function",
+}).server(async ({ next }) => {
+  await requirePermission("orders", "publish");
+  return next();
+});
+
+export const requireSendEmailPermissionMiddleware = createMiddleware({
+  type: "function",
+}).server(async ({ next }) => {
+  await requirePermission("orders", "send_email");
+  return next();
 });

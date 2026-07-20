@@ -22,7 +22,7 @@ export interface PermissionResource {
  */
 export const PERMISSION_RESOURCES: readonly PermissionResource[] = [
   {
-    actions: ["view", "create", "update", "delete"],
+    actions: ["view", "create", "update", "delete", "publish", "send_email"],
     key: "orders",
     label: "Orders of Service",
   },

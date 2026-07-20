@@ -4,6 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { ApiKeysCard } from "~/components/api-keys-card";
 import { PasskeysCard } from "~/components/passkeys-card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
@@ -375,6 +376,8 @@ export const ProfilePage = ({ user }: ProfilePageProps) => {
         onRename={handleRenamePasskey}
         passkeys={passkeys}
       />
+
+      <ApiKeysCard />
 
       <SessionsCard
         busy={busy}
