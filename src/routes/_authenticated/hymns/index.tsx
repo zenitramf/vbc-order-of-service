@@ -60,6 +60,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { filterHymns } from "~/lib/hymn-filters";
 import { deleteHymn, getHymns } from "~/lib/order-service-data";
 import type { HymnRecord } from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
@@ -259,50 +260,30 @@ const HymnsPage = () => {
     // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target does not include toSorted.
     return uniquePlayCounts.sort((first, second) => first - second);
   }, [hymnRows]);
-  const filteredHymnRows = useMemo(() => {
-    const normalizedSearchTerm = searchTerm.trim().toLowerCase();
-    const fromTime = lastPlayedFrom ? Date.parse(lastPlayedFrom) : null;
-    const toTime = lastPlayedTo ? Date.parse(lastPlayedTo) : null;
-
-    return hymnRows.filter((hymn) => {
-      const matchesSearch = normalizedSearchTerm
-        ? `${hymn.hymnNumber} ${hymn.name}`
-            .toLowerCase()
-            .includes(normalizedSearchTerm)
-        : true;
-      const matchesSource =
-        sourceFilter === ALL_FILTER_VALUE || hymn.sourceName === sourceFilter;
-      const matchesKey =
-        keyFilter === ALL_FILTER_VALUE || hymn.musicKey === keyFilter;
-      const matchesSixMonths =
-        sixMonthFilter === ALL_FILTER_VALUE ||
-        hymn.timesPlayedLastSixMonths === Number(sixMonthFilter);
-      const lastPlayedTime = Date.parse(hymn.lastPlayed);
-      const matchesFrom =
-        fromTime === null ||
-        (!Number.isNaN(lastPlayedTime) && lastPlayedTime >= fromTime);
-      const matchesTo =
-        toTime === null ||
-        (!Number.isNaN(lastPlayedTime) && lastPlayedTime <= toTime);
-
-      return (
-        matchesSearch &&
-        matchesSource &&
-        matchesKey &&
-        matchesSixMonths &&
-        matchesFrom &&
-        matchesTo
-      );
-    });
-  }, [
-    hymnRows,
-    keyFilter,
-    lastPlayedFrom,
-    lastPlayedTo,
-    searchTerm,
-    sixMonthFilter,
-    sourceFilter,
-  ]);
+  const filteredHymnRows = useMemo(
+    () =>
+      filterHymns(hymnRows, {
+        lastPlayedFrom: lastPlayedFrom || undefined,
+        lastPlayedTo: lastPlayedTo || undefined,
+        musicKey: keyFilter === ALL_FILTER_VALUE ? undefined : keyFilter,
+        search: searchTerm || undefined,
+        sourceName:
+          sourceFilter === ALL_FILTER_VALUE ? undefined : sourceFilter,
+        timesPlayedLastSixMonths:
+          sixMonthFilter === ALL_FILTER_VALUE
+            ? undefined
+            : Number(sixMonthFilter),
+      }),
+    [
+      hymnRows,
+      keyFilter,
+      lastPlayedFrom,
+      lastPlayedTo,
+      searchTerm,
+      sixMonthFilter,
+      sourceFilter,
+    ]
+  );
 
   const columns = createHymnColumns({
     hymnToDelete,
