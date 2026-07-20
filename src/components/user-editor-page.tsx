@@ -10,6 +10,7 @@ import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { ApiKeysCard } from "~/components/api-keys-card";
 import { PasskeysCard } from "~/components/passkeys-card";
 import {
   AlertDialog,
@@ -52,12 +53,15 @@ import {
   revokeUserSessionAdmin,
   revokeUserSessionsAdmin,
 } from "~/lib/admin-revoke";
+import type { ApiKeySummary } from "~/lib/api-key-data";
+import { deleteUserApiKeyAdmin } from "~/lib/api-key-data";
 import { authClient } from "~/lib/auth-client";
 import type { PasskeySummary } from "~/lib/passkey-data";
 import { deleteUserPasskeyAdmin } from "~/lib/passkey-data";
 
 interface UserEditorPageProps {
   currentUserId: string;
+  apiKeys: ApiKeySummary[];
   passkeys: PasskeySummary[];
   roles: RoleRecord[];
   sessions: AdminSessionSummary[];
@@ -267,6 +271,7 @@ const DangerZoneCard = ({
 );
 
 export const UserEditorPage = ({
+  apiKeys,
   currentUserId,
   passkeys,
   roles,
@@ -575,6 +580,14 @@ export const UserEditorPage = ({
         description="Passkeys this user has registered. You can revoke any of them, but only the user can add or rename their own."
         onDelete={handleDeletePasskey}
         passkeys={passkeys}
+      />
+
+      <ApiKeysCard
+        admin
+        initialKeys={apiKeys}
+        onAdminDelete={(apiKeyId) => {
+          void deleteUserApiKeyAdmin({ data: { apiKeyId, userId: user.id } });
+        }}
       />
 
       <SessionsCard

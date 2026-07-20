@@ -1,3 +1,18 @@
+# MCP access
+
+The application exposes a stateless MCP Streamable HTTP endpoint at
+`/api/mcp`. An authenticated user can create an API key from their profile
+page; the secret is displayed only once. Configure an MCP client with the key
+as a bearer token, for example:
+
+```sh
+claude mcp add --transport http vbc-order-of-service https://example.com/api/mcp \
+  --header "Authorization: Bearer vbc_your_api_key"
+```
+
+Available tools are filtered by the API-key owner's role permissions. Revoke a
+key from the profile page, or from the user's administration page as an admin.
+
 # Victory Baptist Church Order of Service
 
 A TanStack Start app deployed on Cloudflare Workers for planning church orders of service.
