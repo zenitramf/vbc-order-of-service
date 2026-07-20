@@ -6,7 +6,8 @@ import { eq } from "drizzle-orm";
 import { getAppDb } from "~/db/client";
 import { roles, user } from "~/db/schema";
 import type { RolePermissions } from "~/lib/admin-permissions";
-import { parsePermissions } from "~/lib/admin-permissions";
+import { hasPermission, parsePermissions } from "~/lib/admin-permissions";
+import { resolveApiKey } from "~/lib/api-key-data";
 import { createAuth } from "~/lib/auth";
 import { resolveEmailVerifiedAfterEmailUpdate } from "~/lib/email-verification";
 import { isValidEmail } from "~/lib/teams-logic";
@@ -31,6 +32,40 @@ const resolveRolePermissions = async (
     .get();
 
   return row ? parsePermissions(row.permissions) : {};
+};
+
+export const requireApiKeyPermission = async (
+  resource: string,
+  action: string
+): Promise<void> => {
+  if (await readSession()) {
+    return;
+  }
+
+  const authorization = getRequestHeaders().get("authorization") ?? "";
+  const match = /^(?<scheme>Bearer)\s+(?<token>.+)$/iu.exec(authorization);
+  const apiKey = match?.groups?.token
+    ? await resolveApiKey(match.groups.token)
+    : null;
+
+  if (!apiKey) {
+    throw new Error("Unauthorized");
+  }
+
+  const account = await getAppDb()
+    .select({ permissions: roles.permissions, role: user.role })
+    .from(user)
+    .leftJoin(roles, eq(user.role, roles.id))
+    .where(eq(user.id, apiKey.userId))
+    .get();
+  const permissions =
+    account?.role === "admin"
+      ? { "*": ["*"] }
+      : parsePermissions(account?.permissions ?? "{}");
+
+  if (!hasPermission(permissions, resource, action)) {
+    throw new Error(`Permission required: ${resource}:${action}.`);
+  }
 };
 
 export const getSession = createServerFn({ method: "GET" }).handler(
@@ -151,9 +186,20 @@ export const requireSessionMiddleware = createMiddleware({
 }).server(async ({ next }) => {
   const session = await readSession();
 
-  if (!session) {
-    throw new Error("Unauthorized");
+  if (session) {
+    return next();
   }
 
-  return next({ context: { session } });
+  const authorization = getRequestHeaders().get("authorization") ?? "";
+  const match = /^(?<scheme>Bearer)\s+(?<token>.+)$/iu.exec(authorization);
+
+  if (match?.groups?.token && (await resolveApiKey(match.groups.token))) {
+    return next();
+  }
+
+  throw new Error("Unauthorized");
 });
+
+export const createAuthenticatedServerFn = (options: {
+  method: "GET" | "POST";
+}) => createServerFn(options).middleware([requireSessionMiddleware]);

@@ -1,16 +1,11 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- SVG paths need button semantics for clickable circle sectors. */
 import * as React from "react";
 
+import { MUSIC_KEY_OPTIONS } from "~/lib/music-keys";
+
 interface MusicKeySelectorProps {
   value: string;
   onChange: (value: string) => void;
-}
-
-interface MusicKeyOption {
-  label: string;
-  relativeLabel: string;
-  value: string;
-  aliases?: string[];
 }
 
 const CENTER_X = 1396;
@@ -21,26 +16,6 @@ const MINOR_INNER_RADIUS = 410;
 const SECTOR_HALF_ANGLE = 15;
 const TEXT_RADIUS = 755;
 const RELATIVE_TEXT_RADIUS = 510;
-
-const MUSIC_KEY_OPTIONS: MusicKeyOption[] = [
-  { label: "C", relativeLabel: "A", value: "C" },
-  { label: "G", relativeLabel: "E", value: "#" },
-  { label: "D", relativeLabel: "B", value: "##" },
-  { label: "A", relativeLabel: "F♯", value: "###" },
-  { label: "E", relativeLabel: "C♯", value: "####" },
-  { label: "B", relativeLabel: "G♯", value: "#####" },
-  {
-    aliases: ["bbbbbb"],
-    label: "F♯ / G♭",
-    relativeLabel: "D♯",
-    value: "######",
-  },
-  { label: "D♭", relativeLabel: "B♭", value: "bbbbb" },
-  { label: "A♭", relativeLabel: "F", value: "bbbb" },
-  { label: "E♭", relativeLabel: "C", value: "bbb" },
-  { label: "B♭", relativeLabel: "G", value: "bb" },
-  { label: "F", relativeLabel: "D", value: "b" },
-];
 
 const normaliseMusicKey = (value: string) => value.trim();
 

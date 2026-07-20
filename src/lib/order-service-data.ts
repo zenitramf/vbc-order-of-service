@@ -1,6 +1,5 @@
 import { Buffer } from "node:buffer";
 
-import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { and, eq, ne, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
@@ -24,6 +23,10 @@ import {
   teamMemberTeams,
   teams,
 } from "~/db/schema";
+import {
+  createAuthenticatedServerFn,
+  requireApiKeyPermission,
+} from "~/lib/auth.functions";
 import type {
   CraftMyPdfOrderPayload,
   CraftMyPdfOrderPayloadActivity,
@@ -623,22 +626,22 @@ const buildCraftMyPdfOrderPayload = async (
   };
 };
 
-export const getReferenceData = createServerFn({ method: "GET" }).handler(
-  async (): Promise<ReferenceData> => {
-    const [serviceTypeOptions, activityTypeOptions, hymnSourceOptions] =
-      await Promise.all([
-        loadReferenceOptions(serviceTypes),
-        loadReferenceOptions(activityTypes),
-        loadReferenceOptions(hymnSources),
-      ]);
+export const getReferenceData = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async (): Promise<ReferenceData> => {
+  const [serviceTypeOptions, activityTypeOptions, hymnSourceOptions] =
+    await Promise.all([
+      loadReferenceOptions(serviceTypes),
+      loadReferenceOptions(activityTypes),
+      loadReferenceOptions(hymnSources),
+    ]);
 
-    return {
-      activityTypes: activityTypeOptions,
-      hymnSources: hymnSourceOptions,
-      serviceTypes: serviceTypeOptions,
-    };
-  }
-);
+  return {
+    activityTypes: activityTypeOptions,
+    hymnSources: hymnSourceOptions,
+    serviceTypes: serviceTypeOptions,
+  };
+});
 
 const TEAM_SUMMARY_SELECT = `
   SELECT teams.*, parent.name AS parent_name,
@@ -665,73 +668,72 @@ const getUpcomingSunday = (today: string): string => {
   return date.toISOString().slice(0, 10);
 };
 
-export const getDashboardData = createServerFn({ method: "GET" }).handler(
-  async (): Promise<DashboardData> => {
-    const db = getAppDb();
-    const today = new Date().toISOString().slice(0, 10);
-    const nextSundayDate = getUpcomingSunday(today);
-    const orderSelect = `
+export const getDashboardData = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async (): Promise<DashboardData> => {
+  const db = getAppDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const nextSundayDate = getUpcomingSunday(today);
+  const orderSelect = `
       SELECT orders_of_service.*, service_types.name AS service_type_name
       FROM orders_of_service
       JOIN service_types ON service_types.id = orders_of_service.service_type_id
     `;
 
-    const [upcoming, previous, counts, nextSunday, teamRows] =
-      await Promise.all([
-        db.all<Record<string, unknown>>(
-          sql`${sql.raw(orderSelect)} WHERE service_date >= ${today} ORDER BY service_date ASC LIMIT 8`
-        ),
-        db.all<Record<string, unknown>>(
-          sql`${sql.raw(orderSelect)} WHERE service_date < ${today} ORDER BY service_date DESC LIMIT 8`
-        ),
-        db.get<Record<string, unknown>>(
-          sql`SELECT
+  const [upcoming, previous, counts, nextSunday, teamRows] = await Promise.all([
+    db.all<Record<string, unknown>>(
+      sql`${sql.raw(orderSelect)} WHERE service_date >= ${today} ORDER BY service_date ASC LIMIT 8`
+    ),
+    db.all<Record<string, unknown>>(
+      sql`${sql.raw(orderSelect)} WHERE service_date < ${today} ORDER BY service_date DESC LIMIT 8`
+    ),
+    db.get<Record<string, unknown>>(
+      sql`SELECT
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Planning') AS planning_count,
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Published') AS published_count,
             (SELECT COUNT(*) FROM order_service_templates) AS template_count,
             (SELECT COUNT(*) FROM hymns) AS hymn_count,
             (SELECT COUNT(*) FROM team_members) AS team_member_count,
             (SELECT COUNT(*) FROM teams) AS team_count`
-        ),
-        db.get<Record<string, unknown>>(
-          sql`${sql.raw(orderSelect)} WHERE service_date = ${nextSundayDate} LIMIT 1`
-        ),
-        db.all<Record<string, unknown>>(
-          sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
-        ),
-      ]);
+    ),
+    db.get<Record<string, unknown>>(
+      sql`${sql.raw(orderSelect)} WHERE service_date = ${nextSundayDate} LIMIT 1`
+    ),
+    db.all<Record<string, unknown>>(
+      sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
+    ),
+  ]);
 
-    return {
-      hymnCount: asNumber(counts?.hymn_count),
-      nextSundayDate,
-      nextSundayOrder: nextSunday ? mapOrderRow(nextSunday) : null,
-      planningCount: asNumber(counts?.planning_count),
-      previousOrders: previous.map(mapOrderRow),
-      publishedCount: asNumber(counts?.published_count),
-      teamCount: asNumber(counts?.team_count),
-      teamMemberCount: asNumber(counts?.team_member_count),
-      teams: teamRows.map(mapTeamSummaryRow),
-      templateCount: asNumber(counts?.template_count),
-      upcomingOrders: upcoming.map(mapOrderRow),
-    };
-  }
-);
+  return {
+    hymnCount: asNumber(counts?.hymn_count),
+    nextSundayDate,
+    nextSundayOrder: nextSunday ? mapOrderRow(nextSunday) : null,
+    planningCount: asNumber(counts?.planning_count),
+    previousOrders: previous.map(mapOrderRow),
+    publishedCount: asNumber(counts?.published_count),
+    teamCount: asNumber(counts?.team_count),
+    teamMemberCount: asNumber(counts?.team_member_count),
+    teams: teamRows.map(mapTeamSummaryRow),
+    templateCount: asNumber(counts?.template_count),
+    upcomingOrders: upcoming.map(mapOrderRow),
+  };
+});
 
-export const getTemplates = createServerFn({ method: "GET" }).handler(
-  async (): Promise<TemplateSummary[]> => {
-    const db = getAppDb();
-    const results = await db.all<Record<string, unknown>>(
-      sql`SELECT order_service_templates.*, service_types.name AS service_type_name
+export const getTemplates = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async (): Promise<TemplateSummary[]> => {
+  const db = getAppDb();
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT order_service_templates.*, service_types.name AS service_type_name
         FROM order_service_templates
         JOIN service_types ON service_types.id = order_service_templates.service_type_id
         ORDER BY order_service_templates.updated_at DESC, order_service_templates.name ASC`
-    );
+  );
 
-    return results.map(mapTemplateRow);
-  }
-);
+  return results.map(mapTemplateRow);
+});
 
-export const getTemplate = createServerFn({ method: "GET" })
+export const getTemplate = createAuthenticatedServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<TemplateRecord | null> => {
     const db = getAppDb();
@@ -745,7 +747,7 @@ export const getTemplate = createServerFn({ method: "GET" })
     return row ? mapTemplateRow(row) : null;
   });
 
-export const saveTemplate = createServerFn({ method: "POST" })
+export const saveTemplate = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: SaveTemplateInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const db = getAppDb();
@@ -900,7 +902,7 @@ const findTemplateMonthPlanReferences = (
 ): boolean =>
   settings.prepopulateDays.some((day) => day.templateId === templateId);
 
-export const deleteTemplate = createServerFn({ method: "POST" })
+export const deleteTemplate = createAuthenticatedServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -1097,14 +1099,16 @@ const planMonthInternal = async (
   return { createdIds };
 };
 
-export const getMonthPlanningSettings = createServerFn({
+export const getMonthPlanningSettings = createAuthenticatedServerFn({
   method: "GET",
 }).handler(
   async (): Promise<MonthPlanningSettings> =>
     await loadMonthPlanningSettings(getAppDb())
 );
 
-export const saveMonthPlanningSettings = createServerFn({ method: "POST" })
+export const saveMonthPlanningSettings = createAuthenticatedServerFn({
+  method: "POST",
+})
   .validator((data: MonthPlanningSettings) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -1166,7 +1170,7 @@ export const saveMonthPlanningSettings = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const planMonth = createServerFn({ method: "POST" })
+export const planMonth = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: PlanMonthInput) => data)
   .handler(
     async ({
@@ -1182,7 +1186,7 @@ export const planMonth = createServerFn({ method: "POST" })
     }
   );
 
-export const getMonthPlan = createServerFn({ method: "GET" })
+export const getMonthPlan = createAuthenticatedServerFn({ method: "GET" })
   .validator((month?: string) => month ?? "")
   .handler(async ({ data }): Promise<MonthPlanData> => {
     const db = getAppDb();
@@ -1322,7 +1326,7 @@ export const getMonthPlan = createServerFn({ method: "GET" })
     };
   });
 
-export const saveMonthSchedule = createServerFn({ method: "POST" })
+export const saveMonthSchedule = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: SaveMonthScheduleInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -1397,7 +1401,7 @@ export const saveMonthSchedule = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const getOrders = createServerFn({ method: "GET" }).handler(
+export const getOrders = createAuthenticatedServerFn({ method: "GET" }).handler(
   async (): Promise<OrderSummary[]> => {
     const db = getAppDb();
     const results = await db.all<Record<string, unknown>>(
@@ -1411,7 +1415,7 @@ export const getOrders = createServerFn({ method: "GET" }).handler(
   }
 );
 
-export const deleteOrder = createServerFn({ method: "POST" })
+export const deleteOrder = createAuthenticatedServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -1424,7 +1428,7 @@ export const deleteOrder = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const getOrder = createServerFn({ method: "GET" })
+export const getOrder = createAuthenticatedServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<OrderRecord | null> => {
     const db = getAppDb();
@@ -1438,7 +1442,9 @@ export const getOrder = createServerFn({ method: "GET" })
     return row ? mapOrderRow(row) : null;
   });
 
-export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
+export const postOrderToCraftMyPdf = createAuthenticatedServerFn({
+  method: "POST",
+})
   .validator((data: SendOrderToCraftMyPdfInput) => data)
   .handler(
     async ({
@@ -1519,7 +1525,7 @@ export const postOrderToCraftMyPdf = createServerFn({ method: "POST" })
     }
   );
 
-export const createOrder = createServerFn({ method: "POST" })
+export const createOrder = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: CreateOrderInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const db = getAppDb();
@@ -1563,7 +1569,7 @@ export const createOrder = createServerFn({ method: "POST" })
     return { id };
   });
 
-export const saveOrder = createServerFn({ method: "POST" })
+export const saveOrder = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: SaveOrderInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const db = getAppDb();
@@ -1610,92 +1616,109 @@ export const saveOrder = createServerFn({ method: "POST" })
     return { id: data.id };
   });
 
-export const publishOrder = createServerFn({ method: "POST" })
-  .validator((id: string) => id)
-  .handler(async ({ data }): Promise<{ id: string; pdfObjectKey?: string }> => {
-    const db = getAppDb();
-    const order = await getOrder({ data });
+export const publishOrder = createAuthenticatedServerFn({ method: "POST" })
+  .validator((data: string | { dryRun?: boolean; id: string }) =>
+    typeof data === "string" ? { dryRun: false, id: data } : data
+  )
+  .handler(
+    async ({
+      data,
+    }): Promise<{ dryRun?: boolean; id: string; pdfObjectKey?: string }> => {
+      await requireApiKeyPermission("orders", "publish");
+      const db = getAppDb();
+      const orderId = data.id;
+      const order = await getOrder({ data: orderId });
 
-    if (!order) {
-      throw new Error("Order of service not found.");
-    }
+      if (!order) {
+        throw new Error("Order of service not found.");
+      }
 
-    assertHymnActivitiesHaveSelections(order);
-    await assertRequiredTeamsStaffed(db, order);
+      assertHymnActivitiesHaveSelections(order);
+      await assertRequiredTeamsStaffed(db, order);
 
-    if (order.status === "Published") {
-      return { id: data, pdfObjectKey: order.pdfObjectKey };
-    }
+      if (order.status === "Published") {
+        return { id: orderId, pdfObjectKey: order.pdfObjectKey };
+      }
 
-    const craftMyPdfResult = await postOrderToCraftMyPdf({
-      data: { orderId: data },
-    });
-    const pdfUrl = getCraftMyPdfFileUrl(
-      craftMyPdfResult.craftMyPdfResponseBody ?? "{}"
-    );
-    const pdfResponse = await fetch(pdfUrl);
+      if (data.dryRun) {
+        const craftMyPdfResult = await postOrderToCraftMyPdf({
+          data: { dryRun: true, orderId },
+        });
+        return { id: orderId, ...craftMyPdfResult };
+      }
 
-    if (!pdfResponse.ok) {
-      throw new Error(
-        `Unable to download generated PDF (${pdfResponse.status} ${pdfResponse.statusText}).`
+      const craftMyPdfResult = await postOrderToCraftMyPdf({
+        data: { orderId },
+      });
+      const pdfUrl = getCraftMyPdfFileUrl(
+        craftMyPdfResult.craftMyPdfResponseBody ?? "{}"
       );
-    }
+      const pdfResponse = await fetch(pdfUrl);
 
-    const pdfObjectKey = getPdfObjectKey(order);
-    const pdfFilename =
-      pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
-    await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
-      httpMetadata: {
-        contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
-        contentType: "application/pdf",
-      },
-    });
+      if (!pdfResponse.ok) {
+        throw new Error(
+          `Unable to download generated PDF (${pdfResponse.status} ${pdfResponse.statusText}).`
+        );
+      }
 
-    const hymnIds = new Set<string>();
+      const pdfObjectKey = getPdfObjectKey(order);
+      const pdfFilename =
+        pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
+      await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
+        httpMetadata: {
+          contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
+          contentType: "application/pdf",
+        },
+      });
 
-    for (const segment of order.order.service_type) {
-      for (const activity of segment.activities) {
-        if (activity.activityType === "hymn" && activity.hymnId) {
-          hymnIds.add(activity.hymnId);
+      const hymnIds = new Set<string>();
+
+      for (const segment of order.order.service_type) {
+        for (const activity of segment.activities) {
+          if (activity.activityType === "hymn" && activity.hymnId) {
+            hymnIds.add(activity.hymnId);
+          }
         }
       }
-    }
-    const timestamp = nowIso();
-    const statements: BatchItem<"sqlite">[] = [
-      db
-        .update(ordersOfService)
-        .set({
-          pdfObjectKey,
-          publishedAt: timestamp,
-          status: "Published",
-          updatedAt: timestamp,
-        })
-        .where(eq(ordersOfService.id, data)),
-    ];
-
-    for (const hymnId of hymnIds) {
-      statements.push(
-        db.insert(hymnPlays).values({
-          hymnId,
-          id: uuidv4(),
-          orderId: data,
-          playedOn: order.serviceDate,
-        }),
+      const timestamp = nowIso();
+      const statements: BatchItem<"sqlite">[] = [
         db
-          .update(hymns)
-          .set({ lastPlayed: order.serviceDate, updatedAt: timestamp })
-          .where(eq(hymns.id, hymnId))
+          .update(ordersOfService)
+          .set({
+            pdfObjectKey,
+            publishedAt: timestamp,
+            status: "Published",
+            updatedAt: timestamp,
+          })
+          .where(eq(ordersOfService.id, orderId)),
+      ];
+
+      for (const hymnId of hymnIds) {
+        statements.push(
+          db.insert(hymnPlays).values({
+            hymnId,
+            id: uuidv4(),
+            orderId,
+            playedOn: order.serviceDate,
+          }),
+          db
+            .update(hymns)
+            .set({ lastPlayed: order.serviceDate, updatedAt: timestamp })
+            .where(eq(hymns.id, hymnId))
+        );
+      }
+
+      await db.batch(
+        statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
       );
+
+      return { id: orderId, pdfObjectKey };
     }
+  );
 
-    await db.batch(
-      statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
-    );
-
-    return { id: data, pdfObjectKey };
-  });
-
-export const getPublishedOrderPdf = createServerFn({ method: "GET" })
+export const getPublishedOrderPdf = createAuthenticatedServerFn({
+  method: "GET",
+})
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ base64: string; filename: string }> => {
     const order = await getOrder({ data });
@@ -1718,7 +1741,9 @@ export const getPublishedOrderPdf = createServerFn({ method: "GET" })
     };
   });
 
-export const getOrderEmailDelivery = createServerFn({ method: "GET" })
+export const getOrderEmailDelivery = createAuthenticatedServerFn({
+  method: "GET",
+})
   .validator((orderId: string) => orderId)
   .handler(async ({ data }): Promise<OrderEmailDeliveryRecord | null> => {
     const delivery = await getAppDb().get<Record<string, unknown>>(
@@ -1728,9 +1753,10 @@ export const getOrderEmailDelivery = createServerFn({ method: "GET" })
     return delivery ? mapOrderEmailDeliveryRow(delivery) : null;
   });
 
-export const sendOrderEmail = createServerFn({ method: "POST" })
+export const sendOrderEmail = createAuthenticatedServerFn({ method: "POST" })
   .validator((orderId: string) => orderId)
   .handler(async ({ data }): Promise<OrderEmailDeliveryRecord> => {
+    await requireApiKeyPermission("orders", "send_email");
     const db = getAppDb();
     const order = await getOrder({ data });
 
@@ -1837,45 +1863,45 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
     return mapOrderEmailDeliveryRow(delivery);
   });
 
-export const getEmailSettings = createServerFn({ method: "GET" }).handler(
-  async (): Promise<EmailSettingsRecord> => {
-    const db = getAppDb();
-    const [settingsRow, recipientRows] = await Promise.all([
-      db
-        .select({ value: appSettings.value })
-        .from(appSettings)
-        .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
-        .get(),
-      db
-        .select({ email: emailRecipients.email })
-        .from(emailRecipients)
-        .orderBy(emailRecipients.email),
-    ]);
-    const storedSettings = settingsRow
-      ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
-      : {};
+export const getEmailSettings = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async (): Promise<EmailSettingsRecord> => {
+  const db = getAppDb();
+  const [settingsRow, recipientRows] = await Promise.all([
+    db
+      .select({ value: appSettings.value })
+      .from(appSettings)
+      .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
+      .get(),
+    db
+      .select({ email: emailRecipients.email })
+      .from(emailRecipients)
+      .orderBy(emailRecipients.email),
+  ]);
+  const storedSettings = settingsRow
+    ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
+    : {};
 
-    return {
-      recipients: recipientRows.map((row) => row.email),
-      smtpAddress:
-        typeof storedSettings.smtpAddress === "string"
-          ? storedSettings.smtpAddress
-          : "",
-      smtpPort:
-        typeof storedSettings.smtpPort === "number"
-          ? storedSettings.smtpPort
-          : "",
-      smtpSenderName:
-        typeof storedSettings.smtpSenderName === "string"
-          ? storedSettings.smtpSenderName
-          : "",
-      smtpTokenConfigured: Boolean(storedSettings.smtpTokenConfigured),
-      smtpUserConfigured: Boolean(storedSettings.smtpUserConfigured),
-    };
-  }
-);
+  return {
+    recipients: recipientRows.map((row) => row.email),
+    smtpAddress:
+      typeof storedSettings.smtpAddress === "string"
+        ? storedSettings.smtpAddress
+        : "",
+    smtpPort:
+      typeof storedSettings.smtpPort === "number"
+        ? storedSettings.smtpPort
+        : "",
+    smtpSenderName:
+      typeof storedSettings.smtpSenderName === "string"
+        ? storedSettings.smtpSenderName
+        : "",
+    smtpTokenConfigured: Boolean(storedSettings.smtpTokenConfigured),
+    smtpUserConfigured: Boolean(storedSettings.smtpUserConfigured),
+  };
+});
 
-export const saveEmailSettings = createServerFn({ method: "POST" })
+export const saveEmailSettings = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: SaveEmailSettingsInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
     assertValidEmailSettings(data);
@@ -1945,7 +1971,7 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const addEmailRecipient = createServerFn({ method: "POST" })
+export const addEmailRecipient = createAuthenticatedServerFn({ method: "POST" })
   .validator((email: string) => email)
   .handler(async ({ data }): Promise<{ email: string }> => {
     const db = getAppDb();
@@ -1959,7 +1985,9 @@ export const addEmailRecipient = createServerFn({ method: "POST" })
     return { email };
   });
 
-export const deleteEmailRecipient = createServerFn({ method: "POST" })
+export const deleteEmailRecipient = createAuthenticatedServerFn({
+  method: "POST",
+})
   .validator((email: string) => email)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -1970,7 +1998,7 @@ export const deleteEmailRecipient = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const getHymns = createServerFn({ method: "GET" }).handler(
+export const getHymns = createAuthenticatedServerFn({ method: "GET" }).handler(
   async (): Promise<HymnRecord[]> => {
     const db = getAppDb();
     const results = await db.all<Record<string, unknown>>(
@@ -1984,30 +2012,30 @@ export const getHymns = createServerFn({ method: "GET" }).handler(
   }
 );
 
-export const getHymnOptions = createServerFn({ method: "GET" }).handler(
-  async (): Promise<HymnOption[]> => {
-    const db = getAppDb();
-    const results = await db.all<Record<string, unknown>>(
-      sql`SELECT hymns.id, hymns.hymn_number, hymns.name, hymns.lyrics_markdown, hymns.last_played, hymns.music_key, hymn_sources.name AS source_name
+export const getHymnOptions = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async (): Promise<HymnOption[]> => {
+  const db = getAppDb();
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT hymns.id, hymns.hymn_number, hymns.name, hymns.lyrics_markdown, hymns.last_played, hymns.music_key, hymn_sources.name AS source_name
         FROM hymns
         JOIN hymn_sources ON hymn_sources.id = hymns.source_id
         ORDER BY hymn_sources.name, CAST(NULLIF(hymns.hymn_number, '') AS INTEGER), hymns.name`
-    );
+  );
 
-    return results.map((row) => ({
-      hasLyrics: Boolean(asString(row.lyrics_markdown).trim()),
-      id: asString(row.id),
-      label: [asString(row.hymn_number), asString(row.name)]
-        .filter(Boolean)
-        .join(" — "),
-      lastPlayed: asString(row.last_played),
-      musicKey: asString(row.music_key),
-      sourceName: asString(row.source_name),
-    }));
-  }
-);
+  return results.map((row) => ({
+    hasLyrics: Boolean(asString(row.lyrics_markdown).trim()),
+    id: asString(row.id),
+    label: [asString(row.hymn_number), asString(row.name)]
+      .filter(Boolean)
+      .join(" — "),
+    lastPlayed: asString(row.last_played),
+    musicKey: asString(row.music_key),
+    sourceName: asString(row.source_name),
+  }));
+});
 
-export const getHymn = createServerFn({ method: "GET" })
+export const getHymn = createAuthenticatedServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<HymnRecord | null> => {
     const db = getAppDb();
@@ -2021,7 +2049,7 @@ export const getHymn = createServerFn({ method: "GET" })
     return row ? mapHymnRow(row) : null;
   });
 
-export const getHymnFiles = createServerFn({ method: "GET" })
+export const getHymnFiles = createAuthenticatedServerFn({ method: "GET" })
   .validator((hymnId: string) => hymnId)
   .handler(async ({ data }): Promise<HymnFileRecord[]> => {
     const db = getAppDb();
@@ -2032,7 +2060,7 @@ export const getHymnFiles = createServerFn({ method: "GET" })
     return results.map(mapHymnFileRow);
   });
 
-export const uploadHymnFile = createServerFn({ method: "POST" })
+export const uploadHymnFile = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: UploadHymnFileInput) => data)
   .handler(async ({ data }): Promise<HymnFileRecord> => {
     const db = getAppDb();
@@ -2084,7 +2112,7 @@ export const uploadHymnFile = createServerFn({ method: "POST" })
     return mapHymnFileRow(row);
   });
 
-export const renameHymnFile = createServerFn({ method: "POST" })
+export const renameHymnFile = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: RenameHymnFileInput) => data)
   .handler(async ({ data }): Promise<HymnFileRecord> => {
     const db = getAppDb();
@@ -2110,7 +2138,7 @@ export const renameHymnFile = createServerFn({ method: "POST" })
     return mapHymnFileRow(row);
   });
 
-export const deleteHymnFile = createServerFn({ method: "POST" })
+export const deleteHymnFile = createAuthenticatedServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<void> => {
     const db = getAppDb();
@@ -2129,7 +2157,9 @@ export const deleteHymnFile = createServerFn({ method: "POST" })
     await db.delete(hymnFiles).where(eq(hymnFiles.id, data));
   });
 
-export const getHymnFileDownload = createServerFn({ method: "GET" })
+export const getHymnFileDownload = createAuthenticatedServerFn({
+  method: "GET",
+})
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<HymnFileDownload> => {
     const db = getAppDb();
@@ -2158,7 +2188,7 @@ export const getHymnFileDownload = createServerFn({ method: "GET" })
     };
   });
 
-export const saveHymn = createServerFn({ method: "POST" })
+export const saveHymn = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: SaveHymnInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const db = getAppDb();
@@ -2193,7 +2223,7 @@ export const saveHymn = createServerFn({ method: "POST" })
     return { id };
   });
 
-export const deleteHymn = createServerFn({ method: "POST" })
+export const deleteHymn = createAuthenticatedServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -2217,7 +2247,7 @@ const attachTeamNames = (
     teamNames: memberTeamNames(member, teamsLookup),
   }));
 
-export const getTeams = createServerFn({ method: "GET" }).handler(
+export const getTeams = createAuthenticatedServerFn({ method: "GET" }).handler(
   async (): Promise<TeamSummary[]> => {
     const db = getAppDb();
     const results = await db.all<Record<string, unknown>>(
@@ -2228,7 +2258,7 @@ export const getTeams = createServerFn({ method: "GET" }).handler(
   }
 );
 
-export const getTeam = createServerFn({ method: "GET" })
+export const getTeam = createAuthenticatedServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<TeamRecord | null> => {
     const db = getAppDb();
@@ -2252,7 +2282,7 @@ export const getTeam = createServerFn({ method: "GET" })
     };
   });
 
-export const saveTeam = createServerFn({ method: "POST" })
+export const saveTeam = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: SaveTeamInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const db = getAppDb();
@@ -2348,7 +2378,7 @@ const findTeamReferences = async (
   return { orders, templates };
 };
 
-export const deleteTeam = createServerFn({ method: "POST" })
+export const deleteTeam = createAuthenticatedServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -2383,7 +2413,7 @@ export const deleteTeam = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const getTeamTemplates = createServerFn({ method: "GET" })
+export const getTeamTemplates = createAuthenticatedServerFn({ method: "GET" })
   .validator((teamId: string) => teamId)
   .handler(async ({ data }): Promise<TemplateOption[]> => {
     const db = getAppDb();
@@ -2407,21 +2437,21 @@ export const getTeamTemplates = createServerFn({ method: "GET" })
       .map((row) => ({ id: asString(row.id), name: asString(row.name) }));
   });
 
-export const getTeamMembers = createServerFn({ method: "GET" }).handler(
-  async (): Promise<TeamMemberSummary[]> => {
-    const db = getAppDb();
-    const [memberRows, teamsLookup] = await Promise.all([
-      db.all<Record<string, unknown>>(
-        sql`${sql.raw(TEAM_MEMBER_SELECT)} ORDER BY team_members.last_name, team_members.first_name`
-      ),
-      loadTeamsById(db),
-    ]);
+export const getTeamMembers = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async (): Promise<TeamMemberSummary[]> => {
+  const db = getAppDb();
+  const [memberRows, teamsLookup] = await Promise.all([
+    db.all<Record<string, unknown>>(
+      sql`${sql.raw(TEAM_MEMBER_SELECT)} ORDER BY team_members.last_name, team_members.first_name`
+    ),
+    loadTeamsById(db),
+  ]);
 
-    return attachTeamNames(memberRows.map(mapTeamMemberRow), teamsLookup);
-  }
-);
+  return attachTeamNames(memberRows.map(mapTeamMemberRow), teamsLookup);
+});
 
-export const getTeamMember = createServerFn({ method: "GET" })
+export const getTeamMember = createAuthenticatedServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<TeamMember | null> => {
     const db = getAppDb();
@@ -2432,7 +2462,7 @@ export const getTeamMember = createServerFn({ method: "GET" })
     return row ? mapTeamMemberRow(row) : null;
   });
 
-export const saveTeamMember = createServerFn({ method: "POST" })
+export const saveTeamMember = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: SaveTeamMemberInput) => data)
   .handler(async ({ data }): Promise<{ id: string }> => {
     const validationErrors = validateTeamMember(data);
@@ -2471,7 +2501,7 @@ export const saveTeamMember = createServerFn({ method: "POST" })
     return { id };
   });
 
-export const deleteTeamMember = createServerFn({ method: "POST" })
+export const deleteTeamMember = createAuthenticatedServerFn({ method: "POST" })
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -2484,7 +2514,7 @@ export const deleteTeamMember = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const addMemberToTeam = createServerFn({ method: "POST" })
+export const addMemberToTeam = createAuthenticatedServerFn({ method: "POST" })
   .validator((data: TeamMembershipInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
@@ -2496,7 +2526,9 @@ export const addMemberToTeam = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const removeMemberFromTeam = createServerFn({ method: "POST" })
+export const removeMemberFromTeam = createAuthenticatedServerFn({
+  method: "POST",
+})
   .validator((data: TeamMembershipInput) => data)
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
