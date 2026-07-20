@@ -103,6 +103,19 @@ export const createMyApiKey = createServerFn({ method: "POST" })
       throw new Error("API key name is required.");
     }
 
+    const db = getAppDb();
+    const existing = await db
+      .select({ id: apiKeys.id })
+      .from(apiKeys)
+      .where(eq(apiKeys.userId, session.user.id))
+      .all();
+
+    if (existing.length >= 20) {
+      throw new Error(
+        "You can have at most 20 API keys. Revoke one to create another."
+      );
+    }
+
     const key = generateKey();
     const now = new Date();
     const row: ApiKeyRow = {
@@ -114,12 +127,10 @@ export const createMyApiKey = createServerFn({ method: "POST" })
       userId: session.user.id,
     };
 
-    await getAppDb()
-      .insert(apiKeys)
-      .values({
-        ...row,
-        keyHash: await hashApiKey(key),
-      });
+    await db.insert(apiKeys).values({
+      ...row,
+      keyHash: await hashApiKey(key),
+    });
 
     return { ...toSummary(row), key };
   });
