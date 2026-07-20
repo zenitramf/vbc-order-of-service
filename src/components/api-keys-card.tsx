@@ -22,7 +22,7 @@ import {
 interface ApiKeysCardProps {
   admin?: boolean;
   initialKeys?: ApiKeySummary[];
-  onAdminDelete?: (id: string) => void;
+  onAdminDelete?: (id: string) => Promise<void>;
 }
 
 export const ApiKeysCard = ({
@@ -73,17 +73,17 @@ export const ApiKeysCard = ({
   const remove = async (id: string) => {
     setBusy(true);
     try {
-      if (admin) {
-        onAdminDelete?.(id);
-      } else {
-        await deleteMyApiKey({ data: id });
-      }
+      await (admin ? onAdminDelete?.(id) : deleteMyApiKey({ data: id }));
       setKeys((current) => current.filter((key) => key.id !== id));
-      toast.success("API key revoked.");
+      if (!admin) {
+        toast.success("API key revoked.");
+      }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Unable to revoke API key."
-      );
+      if (!admin) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to revoke API key."
+        );
+      }
     } finally {
       setBusy(false);
     }

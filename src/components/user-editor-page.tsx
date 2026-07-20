@@ -424,6 +424,20 @@ export const UserEditorPage = ({
       }
     });
 
+  const handleDeleteApiKey = (apiKeyId: string) =>
+    run(async () => {
+      try {
+        await deleteUserApiKeyAdmin({ data: { apiKeyId, userId: user.id } });
+        toast.success("API key revoked.");
+        await router.invalidate();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to revoke API key."
+        );
+        throw error;
+      }
+    });
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -585,9 +599,7 @@ export const UserEditorPage = ({
       <ApiKeysCard
         admin
         initialKeys={apiKeys}
-        onAdminDelete={(apiKeyId) => {
-          void deleteUserApiKeyAdmin({ data: { apiKeyId, userId: user.id } });
-        }}
+        onAdminDelete={handleDeleteApiKey}
       />
 
       <SessionsCard
