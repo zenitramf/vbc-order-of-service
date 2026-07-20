@@ -19,6 +19,8 @@ import {
   listMyApiKeys,
 } from "~/lib/api-key-data";
 
+const MCP_ENDPOINT_URL = "https://portal.fresnovictory.com/api/mcp";
+
 interface ApiKeysCardProps {
   admin?: boolean;
   initialKeys?: ApiKeySummary[];
@@ -98,6 +100,22 @@ export const ApiKeysCard = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <div className="rounded-md border p-3 text-sm">
+          <p className="font-medium">MCP endpoint</p>
+          <code className="break-all">{MCP_ENDPOINT_URL}</code>
+          <Button
+            className="mt-2"
+            onClick={() =>
+              void navigator.clipboard.writeText(MCP_ENDPOINT_URL)
+            }
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <CopyIcon data-icon="inline-start" />
+            Copy URL
+          </Button>
+        </div>
         {admin ? null : (
           <FieldGroup>
             <Field>
