@@ -11,6 +11,8 @@ import { roles, user } from "~/db/schema";
 import type { RolePermissions } from "~/lib/admin-permissions";
 import { hasPermission, parsePermissions } from "~/lib/admin-permissions";
 import { resolveApiKey } from "~/lib/api-key-server";
+import { filterHymns } from "~/lib/hymn-filters";
+import type { HymnListFilters } from "~/lib/hymn-filters";
 import { isSupportedMusicKey } from "~/lib/music-keys";
 import {
   addMemberToTeam,
@@ -24,6 +26,7 @@ import {
   getEmailSettings,
   getHymn,
   getHymnFileDownload,
+  getHymnOptions,
   getHymnFiles,
   getHymns,
   getMonthPlan,
@@ -52,6 +55,7 @@ import {
   saveTemplate,
   sendOrderEmail,
 } from "~/lib/order-service-data";
+import type { HymnRecord } from "~/lib/order-service-types";
 
 interface McpContext {
   permissions: RolePermissions;
@@ -137,6 +141,18 @@ const saveHymnInput = z.object({
   musicKey: z.string(),
   name: z.string(),
   sourceId: z.string(),
+});
+const hymnListFiltersInput = z.object({
+  hymnNumber: z.string().optional(),
+  lastPlayedFrom: z.string().optional(),
+  lastPlayedTo: z.string().optional(),
+  maxTimesPlayedLastSixMonths: z.number().int().min(0).optional(),
+  minTimesPlayedLastSixMonths: z.number().int().min(0).optional(),
+  musicKey: z.string().optional(),
+  neverPlayed: z.boolean().optional(),
+  search: z.string().optional(),
+  sourceName: z.string().optional(),
+  timesPlayedLastSixMonths: z.number().int().min(0).optional(),
 });
 const saveTeamInput = z.object({
   id: z.string().optional(),
@@ -427,11 +443,23 @@ const createMcpServer = (context: McpContext): McpServer => {
 
   register(
     "list_hymns",
-    "List hymns including play statistics.",
+    "List hymns with optional catalog and play-history filters.",
+    hymnListFiltersInput,
+    "hymns",
+    "view",
+    async (data) =>
+      filterHymns(
+        (await callServerFn(getHymns)) as HymnRecord[],
+        data as HymnListFilters
+      )
+  );
+  register(
+    "list_hymn_options",
+    "List lightweight hymn picker options for drafting orders.",
     input,
     "hymns",
     "view",
-    () => callServerFn(getHymns)
+    () => callServerFn(getHymnOptions)
   );
   register(
     "get_hymn",
