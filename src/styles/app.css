@@ -154,3 +154,79 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
 }
+
+/* GrapesJS announcement editor — fill host card, keep chrome compact */
+.grapesjs-announcement-editor {
+  --gjs-main-color: oklch(0.21 0.006 285.885);
+  --gjs-primary-color: oklch(0.45 0.085 224.283);
+  min-height: 0;
+}
+
+.grapesjs-announcement-editor .gjs-editor-host,
+.grapesjs-announcement-editor .gjs-editor,
+.grapesjs-announcement-editor .gjs-editor-cont,
+.grapesjs-announcement-editor .gjs-cv-canvas {
+  height: 100% !important;
+  min-height: 0;
+}
+
+.grapesjs-announcement-editor .gjs-one-bg {
+  background-color: oklch(0.985 0 0);
+}
+
+.grapesjs-announcement-editor .gjs-two-color {
+  color: oklch(0.21 0.006 285.885);
+}
+
+.grapesjs-announcement-editor .gjs-three-bg {
+  background-color: oklch(0.967 0.001 286.375);
+}
+
+.grapesjs-announcement-editor .gjs-four-color,
+.grapesjs-announcement-editor .gjs-four-color-h:hover {
+  color: oklch(0.45 0.085 224.283);
+}
+
+.grapesjs-announcement-editor .gjs-pn-panel {
+  border-color: oklch(0.92 0.004 286.32);
+}
+
+.grapesjs-announcement-editor .gjs-block {
+  min-height: 64px;
+  width: auto;
+  justify-content: center;
+}
+
+.grapesjs-announcement-editor .gjs-blocks-c {
+  justify-content: flex-start;
+}
+
+.grapesjs-announcement-editor .gjs-cv-canvas {
+  /* Background image is applied via JS on this element (separate from components). */
+  background-color: #111;
+  top: 40px;
+  width: calc(100% - 15%);
+  height: calc(100% - 40px);
+}
+
+.grapesjs-announcement-editor .gjs-pn-views-container,
+.grapesjs-announcement-editor .gjs-pn-views {
+  width: 15%;
+  box-sizing: border-box;
+}
+
+.dark .grapesjs-announcement-editor .gjs-one-bg {
+  background-color: oklch(0.21 0.006 285.885);
+}
+
+.dark .grapesjs-announcement-editor .gjs-two-color {
+  color: oklch(0.985 0 0);
+}
+
+.dark .grapesjs-announcement-editor .gjs-three-bg {
+  background-color: oklch(0.274 0.006 286.033);
+}
+
+.dark .grapesjs-announcement-editor .gjs-pn-panel {
+  border-color: oklch(1 0 0 / 10%);
+}

@@ -29,8 +29,8 @@ import { toJpeg } from "html-to-image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { GrapesjsAnnouncementEditor } from "~/components/grapesjs-announcement-editor";
 import { HtmlCodeEditor } from "~/components/html-code-editor";
-import { InteractiveAnnouncementCanvas } from "~/components/interactive-announcement-canvas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -272,20 +272,12 @@ const VIEWPORT_CANVAS_SHELL =
 
 const LiveCanvasEditor = ({
   backgroundUrl,
-  canRedo,
-  canUndo,
   html,
   onHtmlChange,
-  onRedo,
-  onUndo,
 }: {
   backgroundUrl: string | null;
-  canRedo: boolean;
-  canUndo: boolean;
   html: string;
   onHtmlChange: (html: string) => void;
-  onRedo: () => void;
-  onUndo: () => void;
 }) => (
   <Card
     className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0"
@@ -294,10 +286,11 @@ const LiveCanvasEditor = ({
     <CardHeader className="shrink-0 border-b py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <CardTitle className="text-base">Canvas editor</CardTitle>
+          <CardTitle className="text-base">GrapesJS editor</CardTitle>
           <CardDescription className="text-xs">
-            Drag, resize, rotate, and edit text. Auto-saves · up to{" "}
-            {HTML_HISTORY_MAX_SNAPSHOTS} undos (Mod+Z / Mod+Y).
+            Native GrapesJS blocks, styles, layers, and traits. Background is
+            separate and swappable. Auto-saves · up to{" "}
+            {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).
           </CardDescription>
         </div>
         <Badge className="w-fit shrink-0" variant="secondary">
@@ -305,16 +298,12 @@ const LiveCanvasEditor = ({
         </Badge>
       </div>
     </CardHeader>
-    <CardContent className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
-      <InteractiveAnnouncementCanvas
+    <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
+      <GrapesjsAnnouncementEditor
         backgroundUrl={backgroundUrl}
-        canRedo={canRedo}
-        canUndo={canUndo}
         className="min-h-0 flex-1"
         html={html}
         onHtmlChange={onHtmlChange}
-        onRedo={onRedo}
-        onUndo={onUndo}
       />
     </CardContent>
   </Card>
@@ -1105,8 +1094,8 @@ const AnnouncementEditor = ({
               </Badge>
             </div>
             <p className="text-muted-foreground max-w-2xl text-sm">
-              Edit on the canvas. Supporting tools (content, backgrounds,
-              variations) are below.
+              Edit components with GrapesJS. Swap backgrounds independently
+              below; AI HTML generation and draft tools follow.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -1156,12 +1145,8 @@ const AnnouncementEditor = ({
 
         <LiveCanvasEditor
           backgroundUrl={selectedBackgroundUrl}
-          canRedo={canRedo}
-          canUndo={canUndo}
           html={html}
           onHtmlChange={onCanvasHtmlChange}
-          onRedo={onRedoCanvas}
-          onUndo={onUndoCanvas}
         />
       </div>
 
@@ -1173,7 +1158,7 @@ const AnnouncementEditor = ({
               <CardTitle>Content fields</CardTitle>
               <CardDescription>
                 Feed AI HTML generation. Values are not baked into the
-                background image — edit layout on the canvas above.
+                background image — edit layout in GrapesJS above.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -1325,9 +1310,9 @@ const AnnouncementEditor = ({
           <CardHeader>
             <CardTitle>HTML overlay (advanced)</CardTitle>
             <CardDescription>
-              Optional source view. Prefer the canvas above for layout; use this
+              Optional source view. Prefer GrapesJS above for layout; use this
               for AI generation or hand-edited markup. Same draft HTML as the
-              canvas.
+              editor.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
