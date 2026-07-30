@@ -38,6 +38,12 @@ import { GrapesjsAnnouncementEditor } from "~/components/grapesjs-announcement-e
 import type { GrapesjsAnnouncementEditorHandle } from "~/components/grapesjs-announcement-editor";
 import { HtmlCodeEditor } from "~/components/html-code-editor";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -48,12 +54,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "~/components/ui/alert-dialog";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "~/components/ui/accordion";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -63,6 +63,14 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "~/components/ui/combobox";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -88,6 +96,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Switch } from "~/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -113,8 +122,10 @@ import {
   removeVariation,
   saveAnnouncement,
   selectVariation,
+  setShowInPresentationDeck,
 } from "~/lib/announcement-data";
 import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
+import { getStylePack, listStylePacks } from "~/lib/announcement-style-library";
 import type {
   AnnouncementContent,
   AnnouncementDraft,
@@ -124,13 +135,22 @@ import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
-import {
-  getLibraryImage,
-  listLibraryImages,
-} from "~/lib/image-library-data";
+import { getLibraryImage, listLibraryImages } from "~/lib/image-library-data";
 import type { ImageLibraryItem } from "~/lib/image-library-types";
 import { requirePermission } from "~/lib/route-guards";
 import { cn } from "~/lib/utils";
+
+interface StylePackOption {
+  description: string;
+  label: string;
+  value: string;
+}
+
+const STYLE_PACK_OPTIONS: StylePackOption[] = listStylePacks().map((pack) => ({
+  description: pack.description,
+  label: pack.name,
+  value: pack.id,
+}));
 
 /** Display label for the background image model (generation is server-side). */
 const BACKGROUND_IMAGE_MODEL = "xai/grok-imagine-image-quality";
@@ -251,7 +271,10 @@ const createVariationColumns = ({
               </Badge>
             ) : null}
             {isLibrary ? (
-              <Badge className="bg-sky-600 text-white hover:bg-sky-600" variant="secondary">
+              <Badge
+                className="bg-sky-600 text-white hover:bg-sky-600"
+                variant="secondary"
+              >
                 <BooksIcon className="size-3" weight="fill" />
                 Library
               </Badge>
@@ -335,47 +358,102 @@ const VIEWPORT_CANVAS_SHELL =
   "flex h-[calc(100svh-3.5rem-2rem)] min-h-[22rem] flex-col gap-4 overflow-hidden md:h-[calc(100svh-3.5rem-3rem)]";
 
 const LiveCanvasEditor = ({
+  appliedStyleId,
+  applyingPackId,
   backgroundUrl,
   editorRef,
   html,
+  onApplyStylePack,
   onHtmlChange,
 }: {
+  appliedStyleId: string | null;
+  applyingPackId: string | null;
   backgroundUrl: string | null;
   editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
   html: string;
+  onApplyStylePack: (packId: string) => void;
   onHtmlChange: (html: string) => void;
-}) => (
-  <Card
-    className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0"
-    size="sm"
-  >
-    <CardHeader className="shrink-0 border-b py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <CardTitle className="text-base">GrapesJS editor</CardTitle>
-          <CardDescription className="text-xs">
-            Native GrapesJS blocks, styles, layers, and traits. Background photo
-            is on the Body component (swaps with the selected variation).
-            Auto-saves · up to {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots
-            (Mod+Z / Mod+Y).
-          </CardDescription>
+}) => {
+  const selectedPackId = applyingPackId ?? appliedStyleId;
+  const selectedPack =
+    STYLE_PACK_OPTIONS.find((pack) => pack.value === selectedPackId) ?? null;
+  const isApplying = applyingPackId !== null;
+
+  return (
+    <Card
+      className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0"
+      size="sm"
+    >
+      <CardHeader className="shrink-0 border-b py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <CardTitle className="text-base">Announcements editor</CardTitle>
+            <CardDescription className="text-xs">
+              Blocks, styles, layers, and traits. Background photo swaps with
+              the selected variation. Auto-saves · up to{" "}
+              {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).
+            </CardDescription>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Label
+                className="text-muted-foreground shrink-0 text-xs"
+                htmlFor="announcement-presets"
+              >
+                Presets
+              </Label>
+              <Combobox
+                disabled={isApplying}
+                isItemEqualToValue={(item, value) => item.value === value.value}
+                items={STYLE_PACK_OPTIONS}
+                onValueChange={(pack) => {
+                  if (pack) {
+                    onApplyStylePack(pack.value);
+                  }
+                }}
+                value={selectedPack}
+              >
+                <ComboboxInput
+                  className="w-52"
+                  disabled={isApplying}
+                  id="announcement-presets"
+                  placeholder={isApplying ? "Applying…" : "Choose a preset"}
+                />
+                <ComboboxContent className="min-w-72">
+                  <ComboboxEmpty>No presets found.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(pack) => (
+                      <ComboboxItem key={pack.value} value={pack}>
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span>{pack.label}</span>
+                          <span className="text-muted-foreground text-xs font-normal">
+                            {pack.description}
+                          </span>
+                        </span>
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+            </div>
+            <Badge className="w-fit shrink-0" variant="secondary">
+              1920×1080
+            </Badge>
+          </div>
         </div>
-        <Badge className="w-fit shrink-0" variant="secondary">
-          1920×1080
-        </Badge>
-      </div>
-    </CardHeader>
-    <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
-      <GrapesjsAnnouncementEditor
-        ref={editorRef}
-        backgroundUrl={backgroundUrl}
-        className="min-h-0 flex-1"
-        html={html}
-        onHtmlChange={onHtmlChange}
-      />
-    </CardContent>
-  </Card>
-);
+      </CardHeader>
+      <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
+        <GrapesjsAnnouncementEditor
+          ref={editorRef}
+          backgroundUrl={backgroundUrl}
+          className="min-h-0 flex-1"
+          html={html}
+          onHtmlChange={onHtmlChange}
+        />
+      </CardContent>
+    </Card>
+  );
+};
 
 const VariationLibraryCard = ({
   assetUrls,
@@ -698,16 +776,19 @@ const LibraryImagePickerDialog = ({
         <DialogHeader>
           <DialogTitle>Use library image as background</DialogTitle>
           <DialogDescription>
-            Choose a 1920×1080 template from the image library. It is copied into
-            this announcement&apos;s variation library so you can select it and
-            generate AI variations from it.
+            Choose a 1920×1080 template from the image library. It is copied
+            into this announcement&apos;s variation library so you can select it
+            and generate AI variations from it.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
-              <Skeleton className="aspect-video w-full rounded-lg" key={index} />
+              <Skeleton
+                className="aspect-video w-full rounded-lg"
+                key={index}
+              />
             ))}
           </div>
         ) : null}
@@ -737,8 +818,7 @@ const LibraryImagePickerDialog = ({
           <div className="grid max-h-[min(28rem,60vh)] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
             {images.map((image) => {
               const previewUrl = previewUrls[image.objectKey];
-              const isThisAdding =
-                isAdding && addingKey === image.objectKey;
+              const isThisAdding = isAdding && addingKey === image.objectKey;
 
               return (
                 <button
@@ -961,6 +1041,77 @@ const BackgroundImageCard = ({
   );
 };
 
+const PresentationDeckControls = ({
+  announcementId,
+  enabled,
+  onUpdated,
+  showInPresentationDeck,
+}: {
+  announcementId: string;
+  enabled: boolean;
+  onUpdated: (next: AnnouncementDraft) => void;
+  showInPresentationDeck: boolean;
+}) => {
+  const router = useRouter();
+  const setDeckFn = useServerFn(setShowInPresentationDeck);
+  const [isTogglingDeck, setIsTogglingDeck] = useState(false);
+
+  if (!enabled) {
+    return null;
+  }
+
+  const onToggle = async (nextValue: boolean) => {
+    setIsTogglingDeck(true);
+
+    try {
+      const next = await setDeckFn({
+        data: { id: announcementId, showInPresentationDeck: nextValue },
+      });
+      onUpdated(next);
+      await router.invalidate();
+      toast.success(
+        nextValue
+          ? "Added to presentation deck."
+          : "Removed from presentation deck."
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update presentation deck setting."
+      );
+    } finally {
+      setIsTogglingDeck(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {showInPresentationDeck ? (
+        <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600/90">
+          In presentation deck
+        </Badge>
+      ) : null}
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={showInPresentationDeck}
+          disabled={isTogglingDeck}
+          id="show-in-presentation-deck"
+          onCheckedChange={(checked) => {
+            void onToggle(checked);
+          }}
+        />
+        <Label
+          className="cursor-pointer font-normal"
+          htmlFor="show-in-presentation-deck"
+        >
+          Show in presentation deck
+        </Label>
+      </div>
+    </div>
+  );
+};
+
 const AnnouncementEditor = ({
   announcement: initial,
 }: {
@@ -1005,6 +1156,9 @@ const AnnouncementEditor = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingBg, setIsGeneratingBg] = useState(false);
   const [isGeneratingHtml, setIsGeneratingHtml] = useState(false);
+  const [applyingStylePackId, setApplyingStylePackId] = useState<string | null>(
+    null
+  );
   const [isApproving, setIsApproving] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [isClearingContext, setIsClearingContext] = useState(false);
@@ -1028,6 +1182,8 @@ const AnnouncementEditor = ({
 
   const hasApprovedExport =
     draft.status === "approved" && Boolean(exportPreview);
+  const presentationDeckEnabled =
+    draft.status === "approved" && Boolean(draft.exportObjectKey);
 
   const selectedVariation = useMemo(
     () =>
@@ -1445,6 +1601,56 @@ const AnnouncementEditor = ({
     }
   };
 
+  const onApplyStylePack = async (packId: string) => {
+    const pack = getStylePack(packId);
+
+    if (!pack) {
+      toast.error("Design preset not found.");
+      return;
+    }
+
+    setApplyingStylePackId(packId);
+
+    try {
+      const result = grapesEditorRef.current?.applyStylePack(
+        packId,
+        contentRef.current
+      );
+
+      if (!result) {
+        toast.error("Editor is not ready. Try again in a moment.");
+        return;
+      }
+
+      // Update canvas history + local html without double-firing auto-save.
+      commitHtmlHistory(result.html);
+
+      const next = await saveFn({
+        data: {
+          appliedStyleId: packId,
+          backgroundPrompt: backgroundPromptRef.current,
+          content: contentRef.current,
+          html: result.html,
+          id: draftIdRef.current,
+          name: nameRef.current,
+        },
+      });
+      setDraft(next);
+
+      toast.success(
+        `Loaded “${pack.name}” layout — refine on the canvas as needed.`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not apply design preset."
+      );
+    } finally {
+      setApplyingStylePackId(null);
+    }
+  };
+
   const onApprove = async () => {
     if (!selectedVariation) {
       toast.error("Select a background variation first.");
@@ -1628,9 +1834,15 @@ const AnnouncementEditor = ({
               </Badge>
             </div>
             <p className="text-muted-foreground max-w-2xl text-sm">
-              Edit components with GrapesJS. Swap backgrounds independently
-              below; AI HTML generation and draft tools follow.
+              Edit the overlay layout on the canvas. Swap backgrounds
+              independently below; AI HTML generation and draft tools follow.
             </p>
+            <PresentationDeckControls
+              announcementId={draft.id}
+              enabled={presentationDeckEnabled}
+              onUpdated={applyDraft}
+              showInPresentationDeck={draft.showInPresentationDeck}
+            />
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button
@@ -1678,9 +1890,14 @@ const AnnouncementEditor = ({
         </div>
 
         <LiveCanvasEditor
+          appliedStyleId={draft.appliedStyleId}
+          applyingPackId={applyingStylePackId}
           backgroundUrl={selectedBackgroundUrl}
           editorRef={grapesEditorRef}
           html={html}
+          onApplyStylePack={(packId) => {
+            void onApplyStylePack(packId);
+          }}
           onHtmlChange={onCanvasHtmlChange}
         />
       </div>
@@ -1692,8 +1909,8 @@ const AnnouncementEditor = ({
             <CardHeader>
               <CardTitle>Content fields</CardTitle>
               <CardDescription>
-                Feed AI HTML generation. Values are not baked into the
-                background image — edit layout in GrapesJS above.
+                Feed AI HTML generation and design presets. Values are not baked
+                into the background image — edit layout on the canvas above.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -1770,8 +1987,8 @@ const AnnouncementEditor = ({
             <CardTitle>Generate overlay with AI</CardTitle>
             <CardDescription>
               Builds layout HTML from the content fields above. Optional style
-              notes steer typography, alignment, and accents. Prefer GrapesJS
-              for manual edits after generation.
+              notes steer typography, alignment, and accents. Prefer the canvas
+              editor for manual edits after generation.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -1837,8 +2054,8 @@ const AnnouncementEditor = ({
               <span className="flex flex-col items-start gap-1">
                 <span className="text-base">HTML markup (advanced)</span>
                 <span className="text-muted-foreground text-sm font-normal">
-                  Source view of the same draft HTML as the GrapesJS canvas.
-                  Expand only when you need to inspect or hand-edit markup.
+                  Source view of the same draft HTML as the canvas above. Expand
+                  only when you need to inspect or hand-edit markup.
                 </span>
               </span>
             </AccordionTrigger>
@@ -1938,7 +2155,7 @@ const AnnouncementEditorRoute = () => {
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
-            <Link to="/announcements/new">
+            <Link search={{ create: true }} to="/announcements">
               <PlusIcon data-icon="inline-start" />
               Create announcement
             </Link>

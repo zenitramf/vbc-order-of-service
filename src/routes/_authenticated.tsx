@@ -141,7 +141,8 @@ const createItems = [
     icon: MegaphoneIcon,
     label: "New Announcement",
     resource: "announcements",
-    to: "/announcements/new",
+    search: { create: true as const },
+    to: "/announcements",
   },
 ] as const;
 
@@ -340,11 +341,12 @@ const AppSidebar = () => {
               <SidebarMenu>
                 {visibleCreateItems.map((item) => {
                   const Icon = item.icon;
+                  const search = "search" in item ? item.search : undefined;
 
                   return (
-                    <SidebarMenuItem key={item.to}>
+                    <SidebarMenuItem key={item.label}>
                       <SidebarMenuButton asChild>
-                        <Link to={item.to}>
+                        <Link search={search} to={item.to}>
                           <Icon />
                           <span>{item.label}</span>
                         </Link>

@@ -9,7 +9,12 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+  Link,
+  createFileRoute,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
@@ -19,6 +24,7 @@ import {
 } from "@tanstack/react-table";
 import type { ColumnDef, Row, SortingState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { toast } from "sonner";
 
 import {
@@ -41,6 +47,15 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -54,6 +69,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
+import { Input } from "~/components/ui/input";
+import { Label } from "~/components/ui/label";
 import {
   Table,
   TableBody,
@@ -62,7 +79,11 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-import { deleteAnnouncement, listAnnouncements } from "~/lib/announcement-data";
+import {
+  createAnnouncement,
+  deleteAnnouncement,
+  listAnnouncements,
+} from "~/lib/announcement-data";
 import type { AnnouncementSummary } from "~/lib/announcement-types";
 import { requirePermission } from "~/lib/route-guards";
 
@@ -119,11 +140,19 @@ const createAnnouncementColumns = ({
   {
     accessorKey: "status",
     cell: ({ row }) => (
-      <Badge
-        variant={row.original.status === "approved" ? "default" : "secondary"}
-      >
-        {row.original.status === "approved" ? "Approved" : "Draft"}
-      </Badge>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge
+          variant={row.original.status === "approved" ? "default" : "secondary"}
+        >
+          {row.original.status === "approved" ? "Approved" : "Draft"}
+        </Badge>
+        {row.original.status === "approved" &&
+        row.original.showInPresentationDeck ? (
+          <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600/90">
+            In presentation deck
+          </Badge>
+        ) : null}
+      </div>
     ),
     header: "Status",
   },
@@ -212,14 +241,117 @@ const createAnnouncementColumns = ({
   },
 ];
 
+const NewAnnouncementDialog = ({
+  onOpenChange,
+  open,
+}: {
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) => {
+  const navigate = useNavigate();
+  const createFn = useServerFn(createAnnouncement);
+  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setName("");
+      setTitle("");
+      setIsCreating(false);
+    }
+  }, [open]);
+
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setIsCreating(true);
+
+    try {
+      const { id } = await createFn({
+        data: {
+          name,
+          title: title || name,
+        },
+      });
+
+      toast.success("Announcement draft created.");
+      onOpenChange(false);
+      await navigate({
+        params: { announcementId: id },
+        to: "/announcements/$announcementId",
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not create announcement."
+      );
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent>
+        <form onSubmit={onSubmit}>
+          <DialogHeader>
+            <DialogTitle>New announcement</DialogTitle>
+            <DialogDescription>
+              Name the draft, then fill in overlays, backgrounds, and styles in
+              the editor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="announcement-name">Announcement name</Label>
+              <Input
+                autoFocus
+                id="announcement-name"
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Easter Sunday Invite"
+                required
+                value={name}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="announcement-title">Title</Label>
+              <Input
+                id="announcement-title"
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Defaults to announcement name"
+                value={title}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button disabled={isCreating} type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button disabled={isCreating || !name.trim()} type="submit">
+              {isCreating ? "Creating…" : "Open editor"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 const AnnouncementsPage = () => {
   const announcements = Route.useLoaderData();
+  const { create: openCreateFromSearch } = Route.useSearch();
+  const navigate = useNavigate();
   const [announcementRows, setAnnouncementRows] = useState(announcements);
   const router = useRouter();
   const deleteFn = useServerFn(deleteAnnouncement);
   const [announcementToDelete, setAnnouncementToDelete] = useState<
     string | null
   >(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(
+    Boolean(openCreateFromSearch)
+  );
   const [isDeleting, setIsDeleting] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([
     { desc: true, id: "updatedAt" },
@@ -228,6 +360,24 @@ const AnnouncementsPage = () => {
   useEffect(() => {
     setAnnouncementRows(announcements);
   }, [announcements]);
+
+  useEffect(() => {
+    if (openCreateFromSearch) {
+      setCreateDialogOpen(true);
+    }
+  }, [openCreateFromSearch]);
+
+  const handleCreateDialogOpenChange = (open: boolean) => {
+    setCreateDialogOpen(open);
+
+    if (!open && openCreateFromSearch) {
+      void navigate({
+        replace: true,
+        search: { create: undefined },
+        to: "/announcements",
+      });
+    }
+  };
 
   const handleDelete = async (id: string, name: string) => {
     const previousRows = announcementRows;
@@ -284,12 +434,23 @@ const AnnouncementsPage = () => {
             live in R2 at 1920×1080.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/announcements/new">
+        <div className="flex flex-wrap gap-2">
+          <Button asChild type="button" variant="outline">
+            <a href="/presentation" rel="noopener" target="_blank">
+              <MegaphoneIcon data-icon="inline-start" />
+              Open presentation deck
+            </a>
+          </Button>
+          <Button
+            onClick={() => {
+              setCreateDialogOpen(true);
+            }}
+            type="button"
+          >
             <PlusIcon data-icon="inline-start" />
             New announcement
-          </Link>
-        </Button>
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -314,11 +475,14 @@ const AnnouncementsPage = () => {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button asChild>
-                  <Link to="/announcements/new">
-                    <PlusIcon data-icon="inline-start" />
-                    Create announcement
-                  </Link>
+                <Button
+                  onClick={() => {
+                    setCreateDialogOpen(true);
+                  }}
+                  type="button"
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Create announcement
                 </Button>
               </EmptyContent>
             </Empty>
@@ -379,6 +543,11 @@ const AnnouncementsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <NewAnnouncementDialog
+        onOpenChange={handleCreateDialogOpenChange}
+        open={createDialogOpen}
+      />
     </div>
   );
 };
@@ -389,4 +558,10 @@ export const Route = createFileRoute("/_authenticated/announcements/")({
   },
   component: AnnouncementsPage,
   loader: () => listAnnouncements(),
+  validateSearch: (search: Record<string, unknown>): { create?: boolean } => ({
+    create:
+      search.create === true || search.create === "true" || search.create === 1
+        ? true
+        : undefined,
+  }),
 });

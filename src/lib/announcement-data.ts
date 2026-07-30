@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { v4 as uuidv4 } from "uuid";
 
+import { buildDesignPresetHtml } from "~/lib/announcement-style-library";
 import type {
   AddLibraryImageAsVariationInput,
   AnnouncementAsset,
@@ -15,11 +16,13 @@ import type {
   CreateAnnouncementInput,
   GenerateAnnouncementHtmlInput,
   GenerateBackgroundsInput,
+  PresentationSlide,
   SaveAnnouncementInput,
   ClearVariationContextInput,
   RemoveAllVariationsInput,
   RemoveVariationInput,
   SelectVariationInput,
+  SetShowInPresentationDeckInput,
 } from "~/lib/announcement-types";
 import {
   ANNOUNCEMENT_ASPECT_RATIO,
@@ -160,7 +163,14 @@ const normalizeVariation = (
 
 const normalizeDraft = (draft: AnnouncementDraft): AnnouncementDraft => ({
   ...draft,
-  variations: draft.variations.map((variation) => normalizeVariation(variation)),
+  appliedStyleId:
+    typeof draft.appliedStyleId === "string" && draft.appliedStyleId.trim()
+      ? draft.appliedStyleId.trim()
+      : null,
+  showInPresentationDeck: Boolean(draft.showInPresentationDeck),
+  variations: draft.variations.map((variation) =>
+    normalizeVariation(variation)
+  ),
 });
 
 const emptyContent = (
@@ -172,33 +182,10 @@ const emptyContent = (
   title: partial?.title?.trim() ?? "",
 });
 
-const escapeHtml = (value: string): string =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
-/** Sensible default overlay — user can edit or regenerate with AI. */
-const buildDefaultHtml = (content: AnnouncementContent): string => {
-  const title = content.title || "Announcement Title";
-  const subtitle = content.subtitle || "Subtitle";
-  const heading = content.heading || "Heading";
-  const tertiary = content.tertiary || "Additional details";
-
-  // Root stays transparent so the photo layer shows through. Readability comes
-  // from an alpha gradient scrim only — never a solid fill.
-  return `<div class="announcement-overlay" style="box-sizing:border-box;width:1920px;height:1080px;position:relative;overflow:hidden;background:transparent;font-family:Georgia,'Times New Roman',serif;color:#ffffff;">
-  <div style="position:absolute;left:0;right:0;bottom:0;height:55%;pointer-events:none;background:linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%);background-color:transparent;"></div>
-  <div style="position:absolute;left:0;right:0;bottom:0;box-sizing:border-box;padding:80px 100px;display:flex;flex-direction:column;justify-content:flex-end;background:transparent;">
-  <p style="margin:0 0 12px;font-size:28px;letter-spacing:0.28em;text-transform:uppercase;opacity:0.92;font-family:system-ui,sans-serif;">${escapeHtml(heading)}</p>
-  <h1 style="margin:0 0 18px;font-size:96px;line-height:1.05;font-weight:700;text-shadow:0 4px 24px rgba(0,0,0,0.45);">${escapeHtml(title)}</h1>
-  <p style="margin:0 0 28px;font-size:42px;line-height:1.25;font-weight:400;opacity:0.95;">${escapeHtml(subtitle)}</p>
-  <p style="margin:0;font-size:28px;line-height:1.4;opacity:0.88;font-family:system-ui,sans-serif;max-width:1200px;">${escapeHtml(tertiary)}</p>
-  </div>
-</div>`;
-};
+/** Sensible default overlay — classic bottom band design preset. */
+const buildDefaultHtml = (content: AnnouncementContent): string =>
+  buildDesignPresetHtml("classic-bottom", content) ??
+  `<div class="announcement-overlay" style="box-sizing:border-box;width:1920px;height:1080px;position:relative;overflow:hidden;background:transparent;"></div>`;
 
 const putJson = async (key: string, value: unknown): Promise<void> => {
   await getBucket().put(key, JSON.stringify(value, null, 2), {
@@ -216,8 +203,18 @@ const getJson = async <T>(key: string): Promise<T | null> => {
   return (await object.json()) as T;
 };
 
-const readIndex = async (): Promise<AnnouncementSummary[]> =>
-  (await getJson<AnnouncementSummary[]>(INDEX_KEY)) ?? [];
+/** Normalize index rows saved before `showInPresentationDeck` existed. */
+const normalizeSummary = (
+  summary: AnnouncementSummary
+): AnnouncementSummary => ({
+  ...summary,
+  showInPresentationDeck: Boolean(summary.showInPresentationDeck),
+});
+
+const readIndex = async (): Promise<AnnouncementSummary[]> => {
+  const items = (await getJson<AnnouncementSummary[]>(INDEX_KEY)) ?? [];
+  return items.map((item) => normalizeSummary(item));
+};
 
 const writeIndex = async (items: AnnouncementSummary[]): Promise<void> => {
   await putJson(INDEX_KEY, items);
@@ -236,6 +233,7 @@ const toSummary = (draft: AnnouncementDraft): AnnouncementSummary => {
     name: draft.name,
     previewObjectKey: selected?.objectKey ?? null,
     selectedVariationId: draft.selectedVariationId,
+    showInPresentationDeck: Boolean(draft.showInPresentationDeck),
     status: draft.status,
     updatedAt: draft.updatedAt,
     variationCount: draft.variations.length,
@@ -506,6 +504,7 @@ const generateHtmlWithAi = async (options: {
     "Example scrim: background:linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%); background-color:transparent;",
     "Text must be highly legible on varied photos (text-shadow + alpha gradient scrims only).",
     "Include semantic structure for title, subtitle, heading, and tertiary info.",
+    'Prefer data-ann-role attributes on semantic pieces so style packs can retarget them: data-ann-role="heading", "title", "subtitle", "body", "scrim-bottom", "scrim-top", "scrim-left", "scrim-right", or "panel".',
     "Escape any user content that could break HTML.",
   ].join(" ");
 
@@ -596,6 +595,7 @@ export const createAnnouncement = createServerFn({ method: "POST" })
     });
 
     await saveDraft({
+      appliedStyleId: "classic-bottom",
       approvedAt: null,
       backgroundPrompt: data.backgroundPrompt?.trim() || "",
       content,
@@ -606,6 +606,7 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       id,
       name,
       selectedVariationId: null,
+      showInPresentationDeck: false,
       status: "draft",
       updatedAt: timestamp,
       variations: [],
@@ -641,6 +642,13 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
 
     if (data.backgroundPrompt !== undefined) {
       draft.backgroundPrompt = data.backgroundPrompt.trim();
+    }
+
+    if (data.appliedStyleId !== undefined) {
+      draft.appliedStyleId =
+        typeof data.appliedStyleId === "string" && data.appliedStyleId.trim()
+          ? data.appliedStyleId.trim()
+          : null;
     }
 
     markDirtyIfApproved(draft);
@@ -921,6 +929,72 @@ export const approveAnnouncement = createServerFn({ method: "POST" })
     draft.approvedAt = nowIso();
     return await saveDraft(draft);
   });
+
+export const setShowInPresentationDeck = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: SetShowInPresentationDeckInput) => data)
+  .handler(async ({ data }): Promise<AnnouncementDraft> => {
+    const draft = await loadDraft(data.id);
+
+    if (draft.status !== "approved" || !draft.exportObjectKey) {
+      throw new Error(
+        "Only approved announcements can be shown in the presentation deck."
+      );
+    }
+
+    draft.showInPresentationDeck = Boolean(data.showInPresentationDeck);
+    return await saveDraft(draft);
+  });
+
+/**
+ * Public (unauthenticated) list of approved announcements opted into the
+ * presentation deck, with JPEG export payloads for the slideshow.
+ */
+export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PresentationSlide[]> => {
+    const index = await readIndex();
+    const eligible = index.filter(
+      (item) =>
+        item.status === "approved" &&
+        item.showInPresentationDeck &&
+        Boolean(item.exportObjectKey)
+    );
+
+    // Stable order: oldest approved first so the deck order is predictable.
+    eligible.sort(
+      (a, b) =>
+        (Date.parse(a.approvedAt ?? a.createdAt) || 0) -
+        (Date.parse(b.approvedAt ?? b.createdAt) || 0)
+    );
+
+    const results = await Promise.all(
+      eligible.map(async (item): Promise<PresentationSlide | null> => {
+        const objectKey = item.exportObjectKey;
+
+        if (!objectKey) {
+          return null;
+        }
+
+        try {
+          const asset = await readAssetBase64(objectKey);
+          return {
+            base64: asset.base64,
+            contentType: asset.contentType,
+            id: item.id,
+            name: item.name,
+          };
+        } catch {
+          // Skip missing exports rather than failing the whole deck.
+          return null;
+        }
+      })
+    );
+
+    return results.filter(
+      (slide): slide is PresentationSlide => slide !== null
+    );
+  }
+);
 
 export const deleteAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])

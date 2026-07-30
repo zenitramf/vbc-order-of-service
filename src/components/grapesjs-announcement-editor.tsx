@@ -19,13 +19,33 @@ import {
   stripRuntimePhotoBackgroundCss,
 } from "~/lib/announcement-overlay-html";
 import {
+  ANNOUNCEMENT_ROLE_ATTR,
+  buildDesignPresetHtml,
+} from "~/lib/announcement-style-library";
+import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
+import type { AnnouncementContent } from "~/lib/announcement-types";
 import { cn } from "~/lib/utils";
+
+export interface ApplyStylePackHandleResult {
+  /** Serialized overlay HTML after applying the design preset layout. */
+  html: string;
+  packId: string;
+}
 
 /** Imperative API for parent flows that need a synchronous canvas snapshot (e.g. JPG export). */
 export interface GrapesjsAnnouncementEditorHandle {
+  /**
+   * Replace the canvas with a full design-preset layout (structure + type +
+   * scrims) filled from content fields. Never paints the Body photo.
+   * Returns serialized HTML so the parent can persist preset id + markup.
+   */
+  applyStylePack: (
+    packId: string,
+    content: AnnouncementContent
+  ) => ApplyStylePackHandleResult | null;
   /** Serialize the live canvas immediately (cancels pending debounced save). */
   flush: () => string | null;
 }
@@ -195,6 +215,10 @@ export const syncBackgroundOnBody = (
   });
 };
 
+const roleAttrs = (role: string): Record<string, string> => ({
+  [ANNOUNCEMENT_ROLE_ATTR]: role,
+});
+
 const registerAnnouncementBlocks = (editor: Editor): void => {
   const blockManager = editor.BlockManager;
 
@@ -204,14 +228,15 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-heading", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("heading"),
       content: "HEADING",
       style: {
         color: "#ffffff",
         "font-family": "system-ui, sans-serif",
-        "font-size": "28px",
+        "font-size": "42px",
         "letter-spacing": "0.28em",
-        margin: "0 0 12px 0",
-        "text-shadow": "0 2px 12px rgba(0,0,0,0.45)",
+        margin: "0 0 16px 0",
+        "text-shadow": "0 3px 16px rgba(0,0,0,0.5)",
         "text-transform": "uppercase",
       },
       type: "text",
@@ -223,15 +248,16 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-title", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("title"),
       content: "Announcement Title",
       style: {
         color: "#ffffff",
         "font-family": "Georgia, 'Times New Roman', serif",
-        "font-size": "96px",
+        "font-size": "132px",
         "font-weight": "700",
-        "line-height": "1.05",
-        margin: "0 0 18px 0",
-        "text-shadow": "0 4px 24px rgba(0,0,0,0.45)",
+        "line-height": "1.02",
+        margin: "0 0 24px 0",
+        "text-shadow": "0 6px 32px rgba(0,0,0,0.5)",
       },
       tagName: "h1",
       type: "text",
@@ -243,14 +269,15 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-subtitle", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("subtitle"),
       content: "Subtitle text",
       style: {
         color: "#ffffff",
         "font-family": "Georgia, 'Times New Roman', serif",
-        "font-size": "42px",
+        "font-size": "58px",
         "font-weight": "400",
-        "line-height": "1.25",
-        margin: "0 0 28px 0",
+        "line-height": "1.2",
+        margin: "0 0 32px 0",
         opacity: "0.95",
       },
       type: "text",
@@ -262,15 +289,16 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-body", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("body"),
       content: "Additional details go here.",
       style: {
         color: "#ffffff",
         "font-family": "system-ui, sans-serif",
-        "font-size": "28px",
-        "line-height": "1.4",
+        "font-size": "40px",
+        "line-height": "1.35",
         margin: "0",
-        "max-width": "1200px",
-        opacity: "0.88",
+        "max-width": "1400px",
+        opacity: "0.9",
       },
       type: "text",
     },
@@ -281,12 +309,14 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-text-box", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("panel"),
       components: [
         {
+          attributes: roleAttrs("body"),
           content: "Editable text block",
           style: {
             color: "#ffffff",
-            "font-size": "32px",
+            "font-size": "40px",
             margin: "0",
           },
           type: "text",
@@ -297,8 +327,8 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
         "background-color": "transparent",
         "border-radius": "12px",
         "box-sizing": "border-box",
-        padding: "24px 32px",
-        width: "640px",
+        padding: "32px 40px",
+        width: "800px",
       },
       tagName: "div",
     },
@@ -309,6 +339,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-bottom"),
       style: {
         background: BOTTOM_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -329,6 +360,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim-top", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-top"),
       style: {
         background: TOP_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -348,6 +380,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim-left", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-left"),
       style: {
         background: LEFT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -367,6 +400,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim-right", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-right"),
       style: {
         background: RIGHT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -416,7 +450,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
       content: "Insert your text here",
       style: {
         color: "#ffffff",
-        "font-size": "32px",
+        "font-size": "40px",
         padding: "8px",
       },
       type: "text",
@@ -428,10 +462,11 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-link", {
     category: "Basic",
     content: {
+      attributes: roleAttrs("link"),
       content: "Link text",
       style: {
         color: "#fbbf24",
-        "font-size": "28px",
+        "font-size": "40px",
       },
       type: "link",
     },
@@ -449,6 +484,27 @@ const loadHtmlIntoEditor = (editor: Editor, html: string): void => {
   if (css) {
     editor.setStyle(css);
   }
+};
+
+/**
+ * Replace the editor canvas with a design-preset layout HTML fragment.
+ * Photo stays on Body via syncBackgroundOnBody (caller should re-sync after).
+ */
+export const applyDesignPresetToEditor = (
+  editor: Editor,
+  packId: string,
+  content: AnnouncementContent
+): ApplyStylePackHandleResult | null => {
+  const presetHtml = buildDesignPresetHtml(packId, content);
+
+  if (!presetHtml) {
+    return null;
+  }
+
+  loadHtmlIntoEditor(editor, presetHtml);
+  const overlayHtml = serializeOverlayHtml(editor);
+
+  return { html: overlayHtml, packId };
 };
 
 const isClearPaint = (value: string): boolean =>
@@ -540,6 +596,41 @@ export const GrapesjsAnnouncementEditor = ({
   useImperativeHandle(
     ref,
     () => ({
+      applyStylePack: (packId: string, content: AnnouncementContent) => {
+        const editor = editorRef.current;
+
+        if (!editor) {
+          return null;
+        }
+
+        // Suppress event-driven saves while replacing layout; parent persists once.
+        suppressEmitRef.current = true;
+
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+
+        const result = applyDesignPresetToEditor(editor, packId, content);
+
+        if (!result) {
+          suppressEmitRef.current = false;
+          return null;
+        }
+
+        // Keep the selected variation photo on Body after layout swap.
+        syncBackgroundOnBody(editor, backgroundUrlRef.current);
+        makeCanvasChrome(editor);
+        editor.UndoManager.clear();
+        requestAnimationFrame(() => {
+          fitAnnouncementViewport(editor);
+        });
+
+        syncedHtmlRef.current = result.html;
+        suppressEmitRef.current = false;
+
+        return result;
+      },
       flush: () => {
         const editor = editorRef.current;
 
