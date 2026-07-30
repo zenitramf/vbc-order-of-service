@@ -118,10 +118,11 @@ const textStack = (
   const align = options.align ?? "left";
   const textAlign = `text-align:${align};`;
 
+  // Spacing tuned for large TV type so lines don't crowd at 1080p.
   return [
-    `<p ${role("heading")} style="margin:0 0 12px;${textAlign}${options.headingStyle ?? ""}">${escapeHtml(c.heading)}</p>`,
-    `<h1 ${role("title")} style="margin:0 0 18px;${textAlign}${options.titleStyle ?? ""}">${escapeHtml(c.title)}</h1>`,
-    `<p ${role("subtitle")} style="margin:0 0 28px;${textAlign}${options.subtitleStyle ?? ""}">${escapeHtml(c.subtitle)}</p>`,
+    `<p ${role("heading")} style="margin:0 0 16px;${textAlign}${options.headingStyle ?? ""}">${escapeHtml(c.heading)}</p>`,
+    `<h1 ${role("title")} style="margin:0 0 24px;${textAlign}${options.titleStyle ?? ""}">${escapeHtml(c.title)}</h1>`,
+    `<p ${role("subtitle")} style="margin:0 0 32px;${textAlign}${options.subtitleStyle ?? ""}">${escapeHtml(c.subtitle)}</p>`,
     `<p ${role("body")} style="margin:0;${textAlign}${options.bodyStyle ?? ""}">${escapeHtml(c.body)}</p>`,
   ].join("\n  ");
 };
@@ -129,21 +130,21 @@ const textStack = (
 const wrapOverlay = (inner: string): string =>
   `<div class="announcement-overlay" style="${ROOT_STYLE}">\n${inner}\n</div>`;
 
-// Shared type recipes
-const HEADING_CLASSIC = `font-size:28px;letter-spacing:0.28em;text-transform:uppercase;opacity:0.92;font-family:${SYSTEM_SANS};color:#ffffff;text-shadow:0 2px 12px rgba(0,0,0,0.45);`;
-const TITLE_CLASSIC = `font-size:96px;line-height:1.05;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 4px 24px rgba(0,0,0,0.45);`;
-const SUBTITLE_CLASSIC = `font-size:42px;line-height:1.25;font-weight:400;font-family:${GEORGIA_SERIF};color:#ffffff;opacity:0.95;`;
-const BODY_CLASSIC = `font-size:28px;line-height:1.4;opacity:0.88;font-family:${SYSTEM_SANS};color:#ffffff;max-width:1200px;`;
+// Shared type recipes — sized for living-room / sanctuary TV screens at 1920×1080.
+const HEADING_CLASSIC = `font-size:42px;letter-spacing:0.28em;text-transform:uppercase;opacity:0.92;font-family:${SYSTEM_SANS};color:#ffffff;text-shadow:0 3px 16px rgba(0,0,0,0.5);`;
+const TITLE_CLASSIC = `font-size:132px;line-height:1.02;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 6px 32px rgba(0,0,0,0.5);`;
+const SUBTITLE_CLASSIC = `font-size:58px;line-height:1.2;font-weight:400;font-family:${GEORGIA_SERIF};color:#ffffff;opacity:0.95;`;
+const BODY_CLASSIC = `font-size:40px;line-height:1.35;opacity:0.9;font-family:${SYSTEM_SANS};color:#ffffff;max-width:1400px;`;
 
-const HEADING_MODERN = `font-size:22px;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#a5b4fc;text-shadow:0 1px 8px rgba(0,0,0,0.35);`;
-const TITLE_MODERN = `font-size:84px;line-height:1.02;font-weight:700;letter-spacing:-0.02em;font-family:${SYSTEM_SANS};color:#f8fafc;text-shadow:0 2px 16px rgba(0,0,0,0.4);`;
-const SUBTITLE_MODERN = `font-size:36px;line-height:1.3;font-weight:400;font-family:${SYSTEM_SANS};color:#f1f5f9;opacity:0.92;`;
-const BODY_MODERN = `font-size:26px;line-height:1.45;font-family:${SYSTEM_SANS};color:#e2e8f0;opacity:0.9;max-width:720px;`;
+const HEADING_MODERN = `font-size:36px;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#a5b4fc;text-shadow:0 2px 12px rgba(0,0,0,0.4);`;
+const TITLE_MODERN = `font-size:120px;line-height:1.0;font-weight:700;letter-spacing:-0.02em;font-family:${SYSTEM_SANS};color:#f8fafc;text-shadow:0 4px 24px rgba(0,0,0,0.45);`;
+const SUBTITLE_MODERN = `font-size:52px;line-height:1.25;font-weight:400;font-family:${SYSTEM_SANS};color:#f1f5f9;opacity:0.92;`;
+const BODY_MODERN = `font-size:40px;line-height:1.4;font-family:${SYSTEM_SANS};color:#e2e8f0;opacity:0.92;max-width:1000px;`;
 
-const HEADING_GOLD = `font-size:26px;letter-spacing:0.3em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#fbbf24;text-shadow:0 2px 12px rgba(0,0,0,0.5);`;
-const TITLE_GOLD = `font-size:92px;line-height:1.05;font-weight:700;font-family:${GEORGIA_SERIF};color:#fffbeb;text-shadow:0 4px 22px rgba(0,0,0,0.5);`;
-const SUBTITLE_GOLD = `font-size:40px;line-height:1.25;font-weight:400;font-family:${GEORGIA_SERIF};color:#fde68a;opacity:0.95;`;
-const BODY_GOLD = `font-size:28px;line-height:1.4;font-family:${SYSTEM_SANS};color:#fef3c7;opacity:0.9;max-width:640px;`;
+const HEADING_GOLD = `font-size:40px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#fbbf24;text-shadow:0 3px 16px rgba(0,0,0,0.55);`;
+const TITLE_GOLD = `font-size:124px;line-height:1.02;font-weight:700;font-family:${GEORGIA_SERIF};color:#fffbeb;text-shadow:0 6px 28px rgba(0,0,0,0.55);`;
+const SUBTITLE_GOLD = `font-size:54px;line-height:1.2;font-weight:400;font-family:${GEORGIA_SERIF};color:#fde68a;opacity:0.95;`;
+const BODY_GOLD = `font-size:40px;line-height:1.35;font-family:${SYSTEM_SANS};color:#fef3c7;opacity:0.92;max-width:780px;`;
 
 // ── Layout builders ─────────────────────────────────────────────────────────
 
@@ -168,10 +169,10 @@ const buildLowerLeft = (content: AnnouncementContent): string => {
   <div style="position:absolute;left:0;bottom:0;box-sizing:border-box;padding:72px 80px 88px 100px;width:58%;max-width:1100px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;background:transparent;">
   ${textStack(c, {
     align: "left",
-    bodyStyle: `${BODY_CLASSIC}max-width:900px;`,
+    bodyStyle: `${BODY_CLASSIC}max-width:1000px;`,
     headingStyle: HEADING_CLASSIC,
-    subtitleStyle: `${SUBTITLE_CLASSIC}font-size:38px;`,
-    titleStyle: `${TITLE_CLASSIC}font-size:88px;`,
+    subtitleStyle: SUBTITLE_CLASSIC,
+    titleStyle: `${TITLE_CLASSIC}font-size:120px;`,
   })}
   </div>`);
 };
@@ -183,10 +184,10 @@ const buildCenteredHero = (content: AnnouncementContent): string => {
   <div style="position:absolute;inset:0;box-sizing:border-box;padding:100px 140px;display:flex;flex-direction:column;justify-content:center;align-items:center;background:transparent;">
   ${textStack(c, {
     align: "center",
-    bodyStyle: `${BODY_MODERN}max-width:900px;`,
+    bodyStyle: `${BODY_MODERN}max-width:1100px;`,
     headingStyle: HEADING_MODERN,
-    subtitleStyle: `${SUBTITLE_MODERN}max-width:960px;`,
-    titleStyle: `${TITLE_MODERN}font-size:100px;max-width:1400px;`,
+    subtitleStyle: `${SUBTITLE_MODERN}max-width:1200px;`,
+    titleStyle: `${TITLE_MODERN}font-size:140px;max-width:1600px;`,
   })}
   </div>`);
 };
@@ -200,35 +201,35 @@ const buildTopBanner = (content: AnnouncementContent): string => {
     bodyStyle: BODY_CLASSIC,
     headingStyle: HEADING_CLASSIC,
     subtitleStyle: SUBTITLE_CLASSIC,
-    titleStyle: `${TITLE_CLASSIC}font-size:90px;`,
+    titleStyle: `${TITLE_CLASSIC}font-size:124px;`,
   })}
   </div>`);
 };
 
 const buildLeftPanel = (content: AnnouncementContent): string => {
   const c = resolveContent(content);
-  return wrapOverlay(`  <div ${role("scrim-left")} style="position:absolute;left:0;top:0;bottom:0;width:48%;pointer-events:none;background:linear-gradient(to right, rgba(2,6,23,0.82) 0%, rgba(2,6,23,0.55) 55%, transparent 100%);background-color:transparent;"></div>
-  <div ${role("panel")} style="position:absolute;left:0;top:0;bottom:0;width:44%;box-sizing:border-box;padding:100px 72px 100px 100px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;background:linear-gradient(180deg, rgba(2,6,23,0.35) 0%, rgba(2,6,23,0.15) 100%);background-color:transparent;">
+  return wrapOverlay(`  <div ${role("scrim-left")} style="position:absolute;left:0;top:0;bottom:0;width:50%;pointer-events:none;background:linear-gradient(to right, rgba(2,6,23,0.82) 0%, rgba(2,6,23,0.55) 55%, transparent 100%);background-color:transparent;"></div>
+  <div ${role("panel")} style="position:absolute;left:0;top:0;bottom:0;width:48%;box-sizing:border-box;padding:88px 64px 88px 96px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;background:linear-gradient(180deg, rgba(2,6,23,0.35) 0%, rgba(2,6,23,0.15) 100%);background-color:transparent;">
   ${textStack(c, {
     align: "left",
-    bodyStyle: `font-size:26px;line-height:1.45;font-family:${SYSTEM_SANS};color:#bae6fd;opacity:0.9;max-width:620px;`,
-    headingStyle: `font-size:22px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#7dd3fc;text-shadow:0 2px 12px rgba(2,6,23,0.6);`,
-    subtitleStyle: `font-size:34px;line-height:1.3;font-family:${SYSTEM_SANS};color:#e0f2fe;opacity:0.95;`,
-    titleStyle: `font-size:72px;line-height:1.05;font-weight:700;letter-spacing:-0.015em;font-family:${SYSTEM_SANS};color:#f0f9ff;text-shadow:0 4px 24px rgba(2,6,23,0.65);`,
+    bodyStyle: `font-size:38px;line-height:1.35;font-family:${SYSTEM_SANS};color:#bae6fd;opacity:0.92;max-width:720px;`,
+    headingStyle: `font-size:34px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#7dd3fc;text-shadow:0 3px 14px rgba(2,6,23,0.65);`,
+    subtitleStyle: `font-size:48px;line-height:1.25;font-family:${SYSTEM_SANS};color:#e0f2fe;opacity:0.95;`,
+    titleStyle: `font-size:100px;line-height:1.02;font-weight:700;letter-spacing:-0.015em;font-family:${SYSTEM_SANS};color:#f0f9ff;text-shadow:0 6px 28px rgba(2,6,23,0.7);`,
   })}
   </div>`);
 };
 
 const buildRightPanel = (content: AnnouncementContent): string => {
   const c = resolveContent(content);
-  return wrapOverlay(`  <div ${role("scrim-right")} style="position:absolute;right:0;top:0;bottom:0;width:50%;pointer-events:none;background:linear-gradient(to left, rgba(20,12,0,0.8) 0%, rgba(20,12,0,0.45) 55%, transparent 100%);background-color:transparent;"></div>
-  <div ${role("panel")} style="position:absolute;right:0;top:0;bottom:0;width:46%;box-sizing:border-box;padding:100px 100px 100px 72px;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;background:linear-gradient(180deg, rgba(41,25,0,0.4) 0%, rgba(41,25,0,0.18) 100%);background-color:transparent;">
+  return wrapOverlay(`  <div ${role("scrim-right")} style="position:absolute;right:0;top:0;bottom:0;width:52%;pointer-events:none;background:linear-gradient(to left, rgba(20,12,0,0.8) 0%, rgba(20,12,0,0.45) 55%, transparent 100%);background-color:transparent;"></div>
+  <div ${role("panel")} style="position:absolute;right:0;top:0;bottom:0;width:48%;box-sizing:border-box;padding:88px 96px 88px 64px;display:flex;flex-direction:column;justify-content:center;align-items:flex-end;background:linear-gradient(180deg, rgba(41,25,0,0.4) 0%, rgba(41,25,0,0.18) 100%);background-color:transparent;">
   ${textStack(c, {
     align: "right",
     bodyStyle: BODY_GOLD,
     headingStyle: HEADING_GOLD,
     subtitleStyle: SUBTITLE_GOLD,
-    titleStyle: `${TITLE_GOLD}font-size:80px;`,
+    titleStyle: `${TITLE_GOLD}font-size:110px;`,
   })}
   </div>`);
 };
@@ -236,15 +237,15 @@ const buildRightPanel = (content: AnnouncementContent): string => {
 const buildTwoPanel = (content: AnnouncementContent): string => {
   const c = resolveContent(content);
   // Left solid-feeling panel with copy; right half stays open for the photo.
-  return wrapOverlay(`  <div ${role("scrim-left")} style="position:absolute;left:0;top:0;bottom:0;width:52%;pointer-events:none;background:linear-gradient(to right, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.55) 70%, transparent 100%);background-color:transparent;"></div>
-  <div ${role("panel")} style="position:absolute;left:0;top:0;bottom:0;width:46%;box-sizing:border-box;padding:96px 64px 96px 96px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;background:linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.22) 100%);background-color:transparent;border-right:1px solid rgba(255,255,255,0.12);">
+  return wrapOverlay(`  <div ${role("scrim-left")} style="position:absolute;left:0;top:0;bottom:0;width:54%;pointer-events:none;background:linear-gradient(to right, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.55) 70%, transparent 100%);background-color:transparent;"></div>
+  <div ${role("panel")} style="position:absolute;left:0;top:0;bottom:0;width:48%;box-sizing:border-box;padding:88px 56px 88px 88px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;background:linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.22) 100%);background-color:transparent;border-right:1px solid rgba(255,255,255,0.12);">
   <div style="display:flex;flex-direction:column;align-items:flex-start;background:transparent;">
-  <p ${role("heading")} style="margin:0 0 20px;text-align:left;${HEADING_CLASSIC}">${escapeHtml(c.heading)}</p>
-  <h1 ${role("title")} style="margin:0;text-align:left;font-size:78px;line-height:1.06;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 4px 24px rgba(0,0,0,0.45);">${escapeHtml(c.title)}</h1>
+  <p ${role("heading")} style="margin:0 0 24px;text-align:left;${HEADING_CLASSIC}">${escapeHtml(c.heading)}</p>
+  <h1 ${role("title")} style="margin:0;text-align:left;font-size:108px;line-height:1.04;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 6px 28px rgba(0,0,0,0.5);">${escapeHtml(c.title)}</h1>
   </div>
   <div style="display:flex;flex-direction:column;align-items:flex-start;background:transparent;margin-top:48px;">
-  <p ${role("subtitle")} style="margin:0 0 20px;text-align:left;${SUBTITLE_CLASSIC}font-size:36px;">${escapeHtml(c.subtitle)}</p>
-  <p ${role("body")} style="margin:0;text-align:left;${BODY_CLASSIC}max-width:620px;">${escapeHtml(c.body)}</p>
+  <p ${role("subtitle")} style="margin:0 0 24px;text-align:left;${SUBTITLE_CLASSIC}">${escapeHtml(c.subtitle)}</p>
+  <p ${role("body")} style="margin:0;text-align:left;${BODY_CLASSIC}max-width:720px;">${escapeHtml(c.body)}</p>
   </div>
   </div>`);
 };
@@ -252,13 +253,13 @@ const buildTwoPanel = (content: AnnouncementContent): string => {
 const buildCornerCard = (content: AnnouncementContent): string => {
   const c = resolveContent(content);
   return wrapOverlay(`  <div ${role("scrim-bottom")} style="position:absolute;left:0;right:0;bottom:0;height:50%;pointer-events:none;background:linear-gradient(to top, rgba(28,25,23,0.45) 0%, transparent 85%);background-color:transparent;"></div>
-  <div ${role("panel")} style="position:absolute;left:80px;bottom:72px;width:780px;box-sizing:border-box;padding:48px 52px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;border-radius:20px;background:linear-gradient(180deg, rgba(28,25,23,0.72) 0%, rgba(28,25,23,0.52) 100%);background-color:transparent;box-shadow:0 24px 64px rgba(0,0,0,0.35);">
+  <div ${role("panel")} style="position:absolute;left:72px;bottom:64px;width:980px;box-sizing:border-box;padding:56px 60px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;border-radius:24px;background:linear-gradient(180deg, rgba(28,25,23,0.78) 0%, rgba(28,25,23,0.58) 100%);background-color:transparent;box-shadow:0 24px 64px rgba(0,0,0,0.35);">
   ${textStack(c, {
     align: "left",
-    bodyStyle: `font-size:24px;line-height:1.45;font-family:${GEORGIA_SERIF};color:#e7e5e4;opacity:0.9;max-width:680px;`,
-    headingStyle: `font-size:18px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500;font-family:${SYSTEM_SANS};color:#d6d3d1;text-shadow:0 1px 6px rgba(0,0,0,0.3);`,
-    subtitleStyle: `font-size:32px;line-height:1.3;font-weight:400;font-family:${GEORGIA_SERIF};color:#f5f5f4;opacity:0.92;`,
-    titleStyle: `font-size:64px;line-height:1.08;font-weight:500;font-family:${GEORGIA_SERIF};color:#fafaf9;text-shadow:0 2px 18px rgba(0,0,0,0.35);`,
+    bodyStyle: `font-size:36px;line-height:1.4;font-family:${GEORGIA_SERIF};color:#e7e5e4;opacity:0.92;max-width:860px;`,
+    headingStyle: `font-size:30px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500;font-family:${SYSTEM_SANS};color:#d6d3d1;text-shadow:0 2px 10px rgba(0,0,0,0.35);`,
+    subtitleStyle: `font-size:46px;line-height:1.25;font-weight:400;font-family:${GEORGIA_SERIF};color:#f5f5f4;opacity:0.94;`,
+    titleStyle: `font-size:88px;line-height:1.06;font-weight:500;font-family:${GEORGIA_SERIF};color:#fafaf9;text-shadow:0 4px 22px rgba(0,0,0,0.4);`,
   })}
   </div>`);
 };

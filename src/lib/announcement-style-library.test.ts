@@ -83,8 +83,10 @@ describe("announcement-style-library", () => {
     expect(twoPanel).toContain("border-right");
     expect(twoPanel).toContain(`${ANNOUNCEMENT_ROLE_ATTR}="panel"`);
 
-    expect(leftPanel).toContain("width:44%");
+    expect(leftPanel).toContain("width:48%");
     expect(leftPanel).toContain(`${ANNOUNCEMENT_ROLE_ATTR}="panel"`);
+    expect(leftPanel).toContain("font-size:100px");
+    expect(centered).toContain("font-size:140px");
   });
 
   it("escapes HTML in content fields", () => {
