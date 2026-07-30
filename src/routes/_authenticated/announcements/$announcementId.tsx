@@ -27,10 +27,13 @@ import {
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { toJpeg } from "html-to-image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Ref } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
+import { GrapesjsAnnouncementEditor } from "~/components/grapesjs-announcement-editor";
+import type { GrapesjsAnnouncementEditorHandle } from "~/components/grapesjs-announcement-editor";
 import { HtmlCodeEditor } from "~/components/html-code-editor";
-import { InteractiveAnnouncementCanvas } from "~/components/interactive-announcement-canvas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +45,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "~/components/ui/alert-dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -100,6 +109,7 @@ import {
   saveAnnouncement,
   selectVariation,
 } from "~/lib/announcement-data";
+import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
 import type {
   AnnouncementContent,
   AnnouncementDraft,
@@ -142,30 +152,36 @@ const AnnouncementStage = ({
 }: {
   backgroundUrl: string | null;
   html: string;
-}) => (
-  <div
-    className="relative overflow-hidden bg-black"
-    style={{ height: ANNOUNCEMENT_HEIGHT, width: ANNOUNCEMENT_WIDTH }}
-  >
-    {backgroundUrl ? (
-      <img
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-        crossOrigin="anonymous"
-        src={backgroundUrl}
-      />
-    ) : (
-      <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-2xl">
-        Select or generate a background
-      </div>
-    )}
+}) => {
+  // Flatten GrapesJS device @media rules + repair body wrappers so export
+  // matches the canvas even when the host viewport is wider than 1920px.
+  const renderHtml = prepareOverlayHtmlForRender(html);
+
+  return (
     <div
-      className="absolute inset-0 size-full [&_.announcement-overlay]:size-full"
-      // User/AI-authored overlay markup for the composite canvas.
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  </div>
-);
+      className="relative overflow-hidden bg-black"
+      style={{ height: ANNOUNCEMENT_HEIGHT, width: ANNOUNCEMENT_WIDTH }}
+    >
+      {backgroundUrl ? (
+        <img
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          crossOrigin="anonymous"
+          src={backgroundUrl}
+        />
+      ) : (
+        <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-2xl">
+          Select or generate a background
+        </div>
+      )}
+      <div
+        className="absolute inset-0 size-full [&_.announcement-overlay]:size-full"
+        // User/AI-authored overlay markup for the composite canvas.
+        dangerouslySetInnerHTML={{ __html: renderHtml }}
+      />
+    </div>
+  );
+};
 
 interface VariationColumnsOptions {
   assetUrls: Record<string, string>;
@@ -272,20 +288,14 @@ const VIEWPORT_CANVAS_SHELL =
 
 const LiveCanvasEditor = ({
   backgroundUrl,
-  canRedo,
-  canUndo,
+  editorRef,
   html,
   onHtmlChange,
-  onRedo,
-  onUndo,
 }: {
   backgroundUrl: string | null;
-  canRedo: boolean;
-  canUndo: boolean;
+  editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
   html: string;
   onHtmlChange: (html: string) => void;
-  onRedo: () => void;
-  onUndo: () => void;
 }) => (
   <Card
     className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0"
@@ -294,10 +304,12 @@ const LiveCanvasEditor = ({
     <CardHeader className="shrink-0 border-b py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <CardTitle className="text-base">Canvas editor</CardTitle>
+          <CardTitle className="text-base">GrapesJS editor</CardTitle>
           <CardDescription className="text-xs">
-            Drag, resize, rotate, and edit text. Auto-saves · up to{" "}
-            {HTML_HISTORY_MAX_SNAPSHOTS} undos (Mod+Z / Mod+Y).
+            Native GrapesJS blocks, styles, layers, and traits. Background photo
+            is on the Body component (swaps with the selected variation).
+            Auto-saves · up to {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots
+            (Mod+Z / Mod+Y).
           </CardDescription>
         </div>
         <Badge className="w-fit shrink-0" variant="secondary">
@@ -305,16 +317,13 @@ const LiveCanvasEditor = ({
         </Badge>
       </div>
     </CardHeader>
-    <CardContent className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
-      <InteractiveAnnouncementCanvas
+    <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
+      <GrapesjsAnnouncementEditor
+        ref={editorRef}
         backgroundUrl={backgroundUrl}
-        canRedo={canRedo}
-        canUndo={canUndo}
         className="min-h-0 flex-1"
         html={html}
         onHtmlChange={onHtmlChange}
-        onRedo={onRedo}
-        onUndo={onUndo}
       />
     </CardContent>
   </Card>
@@ -573,6 +582,7 @@ const AnnouncementEditor = ({
     undo: undoHtmlHistory,
   } = useHtmlHistory(initial.html);
   const [styleNotes, setStyleNotes] = useState("");
+  const [markupOpen, setMarkupOpen] = useState(false);
   const [variationCount, setVariationCount] = useState(2);
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [exportPreview, setExportPreview] = useState<string | null>(null);
@@ -586,6 +596,7 @@ const AnnouncementEditor = ({
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [isRemovingAll, setIsRemovingAll] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const grapesEditorRef = useRef<GrapesjsAnnouncementEditorHandle>(null);
   const htmlRef = useRef(html);
   const nameRef = useRef(name);
   const contentRef = useRef(content);
@@ -1027,8 +1038,25 @@ const AnnouncementEditor = ({
     setIsApproving(true);
 
     try {
-      await persist();
-      // Yield so the off-screen export surface paints the latest HTML + background.
+      // Flush debounced GrapesJS serialization so IDs + CSS match the canvas.
+      let exportHtml = html;
+      flushSync(() => {
+        const flushed = grapesEditorRef.current?.flush();
+        if (flushed) {
+          exportHtml = flushed;
+        }
+      });
+
+      await persist({ htmlOverride: exportHtml });
+
+      // Ensure the off-screen surface has committed the flushed markup.
+      flushSync(() => {
+        if (exportHtml !== htmlRef.current) {
+          setHtml(exportHtml);
+        }
+      });
+      // Let the browser apply nested <style> rules before html-to-image clones.
+      await Promise.resolve();
       await Promise.resolve();
 
       const surface = exportRef.current;
@@ -1105,8 +1133,8 @@ const AnnouncementEditor = ({
               </Badge>
             </div>
             <p className="text-muted-foreground max-w-2xl text-sm">
-              Edit on the canvas. Supporting tools (content, backgrounds,
-              variations) are below.
+              Edit components with GrapesJS. Swap backgrounds independently
+              below; AI HTML generation and draft tools follow.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -1156,12 +1184,9 @@ const AnnouncementEditor = ({
 
         <LiveCanvasEditor
           backgroundUrl={selectedBackgroundUrl}
-          canRedo={canRedo}
-          canUndo={canUndo}
+          editorRef={grapesEditorRef}
           html={html}
           onHtmlChange={onCanvasHtmlChange}
-          onRedo={onRedoCanvas}
-          onUndo={onUndoCanvas}
         />
       </div>
 
@@ -1173,7 +1198,7 @@ const AnnouncementEditor = ({
               <CardTitle>Content fields</CardTitle>
               <CardDescription>
                 Feed AI HTML generation. Values are not baked into the
-                background image — edit layout on the canvas above.
+                background image — edit layout in GrapesJS above.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -1299,6 +1324,43 @@ const AnnouncementEditor = ({
           </Card>
         </div>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate overlay with AI</CardTitle>
+            <CardDescription>
+              Builds layout HTML from the content fields above. Optional style
+              notes steer typography, alignment, and accents. Prefer GrapesJS
+              for manual edits after generation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Label htmlFor="style-notes">Style notes (optional)</Label>
+              <Input
+                id="style-notes"
+                onChange={(event) => setStyleNotes(event.target.value)}
+                placeholder="Modern sans-serif, left-aligned, gold accent…"
+                value={styleNotes}
+              />
+            </div>
+            <Button
+              disabled={isGeneratingHtml}
+              onClick={() => void onGenerateHtml()}
+              type="button"
+            >
+              {isGeneratingHtml ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <MagicWandIcon data-icon="inline-start" />
+              )}
+              Generate HTML with AI
+            </Button>
+          </CardContent>
+        </Card>
+
         <VariationLibraryCard
           assetUrls={assetUrls}
           isClearingContext={isClearingContext}
@@ -1321,54 +1383,40 @@ const AnnouncementEditor = ({
           variations={draft.variations}
         />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>HTML overlay (advanced)</CardTitle>
-            <CardDescription>
-              Optional source view. Prefer the canvas above for layout; use this
-              for AI generation or hand-edited markup. Same draft HTML as the
-              canvas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-                <Label htmlFor="style-notes">Style notes (optional)</Label>
-                <Input
-                  id="style-notes"
-                  onChange={(event) => setStyleNotes(event.target.value)}
-                  placeholder="Modern sans-serif, left-aligned, gold accent…"
-                  value={styleNotes}
-                />
-              </div>
-              <Button
-                disabled={isGeneratingHtml}
-                onClick={() => void onGenerateHtml()}
-                type="button"
-                variant="secondary"
-              >
-                {isGeneratingHtml ? (
-                  <CircleNotchIcon
-                    className="animate-spin"
-                    data-icon="inline-start"
+        <Accordion
+          collapsible
+          onValueChange={(value) => {
+            setMarkupOpen(value === "html-markup");
+          }}
+          type="single"
+          value={markupOpen ? "html-markup" : ""}
+        >
+          <AccordionItem value="html-markup">
+            <AccordionTrigger>
+              <span className="flex flex-col items-start gap-1">
+                <span className="text-base">HTML markup (advanced)</span>
+                <span className="text-muted-foreground text-sm font-normal">
+                  Source view of the same draft HTML as the GrapesJS canvas.
+                  Expand only when you need to inspect or hand-edit markup.
+                </span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="h-auto">
+              {/* Mount only when open so CodeMirror lays out at full height. */}
+              {markupOpen ? (
+                <div className="flex min-h-72 flex-col gap-2 pt-1">
+                  <Label htmlFor="overlay-html">HTML markup</Label>
+                  <HtmlCodeEditor
+                    id="overlay-html"
+                    minHeight="18rem"
+                    onChange={setHtml}
+                    value={html}
                   />
-                ) : (
-                  <MagicWandIcon data-icon="inline-start" />
-                )}
-                Generate HTML with AI
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="overlay-html">HTML markup</Label>
-              <HtmlCodeEditor
-                id="overlay-html"
-                minHeight="12rem"
-                onChange={setHtml}
-                value={html}
-              />
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              ) : null}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
 
       <Dialog onOpenChange={setExportDialogOpen} open={exportDialogOpen}>
@@ -1417,10 +1465,12 @@ const AnnouncementEditor = ({
         </DialogContent>
       </Dialog>
 
-      {/* Off-screen full-resolution surface for html-to-image export */}
+      {/* Off-screen full-resolution surface for html-to-image export.
+          Keep the node fully painted (no opacity:0 / visibility:hidden) so
+          getComputedStyle and stylesheet rules apply during capture. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed top-0 left-[-10000px] opacity-0"
+        className="pointer-events-none fixed top-0 left-[-10000px]"
       >
         <div ref={exportRef}>
           <AnnouncementStage
