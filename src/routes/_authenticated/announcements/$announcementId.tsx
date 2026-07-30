@@ -1,6 +1,11 @@
 import {
+  CaretDownIcon,
+  CaretUpDownIcon,
+  CaretUpIcon,
   CheckCircleIcon,
   CircleNotchIcon,
+  DownloadSimpleIcon,
+  EyeIcon,
   FloppyDiskIcon,
   ImageIcon,
   MagicWandIcon,
@@ -10,13 +15,22 @@ import {
   XCircleIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { toJpeg } from "html-to-image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { HtmlCodeEditor } from "~/components/html-code-editor";
+import { InteractiveAnnouncementCanvas } from "~/components/interactive-announcement-canvas";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +58,15 @@ import {
   ContextMenuTrigger,
 } from "~/components/ui/context-menu";
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import {
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -52,7 +75,19 @@ import {
 } from "~/components/ui/empty";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "~/components/ui/table";
 import { Textarea } from "~/components/ui/textarea";
+import {
+  HTML_HISTORY_MAX_SNAPSHOTS,
+  useHtmlHistory,
+} from "~/hooks/use-html-history";
 import {
   approveAnnouncement,
   clearVariationContext,
@@ -68,6 +103,7 @@ import {
 import type {
   AnnouncementContent,
   AnnouncementDraft,
+  AnnouncementVariation,
 } from "~/lib/announcement-types";
 import {
   ANNOUNCEMENT_HEIGHT,
@@ -76,10 +112,29 @@ import {
 import { requirePermission } from "~/lib/route-guards";
 import { cn } from "~/lib/utils";
 
-const PREVIEW_SCALE = 0.4;
+/** Display label for the background image model (generation is server-side). */
+const BACKGROUND_IMAGE_MODEL = "xai/grok-imagine-image-quality";
 
 const toDataUrl = (base64: string, contentType: string) =>
   `data:${contentType};base64,${base64}`;
+
+const formatCreatedAt = (value: string) =>
+  new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+
+const renderSortIcon = (sortDirection: false | "asc" | "desc") => {
+  if (sortDirection === "asc") {
+    return <CaretUpIcon data-icon="inline-end" />;
+  }
+
+  if (sortDirection === "desc") {
+    return <CaretDownIcon data-icon="inline-end" />;
+  }
+
+  return <CaretUpDownIcon data-icon="inline-end" />;
+};
 
 const AnnouncementStage = ({
   backgroundUrl,
@@ -105,12 +160,385 @@ const AnnouncementStage = ({
       </div>
     )}
     <div
-      className="absolute inset-0"
+      className="absolute inset-0 size-full [&_.announcement-overlay]:size-full"
       // User/AI-authored overlay markup for the composite canvas.
       dangerouslySetInnerHTML={{ __html: html }}
     />
   </div>
 );
+
+interface VariationColumnsOptions {
+  assetUrls: Record<string, string>;
+  onRemove: (variationId: string) => void;
+  removingId: string | null;
+  selectedVariationId: string | null;
+  selectingId: string | null;
+}
+
+const createVariationColumns = ({
+  assetUrls,
+  onRemove,
+  removingId,
+  selectedVariationId,
+  selectingId,
+}: VariationColumnsOptions): ColumnDef<AnnouncementVariation>[] => [
+  {
+    cell: ({ row }) => {
+      const url = assetUrls[row.original.objectKey];
+      const isSelected = row.original.id === selectedVariationId;
+      const isBusy =
+        selectingId === row.original.id || removingId === row.original.id;
+
+      return (
+        <div className="flex items-center gap-2">
+          <div
+            className={cn(
+              "bg-muted relative size-14 shrink-0 overflow-hidden rounded-md border",
+              isSelected && "ring-primary ring-2"
+            )}
+          >
+            {url ? (
+              <img alt="" className="size-full object-cover" src={url} />
+            ) : (
+              <div className="text-muted-foreground flex size-full items-center justify-center text-[10px]">
+                …
+              </div>
+            )}
+            {isBusy ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <CircleNotchIcon className="size-4 animate-spin text-white" />
+              </div>
+            ) : null}
+          </div>
+          {isSelected ? (
+            <Badge variant="default">
+              <SparkleIcon className="size-3" />
+              Context
+            </Badge>
+          ) : null}
+        </div>
+      );
+    },
+    enableSorting: false,
+    header: "Preview",
+    id: "thumbnail",
+  },
+  {
+    accessorKey: "createdAt",
+    cell: ({ row }) => formatCreatedAt(row.original.createdAt),
+    header: "Created",
+    sortingFn: (rowA, rowB) =>
+      Date.parse(rowA.original.createdAt) - Date.parse(rowB.original.createdAt),
+  },
+  {
+    cell: () => (
+      <span className="font-mono text-xs">{BACKGROUND_IMAGE_MODEL}</span>
+    ),
+    enableSorting: false,
+    header: "Model",
+    id: "model",
+  },
+  {
+    cell: ({ row }) => (
+      <div className="flex justify-end">
+        <Button
+          disabled={removingId === row.original.id}
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove(row.original.id);
+          }}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <TrashIcon data-icon="inline-start" />
+          Remove
+        </Button>
+      </div>
+    ),
+    enableSorting: false,
+    header: "",
+    id: "actions",
+  },
+];
+
+/**
+ * App chrome above main content:
+ * - top bar (h-14 = 3.5rem)
+ * - main vertical padding (p-4 = 2rem total, md:p-6 = 3rem total)
+ */
+const VIEWPORT_CANVAS_SHELL =
+  "flex h-[calc(100svh-3.5rem-2rem)] min-h-[22rem] flex-col gap-4 overflow-hidden md:h-[calc(100svh-3.5rem-3rem)]";
+
+const LiveCanvasEditor = ({
+  backgroundUrl,
+  canRedo,
+  canUndo,
+  html,
+  onHtmlChange,
+  onRedo,
+  onUndo,
+}: {
+  backgroundUrl: string | null;
+  canRedo: boolean;
+  canUndo: boolean;
+  html: string;
+  onHtmlChange: (html: string) => void;
+  onRedo: () => void;
+  onUndo: () => void;
+}) => (
+  <Card
+    className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0"
+    size="sm"
+  >
+    <CardHeader className="shrink-0 border-b py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <CardTitle className="text-base">Canvas editor</CardTitle>
+          <CardDescription className="text-xs">
+            Drag, resize, rotate, and edit text. Auto-saves · up to{" "}
+            {HTML_HISTORY_MAX_SNAPSHOTS} undos (Mod+Z / Mod+Y).
+          </CardDescription>
+        </div>
+        <Badge className="w-fit shrink-0" variant="secondary">
+          1920×1080
+        </Badge>
+      </div>
+    </CardHeader>
+    <CardContent className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
+      <InteractiveAnnouncementCanvas
+        backgroundUrl={backgroundUrl}
+        canRedo={canRedo}
+        canUndo={canUndo}
+        className="min-h-0 flex-1"
+        html={html}
+        onHtmlChange={onHtmlChange}
+        onRedo={onRedo}
+        onUndo={onUndo}
+      />
+    </CardContent>
+  </Card>
+);
+
+const VariationLibraryCard = ({
+  assetUrls,
+  isClearingContext,
+  isRemovingAll,
+  onClearContext,
+  onRemoveAll,
+  onRemoveVariation,
+  onSelectVariation,
+  removingId,
+  selectedVariationId,
+  selectingId,
+  variations,
+}: {
+  assetUrls: Record<string, string>;
+  isClearingContext: boolean;
+  isRemovingAll: boolean;
+  onClearContext: () => void;
+  onRemoveAll: () => void;
+  onRemoveVariation: (variationId: string) => void;
+  onSelectVariation: (variationId: string) => void;
+  removingId: string | null;
+  selectedVariationId: string | null;
+  selectingId: string | null;
+  variations: AnnouncementVariation[];
+}) => {
+  const [sorting, setSorting] = useState<SortingState>([
+    { desc: true, id: "createdAt" },
+  ]);
+
+  const columns = createVariationColumns({
+    assetUrls,
+    onRemove: onRemoveVariation,
+    removingId,
+    selectedVariationId,
+    selectingId,
+  });
+
+  const table = useReactTable({
+    columns,
+    data: variations,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: { sorting },
+  });
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-1.5">
+          <CardTitle>Variation library</CardTitle>
+          <CardDescription>
+            Select a variation to mark it as the happy path. That selection
+            becomes context for the next AI background batch. Right-click a row
+            to remove it.
+          </CardDescription>
+        </div>
+        {variations.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={isClearingContext || !selectedVariationId}
+              onClick={onClearContext}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {isClearingContext ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <XCircleIcon data-icon="inline-start" />
+              )}
+              Clear Context
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  disabled={isRemovingAll}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {isRemovingAll ? (
+                    <CircleNotchIcon
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : (
+                    <TrashIcon data-icon="inline-start" />
+                  )}
+                  Remove All
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove all variations?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This permanently deletes every background in the library and
+                    clears the active context. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={isRemovingAll}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={isRemovingAll}
+                    onClick={onRemoveAll}
+                    variant="destructive"
+                  >
+                    Remove All
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ) : null}
+      </CardHeader>
+      <CardContent>
+        {variations.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No backgrounds yet. Generate variations from a prompt above.
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    if (header.isPlaceholder) {
+                      return <TableHead key={header.id} />;
+                    }
+
+                    if (header.column.getCanSort()) {
+                      return (
+                        <TableHead key={header.id}>
+                          <Button
+                            className="-ml-2 h-8"
+                            onClick={header.column.getToggleSortingHandler()}
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            {renderSortIcon(header.column.getIsSorted())}
+                          </Button>
+                        </TableHead>
+                      );
+                    }
+
+                    return (
+                      <TableHead key={header.id}>
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => {
+                const isSelected = row.original.id === selectedVariationId;
+                const isBusy =
+                  selectingId === row.original.id ||
+                  removingId === row.original.id;
+
+                return (
+                  <ContextMenu key={row.id}>
+                    <ContextMenuTrigger asChild>
+                      <TableRow
+                        className={cn(
+                          "cursor-pointer",
+                          isSelected && "bg-muted/60"
+                        )}
+                        data-state={isSelected ? "selected" : undefined}
+                        onClick={() => {
+                          if (!isBusy) {
+                            onSelectVariation(row.original.id);
+                          }
+                        }}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem
+                        disabled={removingId === row.original.id}
+                        onClick={() => onRemoveVariation(row.original.id)}
+                        variant="destructive"
+                      >
+                        <TrashIcon />
+                        Remove
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 const AnnouncementEditor = ({
   announcement: initial,
@@ -134,11 +562,21 @@ const AnnouncementEditor = ({
   const [backgroundPrompt, setBackgroundPrompt] = useState(
     initial.backgroundPrompt
   );
-  const [html, setHtml] = useState(initial.html);
+  const {
+    canRedo,
+    canUndo,
+    commit: commitHtmlHistory,
+    html,
+    redo: redoHtmlHistory,
+    reset: resetHtmlHistory,
+    setHtml,
+    undo: undoHtmlHistory,
+  } = useHtmlHistory(initial.html);
   const [styleNotes, setStyleNotes] = useState("");
   const [variationCount, setVariationCount] = useState(2);
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [exportPreview, setExportPreview] = useState<string | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingBg, setIsGeneratingBg] = useState(false);
   const [isGeneratingHtml, setIsGeneratingHtml] = useState(false);
@@ -148,6 +586,22 @@ const AnnouncementEditor = ({
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [isRemovingAll, setIsRemovingAll] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const htmlRef = useRef(html);
+  const nameRef = useRef(name);
+  const contentRef = useRef(content);
+  const backgroundPromptRef = useRef(backgroundPrompt);
+  const draftIdRef = useRef(draft.id);
+  const autoSaveInFlightRef = useRef(false);
+  const autoSaveLatestRef = useRef<string | null>(null);
+
+  htmlRef.current = html;
+  nameRef.current = name;
+  contentRef.current = content;
+  backgroundPromptRef.current = backgroundPrompt;
+  draftIdRef.current = draft.id;
+
+  const hasApprovedExport =
+    draft.status === "approved" && Boolean(exportPreview);
 
   const selectedVariation = useMemo(
     () =>
@@ -176,13 +630,20 @@ const AnnouncementEditor = ({
     return url;
   };
 
+  const lastHydratedIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     setDraft(initial);
     setName(initial.name);
     setContent(initial.content);
     setBackgroundPrompt(initial.backgroundPrompt);
-    setHtml(initial.html);
-  }, [initial]);
+
+    // Reset undo stack only when opening a different announcement.
+    if (lastHydratedIdRef.current !== initial.id) {
+      lastHydratedIdRef.current = initial.id;
+      resetHtmlHistory(initial.html);
+    }
+  }, [initial, resetHtmlHistory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,13 +702,131 @@ const AnnouncementEditor = ({
     };
   }, [draft.exportObjectKey, draft.variations, getAssetFn]);
 
-  const applyDraft = (next: AnnouncementDraft) => {
+  const applyDraft = (
+    next: AnnouncementDraft,
+    options?: { resetHtmlHistory?: boolean }
+  ) => {
     setDraft(next);
     setName(next.name);
     setContent(next.content);
     setBackgroundPrompt(next.backgroundPrompt);
-    setHtml(next.html);
+
+    if (options?.resetHtmlHistory) {
+      resetHtmlHistory(next.html);
+    } else {
+      setHtml(next.html);
+    }
   };
+
+  /** Persist HTML from canvas/undo without toast spam; coalesces concurrent saves. */
+  const autoSaveHtml = useCallback(
+    (htmlValue: string) => {
+      autoSaveLatestRef.current = htmlValue;
+
+      if (autoSaveInFlightRef.current) {
+        return;
+      }
+
+      autoSaveInFlightRef.current = true;
+
+      const flushLatest = async (): Promise<void> => {
+        const toSave = autoSaveLatestRef.current;
+
+        if (toSave === null) {
+          autoSaveInFlightRef.current = false;
+          return;
+        }
+
+        autoSaveLatestRef.current = null;
+
+        try {
+          const next = await saveFn({
+            data: {
+              backgroundPrompt: backgroundPromptRef.current,
+              content: contentRef.current,
+              html: toSave,
+              id: draftIdRef.current,
+              name: nameRef.current,
+            },
+          });
+          setDraft(next);
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Could not auto-save canvas changes."
+          );
+        }
+
+        if (autoSaveLatestRef.current !== null) {
+          await flushLatest();
+          return;
+        }
+
+        autoSaveInFlightRef.current = false;
+      };
+
+      void flushLatest();
+    },
+    [saveFn]
+  );
+
+  const onCanvasHtmlChange = useCallback(
+    (nextHtml: string) => {
+      if (nextHtml === htmlRef.current) {
+        return;
+      }
+
+      commitHtmlHistory(nextHtml);
+      autoSaveHtml(nextHtml);
+    },
+    [autoSaveHtml, commitHtmlHistory]
+  );
+
+  const onUndoCanvas = useCallback(() => {
+    const restored = undoHtmlHistory();
+
+    if (restored === null) {
+      return;
+    }
+
+    autoSaveHtml(restored);
+  }, [autoSaveHtml, undoHtmlHistory]);
+
+  const onRedoCanvas = useCallback(() => {
+    const restored = redoHtmlHistory();
+
+    if (restored === null) {
+      return;
+    }
+
+    autoSaveHtml(restored);
+  }, [autoSaveHtml, redoHtmlHistory]);
+
+  useHotkey(
+    "Mod+Z",
+    () => {
+      onUndoCanvas();
+    },
+    { enabled: canUndo }
+  );
+
+  useHotkey(
+    "Mod+Y",
+    () => {
+      onRedoCanvas();
+    },
+    { enabled: canRedo }
+  );
+
+  // Common redo chord (in addition to Mod+Y).
+  useHotkey(
+    "Mod+Shift+Z",
+    () => {
+      onRedoCanvas();
+    },
+    { enabled: canRedo }
+  );
 
   const persist = async (overrides?: {
     contentOverride?: AnnouncementContent;
@@ -349,7 +928,9 @@ const AnnouncementEditor = ({
       const next = await clearContextFn({ data: { id: draft.id } });
       applyDraft(next);
       await router.invalidate();
-      toast.success("Context cleared. Next generation will not use a reference.");
+      toast.success(
+        "Context cleared. Next generation will not use a reference."
+      );
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Could not clear context."
@@ -407,7 +988,7 @@ const AnnouncementEditor = ({
       const next = await generateHtmlFn({
         data: { id: draft.id, styleNotes },
       });
-      applyDraft(next);
+      applyDraft(next, { resetHtmlHistory: true });
       await router.invalidate();
       toast.success(
         "HTML overlay generated (text only — not baked into the image)."
@@ -471,6 +1052,7 @@ const AnnouncementEditor = ({
       });
       applyDraft(next);
       setExportPreview(dataUrl);
+      setExportDialogOpen(true);
       await router.invalidate();
       toast.success("Announcement approved. JPG stored in R2.");
     } catch (error) {
@@ -489,69 +1071,109 @@ const AnnouncementEditor = ({
     setContent((previous) => ({ ...previous, [field]: value }));
   };
 
+  const onDownloadExport = () => {
+    if (!exportPreview) {
+      return;
+    }
+
+    const slug =
+      name
+        .trim()
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/gu, "-")
+        .replaceAll(/^-|-$/gu, "") || "announcement";
+    const link = document.createElement("a");
+    link.href = exportPreview;
+    link.download = `${slug}-approved.jpg`;
+    link.click();
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-heading text-3xl font-semibold tracking-tight">
-              {name || "Announcement"}
-            </h1>
-            <Badge
-              variant={draft.status === "approved" ? "default" : "secondary"}
-            >
-              {draft.status === "approved" ? "Approved" : "Draft"}
-            </Badge>
+      {/* Header + canvas share one viewport-tall shell so the stage fits on screen */}
+      <div className={VIEWPORT_CANVAS_SHELL}>
+        <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+                {name || "Announcement"}
+              </h1>
+              <Badge
+                variant={draft.status === "approved" ? "default" : "secondary"}
+              >
+                {draft.status === "approved" ? "Approved" : "Draft"}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground max-w-2xl text-sm">
+              Edit on the canvas. Supporting tools (content, backgrounds,
+              variations) are below.
+            </p>
           </div>
-          <p className="text-muted-foreground max-w-2xl">
-            Generate AI backgrounds (no text in the image), overlay title
-            hierarchy with HTML, pick a happy-path variation as context, then
-            approve a 1920×1080 JPG to R2.
-          </p>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button
+              disabled={isSaving}
+              onClick={() => void onSave()}
+              type="button"
+              variant="outline"
+            >
+              {isSaving ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <FloppyDiskIcon data-icon="inline-start" />
+              )}
+              Save draft
+            </Button>
+            {hasApprovedExport ? (
+              <Button
+                onClick={() => setExportDialogOpen(true)}
+                type="button"
+                variant="outline"
+              >
+                <EyeIcon data-icon="inline-start" />
+                View approved export
+              </Button>
+            ) : null}
+            <Button
+              disabled={isApproving || !selectedVariation}
+              onClick={() => void onApprove()}
+              type="button"
+            >
+              {isApproving ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <CheckCircleIcon data-icon="inline-start" />
+              )}
+              Approve &amp; export JPG
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={isSaving}
-            onClick={() => void onSave()}
-            type="button"
-            variant="outline"
-          >
-            {isSaving ? (
-              <CircleNotchIcon
-                className="animate-spin"
-                data-icon="inline-start"
-              />
-            ) : (
-              <FloppyDiskIcon data-icon="inline-start" />
-            )}
-            Save draft
-          </Button>
-          <Button
-            disabled={isApproving || !selectedVariation}
-            onClick={() => void onApprove()}
-            type="button"
-          >
-            {isApproving ? (
-              <CircleNotchIcon
-                className="animate-spin"
-                data-icon="inline-start"
-              />
-            ) : (
-              <CheckCircleIcon data-icon="inline-start" />
-            )}
-            Approve &amp; export JPG
-          </Button>
-        </div>
+
+        <LiveCanvasEditor
+          backgroundUrl={selectedBackgroundUrl}
+          canRedo={canRedo}
+          canUndo={canUndo}
+          html={html}
+          onHtmlChange={onCanvasHtmlChange}
+          onRedo={onRedoCanvas}
+          onUndo={onUndoCanvas}
+        />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        <div className="flex flex-col gap-6">
+      {/* Secondary: supporting tools (scroll below the fold) */}
+      <div className="flex flex-col gap-6">
+        <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Content fields</CardTitle>
               <CardDescription>
-                These fields feed the HTML overlay (and AI HTML generation).
-                They are never rendered by the image model.
+                Feed AI HTML generation. Values are not baked into the
+                background image — edit layout on the canvas above.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -610,8 +1232,8 @@ const AnnouncementEditor = ({
             <CardHeader>
               <CardTitle>Background image (AI)</CardTitle>
               <CardDescription>
-                Images are generated without text. If a variation is selected,
-                new generations use it as context (happy path).
+                Images are generated without text. A selected variation becomes
+                context for the next batch (happy path).
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -675,17 +1297,42 @@ const AnnouncementEditor = ({
               ) : null}
             </CardContent>
           </Card>
+        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>HTML overlay</CardTitle>
-              <CardDescription>
-                AI writes the text layout as HTML. You can edit the markup
-                manually at any time.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
+        <VariationLibraryCard
+          assetUrls={assetUrls}
+          isClearingContext={isClearingContext}
+          isRemovingAll={isRemovingAll}
+          onClearContext={() => {
+            void onClearContext();
+          }}
+          onRemoveAll={() => {
+            void onRemoveAllVariations();
+          }}
+          onRemoveVariation={(variationId) => {
+            void onRemoveVariation(variationId);
+          }}
+          onSelectVariation={(variationId) => {
+            void onSelectVariation(variationId);
+          }}
+          removingId={removingId}
+          selectedVariationId={draft.selectedVariationId}
+          selectingId={selectingId}
+          variations={draft.variations}
+        />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>HTML overlay (advanced)</CardTitle>
+            <CardDescription>
+              Optional source view. Prefer the canvas above for layout; use this
+              for AI generation or hand-edited markup. Same draft HTML as the
+              canvas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <Label htmlFor="style-notes">Style notes (optional)</Label>
                 <Input
                   id="style-notes"
@@ -710,230 +1357,65 @@ const AnnouncementEditor = ({
                 )}
                 Generate HTML with AI
               </Button>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="overlay-html">HTML markup</Label>
-                <HtmlCodeEditor
-                  id="overlay-html"
-                  minHeight="18rem"
-                  onChange={setHtml}
-                  value={html}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Live preview</CardTitle>
-              <CardDescription>
-                Scaled view of the 1920×1080 composite used for export.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-muted relative mx-auto w-full overflow-hidden rounded-lg border">
-                <div
-                  className="origin-top-left"
-                  style={{
-                    height: ANNOUNCEMENT_HEIGHT * PREVIEW_SCALE,
-                    width: ANNOUNCEMENT_WIDTH * PREVIEW_SCALE,
-                  }}
-                >
-                  <div
-                    style={{
-                      height: ANNOUNCEMENT_HEIGHT,
-                      transform: `scale(${PREVIEW_SCALE})`,
-                      transformOrigin: "top left",
-                      width: ANNOUNCEMENT_WIDTH,
-                    }}
-                  >
-                    <AnnouncementStage
-                      backgroundUrl={selectedBackgroundUrl}
-                      html={html}
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex flex-col gap-1.5">
-                <CardTitle>Variation library</CardTitle>
-                <CardDescription>
-                  Select a variation to mark it as the happy path. That
-                  selection becomes context for the next AI background batch.
-                  Right-click a variation to remove it.
-                </CardDescription>
-              </div>
-              {draft.variations.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    disabled={
-                      isClearingContext || !draft.selectedVariationId
-                    }
-                    onClick={() => void onClearContext()}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    {isClearingContext ? (
-                      <CircleNotchIcon
-                        className="animate-spin"
-                        data-icon="inline-start"
-                      />
-                    ) : (
-                      <XCircleIcon data-icon="inline-start" />
-                    )}
-                    Clear Context
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        disabled={isRemovingAll}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        {isRemovingAll ? (
-                          <CircleNotchIcon
-                            className="animate-spin"
-                            data-icon="inline-start"
-                          />
-                        ) : (
-                          <TrashIcon data-icon="inline-start" />
-                        )}
-                        Remove All
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          Remove all variations?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This permanently deletes every background in the
-                          library and clears the active context. This cannot be
-                          undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isRemovingAll}>
-                          Cancel
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          disabled={isRemovingAll}
-                          onClick={() => void onRemoveAllVariations()}
-                          variant="destructive"
-                        >
-                          Remove All
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              ) : null}
-            </CardHeader>
-            <CardContent>
-              {draft.variations.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No backgrounds yet. Generate variations from a prompt above.
-                </p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {draft.variations.map((variation) => {
-                    const isSelected =
-                      variation.id === draft.selectedVariationId;
-                    const url = assetUrls[variation.objectKey];
-                    const isBusy =
-                      selectingId === variation.id ||
-                      removingId === variation.id;
-
-                    return (
-                      <ContextMenu key={variation.id}>
-                        <ContextMenuTrigger asChild>
-                          <button
-                            className={cn(
-                              "group relative overflow-hidden rounded-lg border text-left transition",
-                              isSelected
-                                ? "ring-primary ring-2"
-                                : "hover:border-foreground/40"
-                            )}
-                            disabled={isBusy}
-                            onClick={() => void onSelectVariation(variation.id)}
-                            type="button"
-                          >
-                            <div className="bg-muted aspect-video w-full">
-                              {url ? (
-                                <img
-                                  alt=""
-                                  className="h-full w-full object-cover"
-                                  src={url}
-                                />
-                              ) : (
-                                <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-                                  Loading…
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between gap-2 p-2 text-xs">
-                              <span className="font-mono">
-                                {variation.id.slice(0, 8)}
-                              </span>
-                              {isSelected ? (
-                                <Badge variant="default">
-                                  <SparkleIcon className="size-3" />
-                                  Context
-                                </Badge>
-                              ) : null}
-                              {isBusy ? (
-                                <CircleNotchIcon className="animate-spin size-4" />
-                              ) : null}
-                            </div>
-                          </button>
-                        </ContextMenuTrigger>
-                        <ContextMenuContent>
-                          <ContextMenuItem
-                            disabled={removingId === variation.id}
-                            onClick={() =>
-                              void onRemoveVariation(variation.id)
-                            }
-                            variant="destructive"
-                          >
-                            <TrashIcon />
-                            Remove
-                          </ContextMenuItem>
-                        </ContextMenuContent>
-                      </ContextMenu>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {exportPreview && draft.status === "approved" ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Approved export</CardTitle>
-                <CardDescription>
-                  Stored JPG in R2 at{" "}
-                  <code className="text-xs">{draft.exportObjectKey}</code>
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <img
-                  alt="Approved announcement export"
-                  className="w-full rounded-lg border"
-                  src={exportPreview}
-                />
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="overlay-html">HTML markup</Label>
+              <HtmlCodeEditor
+                id="overlay-html"
+                minHeight="12rem"
+                onChange={setHtml}
+                value={html}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <Dialog onOpenChange={setExportDialogOpen} open={exportDialogOpen}>
+        <DialogContent className="sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Approved export</DialogTitle>
+            <DialogDescription>
+              Stored JPG in R2
+              {draft.exportObjectKey ? (
+                <>
+                  {" "}
+                  at <code className="text-xs">{draft.exportObjectKey}</code>
+                </>
+              ) : null}
+              .
+            </DialogDescription>
+          </DialogHeader>
+          {exportPreview ? (
+            <div className="overflow-hidden rounded-lg border">
+              <img
+                alt="Approved announcement export"
+                className="h-auto w-full"
+                src={exportPreview}
+              />
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Export preview is still loading…
+            </p>
+          )}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Close
+              </Button>
+            </DialogClose>
+            <Button
+              disabled={!exportPreview}
+              onClick={onDownloadExport}
+              type="button"
+            >
+              <DownloadSimpleIcon data-icon="inline-start" />
+              Download JPG
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Off-screen full-resolution surface for html-to-image export */}
       <div
