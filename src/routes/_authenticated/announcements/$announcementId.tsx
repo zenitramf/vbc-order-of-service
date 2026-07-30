@@ -38,6 +38,12 @@ import { GrapesjsAnnouncementEditor } from "~/components/grapesjs-announcement-e
 import type { GrapesjsAnnouncementEditorHandle } from "~/components/grapesjs-announcement-editor";
 import { HtmlCodeEditor } from "~/components/html-code-editor";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -48,12 +54,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "~/components/ui/alert-dialog";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "~/components/ui/accordion";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -115,6 +115,8 @@ import {
   selectVariation,
 } from "~/lib/announcement-data";
 import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
+import { getStylePack, listStylePacks } from "~/lib/announcement-style-library";
+import type { AnnouncementStylePack } from "~/lib/announcement-style-library";
 import type {
   AnnouncementContent,
   AnnouncementDraft,
@@ -124,10 +126,7 @@ import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
-import {
-  getLibraryImage,
-  listLibraryImages,
-} from "~/lib/image-library-data";
+import { getLibraryImage, listLibraryImages } from "~/lib/image-library-data";
 import type { ImageLibraryItem } from "~/lib/image-library-types";
 import { requirePermission } from "~/lib/route-guards";
 import { cn } from "~/lib/utils";
@@ -251,7 +250,10 @@ const createVariationColumns = ({
               </Badge>
             ) : null}
             {isLibrary ? (
-              <Badge className="bg-sky-600 text-white hover:bg-sky-600" variant="secondary">
+              <Badge
+                className="bg-sky-600 text-white hover:bg-sky-600"
+                variant="secondary"
+              >
                 <BooksIcon className="size-3" weight="fill" />
                 Library
               </Badge>
@@ -333,6 +335,120 @@ const createVariationColumns = ({
  */
 const VIEWPORT_CANVAS_SHELL =
   "flex h-[calc(100svh-3.5rem-2rem)] min-h-[22rem] flex-col gap-4 overflow-hidden md:h-[calc(100svh-3.5rem-3rem)]";
+
+const StyleLibraryCard = ({
+  appliedStyleId,
+  applyingPackId,
+  onApply,
+}: {
+  appliedStyleId: string | null;
+  applyingPackId: string | null;
+  onApply: (packId: string) => void;
+}) => {
+  const packs = listStylePacks();
+  const lastApplied = appliedStyleId ? getStylePack(appliedStyleId) : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Style library</CardTitle>
+        <CardDescription>
+          Pre-generated typography, scrim, color, and shadow packs. Apply one as
+          a springboard, then refine in GrapesJS. Layout and background photo
+          stay put. Works best on elements tagged with{" "}
+          <code className="text-xs">data-ann-role</code> (default layout and
+          Announcement blocks include these).
+          {lastApplied ? (
+            <>
+              {" "}
+              Last applied: <strong>{lastApplied.name}</strong>.
+            </>
+          ) : null}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {packs.map((pack) => (
+          <StylePackCard
+            applied={appliedStyleId === pack.id}
+            applying={applyingPackId === pack.id}
+            disabled={applyingPackId !== null}
+            key={pack.id}
+            onApply={() => {
+              onApply(pack.id);
+            }}
+            pack={pack}
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+};
+
+const StylePackCard = ({
+  applied,
+  applying,
+  disabled,
+  onApply,
+  pack,
+}: {
+  applied: boolean;
+  applying: boolean;
+  disabled: boolean;
+  onApply: () => void;
+  pack: AnnouncementStylePack;
+}) => (
+  <div
+    className={`flex flex-col gap-3 rounded-lg border p-3 ${applied ? "border-primary/60 bg-muted/40" : ""}`}
+  >
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0">
+        <p className="font-medium leading-tight">{pack.name}</p>
+        <p className="text-muted-foreground mt-1 text-xs leading-snug">
+          {pack.description}
+        </p>
+      </div>
+      {applied ? (
+        <Badge className="shrink-0" variant="secondary">
+          Applied
+        </Badge>
+      ) : null}
+    </div>
+    <div className="flex items-center gap-2">
+      <span
+        aria-hidden
+        className="size-5 rounded-full border shadow-sm"
+        style={{ backgroundColor: pack.preview.text }}
+        title="Text"
+      />
+      <span
+        aria-hidden
+        className="size-5 rounded-full border shadow-sm"
+        style={{ backgroundColor: pack.preview.accent }}
+        title="Accent"
+      />
+      <span
+        aria-hidden
+        className="size-5 rounded-full border shadow-sm"
+        style={{ backgroundColor: pack.preview.scrimHint }}
+        title="Scrim"
+      />
+    </div>
+    <Button
+      disabled={disabled}
+      onClick={onApply}
+      size="sm"
+      type="button"
+      variant={applied ? "outline" : "default"}
+    >
+      {applying ? (
+        <CircleNotchIcon className="animate-spin" data-icon="inline-start" />
+      ) : (
+        <SparkleIcon data-icon="inline-start" />
+      )}
+      {applying ? "Applying…" : "Apply style"}
+    </Button>
+  </div>
+);
 
 const LiveCanvasEditor = ({
   backgroundUrl,
@@ -698,16 +814,19 @@ const LibraryImagePickerDialog = ({
         <DialogHeader>
           <DialogTitle>Use library image as background</DialogTitle>
           <DialogDescription>
-            Choose a 1920×1080 template from the image library. It is copied into
-            this announcement&apos;s variation library so you can select it and
-            generate AI variations from it.
+            Choose a 1920×1080 template from the image library. It is copied
+            into this announcement&apos;s variation library so you can select it
+            and generate AI variations from it.
           </DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
-              <Skeleton className="aspect-video w-full rounded-lg" key={index} />
+              <Skeleton
+                className="aspect-video w-full rounded-lg"
+                key={index}
+              />
             ))}
           </div>
         ) : null}
@@ -737,8 +856,7 @@ const LibraryImagePickerDialog = ({
           <div className="grid max-h-[min(28rem,60vh)] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
             {images.map((image) => {
               const previewUrl = previewUrls[image.objectKey];
-              const isThisAdding =
-                isAdding && addingKey === image.objectKey;
+              const isThisAdding = isAdding && addingKey === image.objectKey;
 
               return (
                 <button
@@ -1005,6 +1123,9 @@ const AnnouncementEditor = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingBg, setIsGeneratingBg] = useState(false);
   const [isGeneratingHtml, setIsGeneratingHtml] = useState(false);
+  const [applyingStylePackId, setApplyingStylePackId] = useState<string | null>(
+    null
+  );
   const [isApproving, setIsApproving] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [isClearingContext, setIsClearingContext] = useState(false);
@@ -1445,6 +1566,57 @@ const AnnouncementEditor = ({
     }
   };
 
+  const onApplyStylePack = async (packId: string) => {
+    const pack = getStylePack(packId);
+
+    if (!pack) {
+      toast.error("Style pack not found.");
+      return;
+    }
+
+    setApplyingStylePackId(packId);
+
+    try {
+      const result = grapesEditorRef.current?.applyStylePack(packId);
+
+      if (!result) {
+        toast.error("Editor is not ready. Try again in a moment.");
+        return;
+      }
+
+      // Update canvas history + local html without double-firing auto-save.
+      commitHtmlHistory(result.html);
+
+      const next = await saveFn({
+        data: {
+          appliedStyleId: packId,
+          backgroundPrompt: backgroundPromptRef.current,
+          content: contentRef.current,
+          html: result.html,
+          id: draftIdRef.current,
+          name: nameRef.current,
+        },
+      });
+      setDraft(next);
+
+      if (result.updatedCount === 0) {
+        toast.message(
+          "No role-tagged elements matched. Add Announcement blocks or use the default layout, then try again."
+        );
+      } else {
+        toast.success(
+          `Applied “${pack.name}” to ${result.updatedCount} element${result.updatedCount === 1 ? "" : "s"}.`
+        );
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not apply style pack."
+      );
+    } finally {
+      setApplyingStylePackId(null);
+    }
+  };
+
   const onApprove = async () => {
     if (!selectedVariation) {
       toast.error("Select a background variation first.");
@@ -1764,6 +1936,14 @@ const AnnouncementEditor = ({
             variationCount={variationCount}
           />
         </div>
+
+        <StyleLibraryCard
+          appliedStyleId={draft.appliedStyleId}
+          applyingPackId={applyingStylePackId}
+          onApply={(packId) => {
+            void onApplyStylePack(packId);
+          }}
+        />
 
         <Card>
           <CardHeader>

@@ -19,13 +19,35 @@ import {
   stripRuntimePhotoBackgroundCss,
 } from "~/lib/announcement-overlay-html";
 import {
+  ANNOUNCEMENT_ROLE_ATTR,
+  applyStylePackToTarget,
+  getStylePack,
+  roleSelector,
+} from "~/lib/announcement-style-library";
+import type {
+  StylePackApplyResult,
+  StyleableComponent,
+} from "~/lib/announcement-style-library";
+import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
 import { cn } from "~/lib/utils";
 
+export interface ApplyStylePackHandleResult extends StylePackApplyResult {
+  /** Serialized overlay HTML after applying the pack. */
+  html: string;
+  packId: string;
+}
+
 /** Imperative API for parent flows that need a synchronous canvas snapshot (e.g. JPG export). */
 export interface GrapesjsAnnouncementEditorHandle {
+  /**
+   * Apply a hand-authored style pack (typography / scrim / color / shadow) to
+   * role-tagged components. Never touches Body photo paints.
+   * Returns serialized HTML so the parent can persist style id + markup together.
+   */
+  applyStylePack: (packId: string) => ApplyStylePackHandleResult | null;
   /** Serialize the live canvas immediately (cancels pending debounced save). */
   flush: () => string | null;
 }
@@ -195,6 +217,10 @@ export const syncBackgroundOnBody = (
   });
 };
 
+const roleAttrs = (role: string): Record<string, string> => ({
+  [ANNOUNCEMENT_ROLE_ATTR]: role,
+});
+
 const registerAnnouncementBlocks = (editor: Editor): void => {
   const blockManager = editor.BlockManager;
 
@@ -204,6 +230,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-heading", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("heading"),
       content: "HEADING",
       style: {
         color: "#ffffff",
@@ -223,6 +250,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-title", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("title"),
       content: "Announcement Title",
       style: {
         color: "#ffffff",
@@ -243,6 +271,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-subtitle", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("subtitle"),
       content: "Subtitle text",
       style: {
         color: "#ffffff",
@@ -262,6 +291,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-body", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("body"),
       content: "Additional details go here.",
       style: {
         color: "#ffffff",
@@ -281,8 +311,10 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-text-box", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("panel"),
       components: [
         {
+          attributes: roleAttrs("body"),
           content: "Editable text block",
           style: {
             color: "#ffffff",
@@ -309,6 +341,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-bottom"),
       style: {
         background: BOTTOM_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -329,6 +362,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim-top", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-top"),
       style: {
         background: TOP_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -348,6 +382,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim-left", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-left"),
       style: {
         background: LEFT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -367,6 +402,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-scrim-right", {
     category: "Announcement",
     content: {
+      attributes: roleAttrs("scrim-right"),
       style: {
         background: RIGHT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -428,6 +464,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-link", {
     category: "Basic",
     content: {
+      attributes: roleAttrs("link"),
       content: "Link text",
       style: {
         color: "#fbbf24",
@@ -437,6 +474,32 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     },
     label: "Link",
     media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>`,
+  });
+};
+
+/** Apply a style pack to role-tagged components inside a live GrapesJS editor. */
+export const applyStylePackToEditor = (
+  editor: Editor,
+  packId: string
+): StylePackApplyResult | null => {
+  const pack = getStylePack(packId);
+
+  if (!pack) {
+    return null;
+  }
+
+  const wrapper = editor.getWrapper();
+
+  if (!wrapper) {
+    return null;
+  }
+
+  return applyStylePackToTarget(pack, {
+    findByRole: (role) =>
+      (wrapper.find(roleSelector(role)) as unknown as StyleableComponent[]) ??
+      [],
+    isWrapper: (component) =>
+      component === (wrapper as unknown as StyleableComponent),
   });
 };
 
@@ -540,6 +603,34 @@ export const GrapesjsAnnouncementEditor = ({
   useImperativeHandle(
     ref,
     () => ({
+      applyStylePack: (packId: string) => {
+        const editor = editorRef.current;
+
+        if (!editor) {
+          return null;
+        }
+
+        // Suppress event-driven saves while restyling; parent persists once.
+        suppressEmitRef.current = true;
+
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+
+        const result = applyStylePackToEditor(editor, packId);
+
+        if (!result) {
+          suppressEmitRef.current = false;
+          return null;
+        }
+
+        const overlayHtml = serializeOverlayHtml(editor);
+        syncedHtmlRef.current = overlayHtml;
+        suppressEmitRef.current = false;
+
+        return { ...result, html: overlayHtml, packId };
+      },
       flush: () => {
         const editor = editorRef.current;
 

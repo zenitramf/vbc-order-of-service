@@ -30,6 +30,8 @@ export interface AnnouncementVariation {
 }
 
 export interface AnnouncementDraft {
+  /** Last-applied style library pack id (informational; styles bake into html). */
+  appliedStyleId: string | null;
   approvedAt: string | null;
   backgroundPrompt: string;
   content: AnnouncementContent;
@@ -69,6 +71,8 @@ export interface CreateAnnouncementInput {
 }
 
 export interface SaveAnnouncementInput {
+  /** Last-applied style library pack id. Pass null to clear. */
+  appliedStyleId?: string | null;
   backgroundPrompt?: string;
   content?: Partial<AnnouncementContent>;
   html?: string;
