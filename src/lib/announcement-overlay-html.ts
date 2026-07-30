@@ -64,6 +64,15 @@ export const stripRuntimePhotoBackgroundCss = (css: string): string => {
 export const BOTTOM_SCRIM_GRADIENT =
   "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%)";
 
+export const TOP_SCRIM_GRADIENT =
+  "linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%)";
+
+export const LEFT_SCRIM_GRADIENT =
+  "linear-gradient(to right, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%)";
+
+export const RIGHT_SCRIM_GRADIENT =
+  "linear-gradient(to left, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%)";
+
 export const PANEL_SCRIM_GRADIENT =
   "linear-gradient(180deg, rgba(0,0,0,0.48) 0%, rgba(0,0,0,0.28) 100%)";
 

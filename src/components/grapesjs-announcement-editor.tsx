@@ -8,7 +8,10 @@ import type { Ref } from "react";
 import {
   ANNOUNCEMENT_BG_ATTR,
   BOTTOM_SCRIM_GRADIENT,
+  LEFT_SCRIM_GRADIENT,
   PANEL_SCRIM_GRADIENT,
+  RIGHT_SCRIM_GRADIENT,
+  TOP_SCRIM_GRADIENT,
   buildOverlayHtml,
   coerceBackgroundToAlphaGradient,
   parseOverlayHtml,
@@ -104,6 +107,21 @@ const makeCanvasChrome = (editor: Editor): void => {
   if (canvasEl) {
     canvasEl.style.backgroundImage = "none";
     canvasEl.style.backgroundColor = "#111";
+  }
+};
+
+/** Padding around the 1920×1080 stage when fitting into the editor panel. */
+const VIEWPORT_FIT_GAP_PX = 24;
+
+/**
+ * Scale + center the fixed announcement stage so the full 1920×1080 frame is
+ * visible inside the host panel (otherwise GrapesJS draws 1:1 and clips).
+ */
+const fitAnnouncementViewport = (editor: Editor): void => {
+  try {
+    editor.Canvas.fitViewport({ gap: VIEWPORT_FIT_GAP_PX });
+  } catch {
+    // Canvas may not be fully mounted yet.
   }
 };
 
@@ -304,7 +322,65 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
       tagName: "div",
     },
     label: "Bottom scrim",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 3h18v18H3V3zm2 2v8.5c2 3 5 5.5 7 5.5s5-2.5 7-5.5V5H5z"/></svg>`,
+    // Frame + solid band on the edge (evenodd hole so the band reads clearly).
+    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M5 12h14v7H5z"/></svg>`,
+  });
+
+  blockManager.add("ann-scrim-top", {
+    category: "Announcement",
+    content: {
+      style: {
+        background: TOP_SCRIM_GRADIENT,
+        "background-color": "transparent",
+        height: "55%",
+        left: "0",
+        "pointer-events": "none",
+        position: "absolute",
+        right: "0",
+        top: "0",
+      },
+      tagName: "div",
+    },
+    label: "Top scrim",
+    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M5 5h14v7H5z"/></svg>`,
+  });
+
+  blockManager.add("ann-scrim-left", {
+    category: "Announcement",
+    content: {
+      style: {
+        background: LEFT_SCRIM_GRADIENT,
+        "background-color": "transparent",
+        bottom: "0",
+        left: "0",
+        "pointer-events": "none",
+        position: "absolute",
+        top: "0",
+        width: "45%",
+      },
+      tagName: "div",
+    },
+    label: "Left scrim",
+    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M5 5h7v14H5z"/></svg>`,
+  });
+
+  blockManager.add("ann-scrim-right", {
+    category: "Announcement",
+    content: {
+      style: {
+        background: RIGHT_SCRIM_GRADIENT,
+        "background-color": "transparent",
+        bottom: "0",
+        "pointer-events": "none",
+        position: "absolute",
+        right: "0",
+        top: "0",
+        width: "45%",
+      },
+      tagName: "div",
+    },
+    label: "Right scrim",
+    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M12 5h7v14h-7z"/></svg>`,
   });
 
   blockManager.add("ann-spacer", {
@@ -680,10 +756,41 @@ export const GrapesjsAnnouncementEditor = ({
       makeCanvasChrome(editor);
       suppressEmitRef.current = true;
       syncBackgroundOnBody(editor, backgroundUrlRef.current);
+      // Defer fit until after layout paints the canvas host size.
       requestAnimationFrame(() => {
+        fitAnnouncementViewport(editor);
         suppressEmitRef.current = false;
       });
     });
+
+    // Keep the full stage visible when the editor panel is resized.
+    let fitRafId = 0;
+    const scheduleFitViewport = (): void => {
+      if (fitRafId) {
+        cancelAnimationFrame(fitRafId);
+      }
+
+      fitRafId = requestAnimationFrame(() => {
+        fitRafId = 0;
+        fitAnnouncementViewport(editor);
+      });
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            scheduleFitViewport();
+          });
+
+    if (resizeObserver) {
+      resizeObserver.observe(host);
+      const canvasEl = editor.Canvas.getElement();
+
+      if (canvasEl) {
+        resizeObserver.observe(canvasEl);
+      }
+    }
 
     suppressEmitRef.current = true;
     loadHtmlIntoEditor(editor, syncedHtmlRef.current);
@@ -692,10 +799,19 @@ export const GrapesjsAnnouncementEditor = ({
     suppressEmitRef.current = false;
 
     makeCanvasChrome(editor);
+    requestAnimationFrame(() => {
+      fitAnnouncementViewport(editor);
+    });
 
     editorRef.current = editor;
 
     return () => {
+      resizeObserver?.disconnect();
+
+      if (fitRafId) {
+        cancelAnimationFrame(fitRafId);
+      }
+
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
@@ -740,6 +856,7 @@ export const GrapesjsAnnouncementEditor = ({
     makeCanvasChrome(editor);
 
     requestAnimationFrame(() => {
+      fitAnnouncementViewport(editor);
       suppressEmitRef.current = false;
     });
   }, [html]);

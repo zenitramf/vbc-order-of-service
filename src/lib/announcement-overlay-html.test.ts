@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   BOTTOM_SCRIM_GRADIENT,
+  LEFT_SCRIM_GRADIENT,
   PANEL_SCRIM_GRADIENT,
+  RIGHT_SCRIM_GRADIENT,
+  TOP_SCRIM_GRADIENT,
   buildOverlayHtml,
   coerceBackgroundToAlphaGradient,
   flattenStageMediaQueries,
@@ -203,6 +206,15 @@ describe("background coercion", () => {
   it("passes gradients through unchanged", () => {
     expect(coerceBackgroundToAlphaGradient(BOTTOM_SCRIM_GRADIENT)).toBe(
       BOTTOM_SCRIM_GRADIENT
+    );
+    expect(coerceBackgroundToAlphaGradient(TOP_SCRIM_GRADIENT)).toBe(
+      TOP_SCRIM_GRADIENT
+    );
+    expect(coerceBackgroundToAlphaGradient(LEFT_SCRIM_GRADIENT)).toBe(
+      LEFT_SCRIM_GRADIENT
+    );
+    expect(coerceBackgroundToAlphaGradient(RIGHT_SCRIM_GRADIENT)).toBe(
+      RIGHT_SCRIM_GRADIENT
     );
     expect(coerceBackgroundToAlphaGradient(PANEL_SCRIM_GRADIENT)).toBe(
       PANEL_SCRIM_GRADIENT

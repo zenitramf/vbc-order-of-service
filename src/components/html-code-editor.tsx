@@ -92,6 +92,7 @@ export const HtmlCodeEditor = ({
       )}
       data-slot="html-code-editor"
       id={id}
+      style={{ minHeight }}
     >
       <CodeMirror
         basicSetup={{
@@ -106,6 +107,7 @@ export const HtmlCodeEditor = ({
         }}
         extensions={extensions}
         height={minHeight}
+        minHeight={minHeight}
         onChange={onChange}
         theme={theme}
         value={value}

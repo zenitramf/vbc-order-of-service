@@ -45,6 +45,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "~/components/ui/alert-dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "~/components/ui/accordion";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -576,6 +582,7 @@ const AnnouncementEditor = ({
     undo: undoHtmlHistory,
   } = useHtmlHistory(initial.html);
   const [styleNotes, setStyleNotes] = useState("");
+  const [markupOpen, setMarkupOpen] = useState(false);
   const [variationCount, setVariationCount] = useState(2);
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [exportPreview, setExportPreview] = useState<string | null>(null);
@@ -1317,6 +1324,43 @@ const AnnouncementEditor = ({
           </Card>
         </div>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Generate overlay with AI</CardTitle>
+            <CardDescription>
+              Builds layout HTML from the content fields above. Optional style
+              notes steer typography, alignment, and accents. Prefer GrapesJS
+              for manual edits after generation.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Label htmlFor="style-notes">Style notes (optional)</Label>
+              <Input
+                id="style-notes"
+                onChange={(event) => setStyleNotes(event.target.value)}
+                placeholder="Modern sans-serif, left-aligned, gold accent…"
+                value={styleNotes}
+              />
+            </div>
+            <Button
+              disabled={isGeneratingHtml}
+              onClick={() => void onGenerateHtml()}
+              type="button"
+            >
+              {isGeneratingHtml ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <MagicWandIcon data-icon="inline-start" />
+              )}
+              Generate HTML with AI
+            </Button>
+          </CardContent>
+        </Card>
+
         <VariationLibraryCard
           assetUrls={assetUrls}
           isClearingContext={isClearingContext}
@@ -1339,54 +1383,40 @@ const AnnouncementEditor = ({
           variations={draft.variations}
         />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>HTML overlay (advanced)</CardTitle>
-            <CardDescription>
-              Optional source view. Prefer GrapesJS above for layout; use this
-              for AI generation or hand-edited markup. Same draft HTML as the
-              editor.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-                <Label htmlFor="style-notes">Style notes (optional)</Label>
-                <Input
-                  id="style-notes"
-                  onChange={(event) => setStyleNotes(event.target.value)}
-                  placeholder="Modern sans-serif, left-aligned, gold accent…"
-                  value={styleNotes}
-                />
-              </div>
-              <Button
-                disabled={isGeneratingHtml}
-                onClick={() => void onGenerateHtml()}
-                type="button"
-                variant="secondary"
-              >
-                {isGeneratingHtml ? (
-                  <CircleNotchIcon
-                    className="animate-spin"
-                    data-icon="inline-start"
+        <Accordion
+          collapsible
+          onValueChange={(value) => {
+            setMarkupOpen(value === "html-markup");
+          }}
+          type="single"
+          value={markupOpen ? "html-markup" : ""}
+        >
+          <AccordionItem value="html-markup">
+            <AccordionTrigger>
+              <span className="flex flex-col items-start gap-1">
+                <span className="text-base">HTML markup (advanced)</span>
+                <span className="text-muted-foreground text-sm font-normal">
+                  Source view of the same draft HTML as the GrapesJS canvas.
+                  Expand only when you need to inspect or hand-edit markup.
+                </span>
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="h-auto">
+              {/* Mount only when open so CodeMirror lays out at full height. */}
+              {markupOpen ? (
+                <div className="flex min-h-72 flex-col gap-2 pt-1">
+                  <Label htmlFor="overlay-html">HTML markup</Label>
+                  <HtmlCodeEditor
+                    id="overlay-html"
+                    minHeight="18rem"
+                    onChange={setHtml}
+                    value={html}
                   />
-                ) : (
-                  <MagicWandIcon data-icon="inline-start" />
-                )}
-                Generate HTML with AI
-              </Button>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="overlay-html">HTML markup</Label>
-              <HtmlCodeEditor
-                id="overlay-html"
-                minHeight="12rem"
-                onChange={setHtml}
-                value={html}
-              />
-            </div>
-          </CardContent>
-        </Card>
+                </div>
+              ) : null}
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
 
       <Dialog onOpenChange={setExportDialogOpen} open={exportDialogOpen}>

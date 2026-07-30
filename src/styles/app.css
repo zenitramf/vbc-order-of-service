@@ -164,8 +164,7 @@
 
 .grapesjs-announcement-editor .gjs-editor-host,
 .grapesjs-announcement-editor .gjs-editor,
-.grapesjs-announcement-editor .gjs-editor-cont,
-.grapesjs-announcement-editor .gjs-cv-canvas {
+.grapesjs-announcement-editor .gjs-editor-cont {
   height: 100% !important;
   min-height: 0;
 }
@@ -203,10 +202,13 @@
 
 .grapesjs-announcement-editor .gjs-cv-canvas {
   /* Background image is applied via JS on this element (separate from components). */
+  /* Must not use height:100% with top:40px — that overflows and clips the stage. */
   background-color: #111;
   top: 40px;
   width: calc(100% - 15%);
-  height: calc(100% - 40px);
+  height: calc(100% - 40px) !important;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .grapesjs-announcement-editor .gjs-pn-views-container,
