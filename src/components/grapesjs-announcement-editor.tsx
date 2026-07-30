@@ -5,11 +5,14 @@ import "grapesjs/dist/css/grapes.min.css";
 import { useEffect, useRef } from "react";
 
 import {
+  ANNOUNCEMENT_BG_ATTR,
+  ANNOUNCEMENT_BG_TYPE,
   BOTTOM_SCRIM_GRADIENT,
   PANEL_SCRIM_GRADIENT,
   buildOverlayHtml,
   coerceBackgroundToAlphaGradient,
   parseOverlayHtml,
+  stripAnnouncementBackgroundHtml,
 } from "~/lib/announcement-overlay-html";
 import {
   ANNOUNCEMENT_HEIGHT,
@@ -26,7 +29,7 @@ export interface GrapesjsAnnouncementEditorProps {
 
 const SAVE_DEBOUNCE_MS = 400;
 
-/** Canvas-frame CSS: transparent so the host background layer shows through. */
+/** Canvas-frame CSS: wrapper stays transparent; photo is a locked component. */
 const FRAME_BODY_CSS = `
   html, body, #wrapper {
     margin: 0;
@@ -37,46 +40,39 @@ const FRAME_BODY_CSS = `
     background: transparent !important;
     background-color: transparent !important;
   }
-  body {
+  body, #wrapper {
     min-height: ${ANNOUNCEMENT_HEIGHT}px;
+    position: relative !important;
   }
   * {
     box-sizing: border-box;
+  }
+  img[${ANNOUNCEMENT_BG_ATTR}] {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    user-select: none !important;
   }
 `;
 
 /** Serialize GrapesJS project into a self-contained overlay fragment for export/storage. */
 export const serializeOverlayHtml = (editor: Editor): string => {
-  const components = editor.getHtml({ cleanId: true }).trim();
+  // Background is runtime-only; variation selection owns the photo URL.
+  const components = stripAnnouncementBackgroundHtml(
+    editor.getHtml({ cleanId: true }).trim()
+  );
   const css = editor.getCss({ avoidProtected: true })?.trim() ?? "";
   return buildOverlayHtml(components, css);
-};
-
-const applyBackgroundToCanvas = (
-  editor: Editor,
-  backgroundUrl: string | null
-): void => {
-  const canvasEl = editor.Canvas.getElement();
-
-  if (!canvasEl) {
-    return;
-  }
-
-  if (backgroundUrl) {
-    canvasEl.style.backgroundImage = `url("${backgroundUrl}")`;
-    canvasEl.style.backgroundSize = "cover";
-    canvasEl.style.backgroundPosition = "center";
-    canvasEl.style.backgroundRepeat = "no-repeat";
-    canvasEl.style.backgroundColor = "#000";
-  } else {
-    canvasEl.style.backgroundImage = "none";
-    canvasEl.style.backgroundColor = "#111";
-  }
 };
 
 const makeFrameTransparent = (editor: Editor): void => {
   const frameEl = editor.Canvas.getFrameEl();
   const body = editor.Canvas.getBody();
+  const canvasEl = editor.Canvas.getElement();
 
   if (frameEl) {
     frameEl.style.background = "transparent";
@@ -90,6 +86,137 @@ const makeFrameTransparent = (editor: Editor): void => {
       doc.documentElement.style.background = "transparent";
     }
   }
+
+  // Empty-state chrome only — photo is inside the component tree.
+  if (canvasEl) {
+    canvasEl.style.backgroundImage = "none";
+    canvasEl.style.backgroundColor = "#111";
+  }
+};
+
+interface GrapesComponentLike {
+  addAttributes: (attrs: Record<string, string>) => void;
+  get: (key: string) => unknown;
+  getAttributes: () => Record<string, string>;
+  remove: () => void;
+}
+
+const isBackgroundComponent = (component: {
+  get: (key: string) => unknown;
+  getAttributes?: () => Record<string, string>;
+}): boolean => {
+  if (component.get("type") === ANNOUNCEMENT_BG_TYPE) {
+    return true;
+  }
+
+  const attrs = component.getAttributes?.() ?? {};
+  return attrs[ANNOUNCEMENT_BG_ATTR] === "1";
+};
+
+const registerBackgroundComponentType = (editor: Editor): void => {
+  editor.DomComponents.addType(ANNOUNCEMENT_BG_TYPE, {
+    isComponent: (el: HTMLElement) =>
+      el.getAttribute?.(ANNOUNCEMENT_BG_ATTR) === "1"
+        ? { type: ANNOUNCEMENT_BG_TYPE }
+        : false,
+    model: {
+      defaults: {
+        attributes: {
+          [ANNOUNCEMENT_BG_ATTR]: "1",
+          alt: "",
+          draggable: "false",
+        },
+        copyable: false,
+        draggable: false,
+        droppable: false,
+        highlightable: false,
+        hoverable: false,
+        layerable: true,
+        locked: true,
+        name: "Background photo",
+        removable: false,
+        resizable: false,
+        selectable: false,
+        style: {
+          height: "100%",
+          left: "0",
+          "object-fit": "cover",
+          "pointer-events": "none",
+          position: "absolute",
+          top: "0",
+          width: "100%",
+          "z-index": "0",
+        },
+        tagName: "img",
+        type: ANNOUNCEMENT_BG_TYPE,
+      },
+    },
+  });
+};
+
+/**
+ * Ensure a locked full-bleed background image component matches the active
+ * variation URL. Not persisted in draft HTML — re-injected whenever the
+ * editor loads or the selected variation changes.
+ */
+export const syncBackgroundComponent = (
+  editor: Editor,
+  backgroundUrl: string | null
+): void => {
+  const wrapper = editor.getWrapper();
+
+  if (!wrapper) {
+    return;
+  }
+
+  wrapper.addStyle({
+    height: `${ANNOUNCEMENT_HEIGHT}px`,
+    overflow: "hidden",
+    position: "relative",
+    width: `${ANNOUNCEMENT_WIDTH}px`,
+  });
+
+  const existing = wrapper.find(
+    `[${ANNOUNCEMENT_BG_ATTR}="1"]`
+  ) as unknown as GrapesComponentLike[];
+
+  if (!backgroundUrl) {
+    for (const node of existing) {
+      node.remove();
+    }
+    return;
+  }
+
+  const [bg] = existing;
+
+  if (bg) {
+    const currentSrc = bg.getAttributes().src ?? "";
+
+    if (currentSrc !== backgroundUrl) {
+      bg.addAttributes({ src: backgroundUrl });
+    }
+
+    // Keep a single background node; drop duplicates.
+    for (const extra of existing.slice(1)) {
+      extra.remove();
+    }
+
+    return;
+  }
+
+  wrapper.components().add(
+    {
+      attributes: {
+        [ANNOUNCEMENT_BG_ATTR]: "1",
+        alt: "",
+        crossorigin: "anonymous",
+        draggable: "false",
+        src: backgroundUrl,
+      },
+      type: ANNOUNCEMENT_BG_TYPE,
+    },
+    { at: 0 }
+  );
 };
 
 const registerAnnouncementBlocks = (editor: Editor): void => {
@@ -342,9 +469,10 @@ const coerceComponentBackground = (component: {
 /**
  * GrapesJS-powered announcement overlay editor.
  *
- * Background images are applied only to the host canvas chrome (not GrapesJS
- * components), so backgrounds stay independently swappable. Component layout
- * uses native GrapesJS blocks, style manager, layers, and traits.
+ * The selected background variation is a locked full-bleed GrapesJS component
+ * (`announcement-bg`) that updates when `backgroundUrl` changes. It is stripped
+ * from serialized draft HTML so R2 variations remain the source of truth.
+ * Overlay blocks use native GrapesJS panels (blocks, styles, layers, traits).
  */
 export const GrapesjsAnnouncementEditor = ({
   backgroundUrl,
@@ -455,6 +583,7 @@ export const GrapesjsAnnouncementEditor = ({
       width: "100%",
     });
 
+    registerBackgroundComponentType(editor);
     registerAnnouncementBlocks(editor);
 
     const flushSave = (): void => {
@@ -503,6 +632,17 @@ export const GrapesjsAnnouncementEditor = ({
       try {
         for (const component of selected) {
           if (
+            isBackgroundComponent(
+              component as unknown as {
+                get: (key: string) => unknown;
+                getAttributes?: () => Record<string, string>;
+              }
+            )
+          ) {
+            continue;
+          }
+
+          if (
             coerceComponentBackground(
               component as unknown as {
                 addStyle: (style: Record<string, string>) => void;
@@ -522,27 +662,75 @@ export const GrapesjsAnnouncementEditor = ({
       }
     };
 
+    // Ignore updates that only touch the locked background (src swaps).
+    const scheduleSaveUnlessBackgroundOnly = (component?: {
+      get: (key: string) => unknown;
+      getAttributes?: () => Record<string, string>;
+    }): void => {
+      if (
+        component &&
+        isBackgroundComponent(component) &&
+        !suppressEmitRef.current
+      ) {
+        return;
+      }
+
+      scheduleSave();
+    };
+
     editor.on("update", scheduleSave);
-    editor.on("component:update", scheduleSave);
+    editor.on("component:update", scheduleSaveUnlessBackgroundOnly);
     editor.on("style:change", () => {
       coerceSelectedBackgrounds();
       scheduleSave();
     });
-    editor.on("component:add", scheduleSave);
-    editor.on("component:remove", scheduleSave);
+    editor.on("component:add", scheduleSaveUnlessBackgroundOnly);
+    editor.on(
+      "component:remove",
+      (component: {
+        get: (key: string) => unknown;
+        getAttributes?: () => Record<string, string>;
+      }) => {
+        // Re-inject if something forced the locked bg out while a URL is active.
+        if (
+          isBackgroundComponent(component) &&
+          backgroundUrlRef.current &&
+          !suppressEmitRef.current
+        ) {
+          requestAnimationFrame(() => {
+            if (editorRef.current !== editor) {
+              return;
+            }
+
+            suppressEmitRef.current = true;
+            syncBackgroundComponent(editor, backgroundUrlRef.current);
+            requestAnimationFrame(() => {
+              suppressEmitRef.current = false;
+            });
+          });
+          return;
+        }
+
+        scheduleSaveUnlessBackgroundOnly(component);
+      }
+    );
     editor.on("component:drag:end", scheduleSave);
 
     editor.on("canvas:frame:load", () => {
       makeFrameTransparent(editor);
-      applyBackgroundToCanvas(editor, backgroundUrlRef.current);
+      suppressEmitRef.current = true;
+      syncBackgroundComponent(editor, backgroundUrlRef.current);
+      requestAnimationFrame(() => {
+        suppressEmitRef.current = false;
+      });
     });
 
     suppressEmitRef.current = true;
     loadHtmlIntoEditor(editor, syncedHtmlRef.current);
+    syncBackgroundComponent(editor, backgroundUrlRef.current);
     editor.UndoManager.clear();
     suppressEmitRef.current = false;
 
-    applyBackgroundToCanvas(editor, backgroundUrlRef.current);
     makeFrameTransparent(editor);
 
     editorRef.current = editor;
@@ -586,16 +774,16 @@ export const GrapesjsAnnouncementEditor = ({
     }
 
     loadHtmlIntoEditor(editor, html);
+    syncBackgroundComponent(editor, backgroundUrlRef.current);
     editor.UndoManager.clear();
     makeFrameTransparent(editor);
-    applyBackgroundToCanvas(editor, backgroundUrlRef.current);
 
     requestAnimationFrame(() => {
       suppressEmitRef.current = false;
     });
   }, [html]);
 
-  // Swappable background — host canvas chrome only, never a GrapesJS component.
+  // Swappable background — locked GrapesJS component, dynamic with variation.
   useEffect(() => {
     const editor = editorRef.current;
 
@@ -603,8 +791,12 @@ export const GrapesjsAnnouncementEditor = ({
       return;
     }
 
-    applyBackgroundToCanvas(editor, backgroundUrl);
+    suppressEmitRef.current = true;
+    syncBackgroundComponent(editor, backgroundUrl);
     makeFrameTransparent(editor);
+    requestAnimationFrame(() => {
+      suppressEmitRef.current = false;
+    });
   }, [backgroundUrl]);
 
   return (

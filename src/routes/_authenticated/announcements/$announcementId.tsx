@@ -288,9 +288,10 @@ const LiveCanvasEditor = ({
         <div className="flex min-w-0 flex-col gap-0.5">
           <CardTitle className="text-base">GrapesJS editor</CardTitle>
           <CardDescription className="text-xs">
-            Native GrapesJS blocks, styles, layers, and traits. Background is
-            separate and swappable. Auto-saves · up to{" "}
-            {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).
+            Native GrapesJS blocks, styles, layers, and traits. Background photo
+            is a locked GrapesJS layer (swaps with the selected variation).
+            Auto-saves · up to {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots
+            (Mod+Z / Mod+Y).
           </CardDescription>
         </div>
         <Badge className="w-fit shrink-0" variant="secondary">

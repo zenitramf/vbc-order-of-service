@@ -8,6 +8,7 @@ import {
   normalizeBackgroundDeclarations,
   parseOverlayHtml,
   solidColorToAlphaGradient,
+  stripAnnouncementBackgroundHtml,
 } from "~/lib/announcement-overlay-html";
 
 describe("parseOverlayHtml", () => {
@@ -77,6 +78,30 @@ describe("buildOverlayHtml", () => {
     expect(html).toContain("linear-gradient");
     expect(html).toContain("background-color:transparent");
     expect(html).not.toMatch(/background-color\s*:\s*#000000/iu);
+  });
+});
+
+describe("stripAnnouncementBackgroundHtml", () => {
+  it("removes locked background image nodes", () => {
+    const raw = `<img data-announcement-bg="1" src="https://example.com/a.jpg" alt="" />
+<div class="content">Hello</div>
+<div data-announcement-bg="1"><span>nope</span></div>`;
+
+    const stripped = stripAnnouncementBackgroundHtml(raw);
+    expect(stripped).not.toContain("data-announcement-bg");
+    expect(stripped).not.toContain("example.com");
+    expect(stripped).toContain("Hello");
+  });
+
+  it("strips background nodes when parsing overlay HTML", () => {
+    const raw = `<div class="announcement-overlay">
+<img data-announcement-bg="1" src="https://cdn.example/bg.jpg" />
+<h1>Title</h1>
+</div>`;
+    const parsed = parseOverlayHtml(raw);
+    expect(parsed.components).toContain("Title");
+    expect(parsed.components).not.toContain("data-announcement-bg");
+    expect(parsed.components).not.toContain("cdn.example");
   });
 });
 

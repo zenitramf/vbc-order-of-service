@@ -16,6 +16,24 @@ const STYLE_TAG_RE = /<style\b[^>]*>(?<cssBody>[\s\S]*?)<\/style>/giu;
 const OVERLAY_OPEN_RE =
   /<div\b[^>]*\bclass\s*=\s*["'][^"']*\bannouncement-overlay\b[^"']*["'][^>]*>/iu;
 
+/** Marker for the locked GrapesJS background image component (not persisted). */
+export const ANNOUNCEMENT_BG_ATTR = "data-announcement-bg";
+export const ANNOUNCEMENT_BG_TYPE = "announcement-bg";
+
+const BG_IMG_RE = /<img\b[^>]*\bdata-announcement-bg\b[^>]*\/?>/giu;
+const BG_DIV_RE = /<div\b[^>]*\bdata-announcement-bg\b[^>]*>[\s\S]*?<\/div>/giu;
+
+/**
+ * Remove the runtime background image node from overlay HTML.
+ * Variation selection (not draft HTML) is the source of truth for the photo.
+ */
+export const stripAnnouncementBackgroundHtml = (html: string): string =>
+  html
+    .replaceAll(BG_IMG_RE, "")
+    .replaceAll(BG_DIV_RE, "")
+    .replaceAll(/\n{3,}/gu, "\n\n")
+    .trim();
+
 /**
  * Readability scrims must be alpha gradients so the photo shows through.
  * Never solid fills — those overpower the background image layer.
@@ -315,7 +333,9 @@ export const parseOverlayHtml = (
     if (closeIndex > openEnd) {
       return {
         components: normalizeInlineBackgroundStyles(
-          withoutStyles.slice(openEnd, closeIndex).trim()
+          stripAnnouncementBackgroundHtml(
+            withoutStyles.slice(openEnd, closeIndex).trim()
+          )
         ),
         css: normalizeStylesheetBackgrounds(cssParts.join("\n").trim()),
       };
@@ -323,14 +343,18 @@ export const parseOverlayHtml = (
   }
 
   return {
-    components: normalizeInlineBackgroundStyles(withoutStyles),
+    components: normalizeInlineBackgroundStyles(
+      stripAnnouncementBackgroundHtml(withoutStyles)
+    ),
     css: normalizeStylesheetBackgrounds(cssParts.join("\n").trim()),
   };
 };
 
 /** Build a self-contained overlay fragment for storage/export. */
 export const buildOverlayHtml = (components: string, css: string): string => {
-  const safeComponents = normalizeInlineBackgroundStyles(components.trim());
+  const safeComponents = normalizeInlineBackgroundStyles(
+    stripAnnouncementBackgroundHtml(components.trim())
+  );
   const safeCss = normalizeStylesheetBackgrounds(css.trim());
 
   const styleBlock =
