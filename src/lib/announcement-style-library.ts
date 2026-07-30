@@ -252,14 +252,14 @@ const buildTwoPanel = (content: AnnouncementContent): string => {
 
 const buildCornerCard = (content: AnnouncementContent): string => {
   const c = resolveContent(content);
-  return wrapOverlay(`  <div ${role("scrim-bottom")} style="position:absolute;left:0;right:0;bottom:0;height:50%;pointer-events:none;background:linear-gradient(to top, rgba(28,25,23,0.45) 0%, transparent 85%);background-color:transparent;"></div>
-  <div ${role("panel")} style="position:absolute;left:72px;bottom:64px;width:980px;box-sizing:border-box;padding:56px 60px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;border-radius:24px;background:linear-gradient(180deg, rgba(28,25,23,0.78) 0%, rgba(28,25,23,0.58) 100%);background-color:transparent;box-shadow:0 24px 64px rgba(0,0,0,0.35);">
+  return wrapOverlay(`  <div ${role("scrim-bottom")} style="position:absolute;left:0;right:0;bottom:0;height:52%;pointer-events:none;background:linear-gradient(to top, rgba(28,25,23,0.45) 0%, transparent 85%);background-color:transparent;"></div>
+  <div ${role("panel")} style="position:absolute;left:64px;bottom:56px;width:1120px;box-sizing:border-box;padding:64px 72px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-start;border-radius:28px;background:linear-gradient(180deg, rgba(28,25,23,0.78) 0%, rgba(28,25,23,0.58) 100%);background-color:transparent;box-shadow:0 28px 72px rgba(0,0,0,0.38);">
   ${textStack(c, {
     align: "left",
-    bodyStyle: `font-size:36px;line-height:1.4;font-family:${GEORGIA_SERIF};color:#e7e5e4;opacity:0.92;max-width:860px;`,
-    headingStyle: `font-size:30px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500;font-family:${SYSTEM_SANS};color:#d6d3d1;text-shadow:0 2px 10px rgba(0,0,0,0.35);`,
-    subtitleStyle: `font-size:46px;line-height:1.25;font-weight:400;font-family:${GEORGIA_SERIF};color:#f5f5f4;opacity:0.94;`,
-    titleStyle: `font-size:88px;line-height:1.06;font-weight:500;font-family:${GEORGIA_SERIF};color:#fafaf9;text-shadow:0 4px 22px rgba(0,0,0,0.4);`,
+    bodyStyle: `font-size:40px;line-height:1.4;font-family:${GEORGIA_SERIF};color:#e7e5e4;opacity:0.92;max-width:980px;`,
+    headingStyle: `font-size:34px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500;font-family:${SYSTEM_SANS};color:#d6d3d1;text-shadow:0 2px 10px rgba(0,0,0,0.35);`,
+    subtitleStyle: `font-size:52px;line-height:1.25;font-weight:400;font-family:${GEORGIA_SERIF};color:#f5f5f4;opacity:0.94;`,
+    titleStyle: `font-size:100px;line-height:1.05;font-weight:500;font-family:${GEORGIA_SERIF};color:#fafaf9;text-shadow:0 4px 24px rgba(0,0,0,0.4);`,
   })}
   </div>`);
 };
