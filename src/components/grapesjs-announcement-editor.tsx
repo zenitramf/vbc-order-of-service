@@ -29,35 +29,80 @@ export interface GrapesjsAnnouncementEditorProps {
 
 const SAVE_DEBOUNCE_MS = 400;
 
-/** Canvas-frame CSS: wrapper stays transparent; photo is a locked component. */
+/**
+ * Canvas-frame CSS: wrapper is a fixed 1920×1080 positioning context.
+ * The locked background must stay out of normal flow so it never pushes text.
+ */
 const FRAME_BODY_CSS = `
   html, body, #wrapper {
-    margin: 0;
-    padding: 0;
-    width: ${ANNOUNCEMENT_WIDTH}px;
-    height: ${ANNOUNCEMENT_HEIGHT}px;
-    overflow: hidden;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: ${ANNOUNCEMENT_WIDTH}px !important;
+    height: ${ANNOUNCEMENT_HEIGHT}px !important;
+    max-height: ${ANNOUNCEMENT_HEIGHT}px !important;
+    overflow: hidden !important;
     background: transparent !important;
     background-color: transparent !important;
   }
   body, #wrapper {
-    min-height: ${ANNOUNCEMENT_HEIGHT}px;
     position: relative !important;
   }
   * {
     box-sizing: border-box;
   }
-  img[${ANNOUNCEMENT_BG_ATTR}] {
+  /* Div or img — always pinned, never contributes to document flow height. */
+  [${ANNOUNCEMENT_BG_ATTR}],
+  [${ANNOUNCEMENT_BG_ATTR}]="1" {
     position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: ${ANNOUNCEMENT_WIDTH}px !important;
+    height: ${ANNOUNCEMENT_HEIGHT}px !important;
+    max-width: ${ANNOUNCEMENT_WIDTH}px !important;
+    max-height: ${ANNOUNCEMENT_HEIGHT}px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    display: block !important;
     object-fit: cover !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
     pointer-events: none !important;
     z-index: 0 !important;
     user-select: none !important;
   }
+  /*
+   * Raise non-background siblings above the photo without changing their
+   * position scheme (forcing position:relative was collapsing absolute text).
+   */
+  #wrapper > *:not([${ANNOUNCEMENT_BG_ATTR}]) {
+    z-index: 1;
+  }
 `;
+
+const BACKGROUND_LAYER_STYLE: Record<string, string> = {
+  "background-position": "center",
+  "background-repeat": "no-repeat",
+  "background-size": "cover",
+  border: "none",
+  bottom: "0",
+  display: "block",
+  height: `${ANNOUNCEMENT_HEIGHT}px`,
+  left: "0",
+  margin: "0",
+  "max-height": `${ANNOUNCEMENT_HEIGHT}px`,
+  "max-width": `${ANNOUNCEMENT_WIDTH}px`,
+  padding: "0",
+  "pointer-events": "none",
+  position: "absolute",
+  right: "0",
+  top: "0",
+  width: `${ANNOUNCEMENT_WIDTH}px`,
+  "z-index": "0",
+};
 
 /** Serialize GrapesJS project into a self-contained overlay fragment for export/storage. */
 export const serializeOverlayHtml = (editor: Editor): string => {
@@ -96,8 +141,11 @@ const makeFrameTransparent = (editor: Editor): void => {
 
 interface GrapesComponentLike {
   addAttributes: (attrs: Record<string, string>) => void;
+  addStyle: (style: Record<string, string>) => void;
   get: (key: string) => unknown;
   getAttributes: () => Record<string, string>;
+  getStyle: () => Record<string, string | undefined>;
+  move: (parent: unknown, options: { at: number }) => void;
   remove: () => void;
 }
 
@@ -113,6 +161,23 @@ const isBackgroundComponent = (component: {
   return attrs[ANNOUNCEMENT_BG_ATTR] === "1";
 };
 
+const backgroundImageCss = (url: string): string => `url("${url}")`;
+
+/** Pin the layer out of flow with fixed stage dimensions (no intrinsic img size). */
+const applyBackgroundLayerStyle = (
+  component: GrapesComponentLike,
+  backgroundUrl: string
+): void => {
+  component.addAttributes({
+    [ANNOUNCEMENT_BG_ATTR]: "1",
+    "aria-hidden": "true",
+  });
+  component.addStyle({
+    ...BACKGROUND_LAYER_STYLE,
+    "background-image": backgroundImageCss(backgroundUrl),
+  });
+};
+
 const registerBackgroundComponentType = (editor: Editor): void => {
   editor.DomComponents.addType(ANNOUNCEMENT_BG_TYPE, {
     isComponent: (el: HTMLElement) =>
@@ -123,8 +188,7 @@ const registerBackgroundComponentType = (editor: Editor): void => {
       defaults: {
         attributes: {
           [ANNOUNCEMENT_BG_ATTR]: "1",
-          alt: "",
-          draggable: "false",
+          "aria-hidden": "true",
         },
         copyable: false,
         draggable: false,
@@ -137,17 +201,10 @@ const registerBackgroundComponentType = (editor: Editor): void => {
         removable: false,
         resizable: false,
         selectable: false,
-        style: {
-          height: "100%",
-          left: "0",
-          "object-fit": "cover",
-          "pointer-events": "none",
-          position: "absolute",
-          top: "0",
-          width: "100%",
-          "z-index": "0",
-        },
-        tagName: "img",
+        // Empty div + CSS background-image has no intrinsic size, so even if
+        // absolute positioning is briefly missing it won't shove siblings down.
+        style: { ...BACKGROUND_LAYER_STYLE },
+        tagName: "div",
         type: ANNOUNCEMENT_BG_TYPE,
       },
     },
@@ -155,9 +212,10 @@ const registerBackgroundComponentType = (editor: Editor): void => {
 };
 
 /**
- * Ensure a locked full-bleed background image component matches the active
- * variation URL. Not persisted in draft HTML — re-injected whenever the
- * editor loads or the selected variation changes.
+ * Ensure a locked full-bleed background layer matches the active variation URL.
+ * Uses an absolutely positioned empty div (not <img>) so the photo never
+ * participates in normal document flow or pushes overlay text.
+ * Not persisted in draft HTML — re-injected on load / variation change.
  */
 export const syncBackgroundComponent = (
   editor: Editor,
@@ -169,8 +227,11 @@ export const syncBackgroundComponent = (
     return;
   }
 
+  // Fixed stage box — absolute children position against this, not content height.
   wrapper.addStyle({
     height: `${ANNOUNCEMENT_HEIGHT}px`,
+    "max-height": `${ANNOUNCEMENT_HEIGHT}px`,
+    "min-height": `${ANNOUNCEMENT_HEIGHT}px`,
     overflow: "hidden",
     position: "relative",
     width: `${ANNOUNCEMENT_WIDTH}px`,
@@ -190,13 +251,15 @@ export const syncBackgroundComponent = (
   const [bg] = existing;
 
   if (bg) {
-    const currentSrc = bg.getAttributes().src ?? "";
+    applyBackgroundLayerStyle(bg, backgroundUrl);
 
-    if (currentSrc !== backgroundUrl) {
-      bg.addAttributes({ src: backgroundUrl });
+    // Always keep the photo as the first child (behind content).
+    try {
+      bg.move(wrapper, { at: 0 });
+    } catch {
+      // move may fail mid-teardown; styles still keep it out of flow.
     }
 
-    // Keep a single background node; drop duplicates.
     for (const extra of existing.slice(1)) {
       extra.remove();
     }
@@ -204,19 +267,28 @@ export const syncBackgroundComponent = (
     return;
   }
 
-  wrapper.components().add(
+  const created = wrapper.components().add(
     {
       attributes: {
         [ANNOUNCEMENT_BG_ATTR]: "1",
-        alt: "",
-        crossorigin: "anonymous",
-        draggable: "false",
-        src: backgroundUrl,
+        "aria-hidden": "true",
+      },
+      style: {
+        ...BACKGROUND_LAYER_STYLE,
+        "background-image": backgroundImageCss(backgroundUrl),
       },
       type: ANNOUNCEMENT_BG_TYPE,
     },
     { at: 0 }
   );
+
+  const node = (Array.isArray(created) ? created[0] : created) as
+    | GrapesComponentLike
+    | undefined;
+
+  if (node) {
+    applyBackgroundLayerStyle(node, backgroundUrl);
+  }
 };
 
 const registerAnnouncementBlocks = (editor: Editor): void => {
