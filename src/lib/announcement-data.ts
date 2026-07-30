@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { v4 as uuidv4 } from "uuid";
 
 import type {
+  AddLibraryImageAsVariationInput,
   AnnouncementAsset,
   AnnouncementContent,
   AnnouncementDraft,
@@ -26,6 +27,7 @@ import {
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
 import { requireSessionMiddleware } from "~/lib/auth.functions";
+import { LIBRARY_R2_PREFIX } from "~/lib/image-library-types";
 
 const INDEX_KEY = "announcements/index.json";
 /** xAI image model via Cloudflare AI Gateway — backgrounds only, no baked text. */
@@ -73,11 +75,11 @@ const formatAiError = (error: unknown): string => {
     };
     const parts = [withExtras.message];
 
-    if (withExtras.code != null) {
+    if (withExtras.code !== undefined && withExtras.code !== null) {
       parts.push(`code=${withExtras.code}`);
     }
 
-    if (withExtras.cause != null) {
+    if (withExtras.cause !== undefined && withExtras.cause !== null) {
       parts.push(
         typeof withExtras.cause === "string"
           ? withExtras.cause
@@ -120,9 +122,46 @@ const runAiGateway = async (
 const nowIso = () => new Date().toISOString();
 
 const draftKey = (id: string) => `announcements/${id}/draft.json`;
-const backgroundKey = (id: string, variationId: string) =>
-  `announcements/${id}/backgrounds/${variationId}.jpg`;
+const backgroundKey = (
+  id: string,
+  variationId: string,
+  extension = "jpg"
+): string => `announcements/${id}/backgrounds/${variationId}.${extension}`;
 const exportKey = (id: string) => `announcements/${id}/exports/approved.jpg`;
+
+const extensionForContentType = (contentType: string): string => {
+  const normalized = contentType.trim().toLowerCase();
+
+  if (normalized === "image/png") {
+    return "png";
+  }
+
+  if (normalized === "image/webp") {
+    return "webp";
+  }
+
+  return "jpg";
+};
+
+/** Backfill fields for drafts saved before library-source variations existed. */
+const normalizeVariation = (
+  variation: Partial<AnnouncementVariation> &
+    Pick<AnnouncementVariation, "createdAt" | "id" | "objectKey" | "prompt">
+): AnnouncementVariation => ({
+  createdAt: variation.createdAt,
+  id: variation.id,
+  libraryFilename: variation.libraryFilename ?? null,
+  libraryImageId: variation.libraryImageId ?? null,
+  objectKey: variation.objectKey,
+  parentVariationId: variation.parentVariationId ?? null,
+  prompt: variation.prompt,
+  source: variation.source === "library" ? "library" : "generated",
+});
+
+const normalizeDraft = (draft: AnnouncementDraft): AnnouncementDraft => ({
+  ...draft,
+  variations: draft.variations.map((variation) => normalizeVariation(variation)),
+});
 
 const emptyContent = (
   partial?: Partial<AnnouncementContent>
@@ -228,7 +267,7 @@ const loadDraft = async (id: string): Promise<AnnouncementDraft> => {
     throw new Error("Announcement not found.");
   }
 
-  return draft;
+  return normalizeDraft(draft);
 };
 
 const saveDraft = async (
@@ -532,10 +571,10 @@ export const listAnnouncements = createServerFn({ method: "GET" })
 export const getAnnouncement = createServerFn({ method: "GET" })
   .middleware([requireSessionMiddleware])
   .validator((id: string) => id)
-  .handler(
-    ({ data }): Promise<AnnouncementDraft | null> =>
-      getJson<AnnouncementDraft>(draftKey(data))
-  );
+  .handler(async ({ data }): Promise<AnnouncementDraft | null> => {
+    const draft = await getJson<AnnouncementDraft>(draftKey(data));
+    return draft ? normalizeDraft(draft) : null;
+  });
 
 export const createAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
@@ -658,9 +697,12 @@ export const generateBackgrounds = createServerFn({ method: "POST" })
         const variation: AnnouncementVariation = {
           createdAt: nowIso(),
           id: variationId,
+          libraryFilename: null,
+          libraryImageId: null,
           objectKey,
           parentVariationId,
           prompt,
+          source: "generated",
         };
         return variation;
       })
@@ -670,6 +712,65 @@ export const generateBackgrounds = createServerFn({ method: "POST" })
 
     if (!draft.selectedVariationId && created[0]) {
       draft.selectedVariationId = created[0].id;
+    }
+
+    markDirtyIfApproved(draft);
+    return await saveDraft(draft);
+  });
+
+export const addLibraryImageAsVariation = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: AddLibraryImageAsVariationInput) => data)
+  .handler(async ({ data }): Promise<AnnouncementDraft> => {
+    const libraryObjectKey = data.libraryObjectKey.trim();
+
+    if (!libraryObjectKey.startsWith(LIBRARY_R2_PREFIX)) {
+      throw new Error("Invalid library object key.");
+    }
+
+    const draft = await loadDraft(data.id);
+    const libraryObject = await getBucket().get(libraryObjectKey);
+
+    if (!libraryObject) {
+      throw new Error("Library image was not found in R2 storage.");
+    }
+
+    const custom = libraryObject.customMetadata ?? {};
+    const libraryImageId = custom.id?.trim() || null;
+    const libraryFilename =
+      custom.filename?.trim() ||
+      libraryObjectKey.split("/").pop() ||
+      "library-image";
+    const contentType =
+      libraryObject.httpMetadata?.contentType ||
+      custom.contentType ||
+      "image/jpeg";
+    const extension = extensionForContentType(contentType);
+    const bytes = await libraryObject.arrayBuffer();
+    const variationId = uuidv4();
+    const objectKey = backgroundKey(draft.id, variationId, extension);
+
+    // Copy into the announcement's own storage so library deletes cannot break
+    // this draft, and removeVariation only deletes the announcement copy.
+    await putImageBytes(objectKey, bytes, contentType);
+
+    const variation: AnnouncementVariation = {
+      createdAt: nowIso(),
+      id: variationId,
+      libraryFilename,
+      libraryImageId,
+      objectKey,
+      parentVariationId: null,
+      prompt: `Library image: ${libraryFilename}`,
+      source: "library",
+    };
+
+    draft.variations = [variation, ...draft.variations];
+
+    if (data.select !== false) {
+      draft.selectedVariationId = variation.id;
+    } else if (!draft.selectedVariationId) {
+      draft.selectedVariationId = variation.id;
     }
 
     markDirtyIfApproved(draft);

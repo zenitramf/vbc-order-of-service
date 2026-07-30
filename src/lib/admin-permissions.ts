@@ -42,6 +42,11 @@ export const PERMISSION_RESOURCES: readonly PermissionResource[] = [
     label: "Announcements",
   },
   {
+    actions: ["view", "create", "delete"],
+    key: "library",
+    label: "Image Library",
+  },
+  {
     actions: ["view", "create", "update", "delete"],
     key: "teams",
     label: "Teams",

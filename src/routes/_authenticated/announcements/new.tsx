@@ -87,7 +87,7 @@ const NewAnnouncementPage = () => {
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={onSubmit}>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="name">Library name</Label>
+              <Label htmlFor="name">Announcement name</Label>
               <Input
                 id="name"
                 onChange={(event) => setName(event.target.value)}
@@ -101,7 +101,7 @@ const NewAnnouncementPage = () => {
               <Input
                 id="title"
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder="Defaults to library name"
+                placeholder="Defaults to announcement name"
                 value={title}
               />
             </div>

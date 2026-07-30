@@ -20,6 +20,7 @@ import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedMembersIndexRouteImport } from './routes/_authenticated/members/index'
+import { Route as AuthenticatedLibraryIndexRouteImport } from './routes/_authenticated/library/index'
 import { Route as AuthenticatedHymnsIndexRouteImport } from './routes/_authenticated/hymns/index'
 import { Route as AuthenticatedAnnouncementsIndexRouteImport } from './routes/_authenticated/announcements/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -99,6 +100,12 @@ const AuthenticatedMembersIndexRoute =
   AuthenticatedMembersIndexRouteImport.update({
     id: '/members/',
     path: '/members/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedLibraryIndexRoute =
+  AuthenticatedLibraryIndexRouteImport.update({
+    id: '/library/',
+    path: '/library/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedHymnsIndexRoute = AuthenticatedHymnsIndexRouteImport.update({
@@ -249,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/announcements/': typeof AuthenticatedAnnouncementsIndexRoute
   '/hymns/': typeof AuthenticatedHymnsIndexRoute
+  '/library/': typeof AuthenticatedLibraryIndexRoute
   '/members/': typeof AuthenticatedMembersIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -282,6 +290,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/announcements': typeof AuthenticatedAnnouncementsIndexRoute
   '/hymns': typeof AuthenticatedHymnsIndexRoute
+  '/library': typeof AuthenticatedLibraryIndexRoute
   '/members': typeof AuthenticatedMembersIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
@@ -318,6 +327,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/announcements/': typeof AuthenticatedAnnouncementsIndexRoute
   '/_authenticated/hymns/': typeof AuthenticatedHymnsIndexRoute
+  '/_authenticated/library/': typeof AuthenticatedLibraryIndexRoute
   '/_authenticated/members/': typeof AuthenticatedMembersIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -354,6 +364,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/announcements/'
     | '/hymns/'
+    | '/library/'
     | '/members/'
     | '/profile/'
     | '/settings/'
@@ -387,6 +398,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/announcements'
     | '/hymns'
+    | '/library'
     | '/members'
     | '/profile'
     | '/settings'
@@ -422,6 +434,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/'
     | '/_authenticated/announcements/'
     | '/_authenticated/hymns/'
+    | '/_authenticated/library/'
     | '/_authenticated/members/'
     | '/_authenticated/profile/'
     | '/_authenticated/settings/'
@@ -519,6 +532,13 @@ declare module '@tanstack/react-router' {
       path: '/members'
       fullPath: '/members/'
       preLoaderRoute: typeof AuthenticatedMembersIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/library/': {
+      id: '/_authenticated/library/'
+      path: '/library'
+      fullPath: '/library/'
+      preLoaderRoute: typeof AuthenticatedLibraryIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/hymns/': {
@@ -719,6 +739,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTemplatesNewRoute: typeof AuthenticatedTemplatesNewRoute
   AuthenticatedAnnouncementsIndexRoute: typeof AuthenticatedAnnouncementsIndexRoute
   AuthenticatedHymnsIndexRoute: typeof AuthenticatedHymnsIndexRoute
+  AuthenticatedLibraryIndexRoute: typeof AuthenticatedLibraryIndexRoute
   AuthenticatedMembersIndexRoute: typeof AuthenticatedMembersIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
@@ -745,6 +766,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTemplatesNewRoute: AuthenticatedTemplatesNewRoute,
   AuthenticatedAnnouncementsIndexRoute: AuthenticatedAnnouncementsIndexRoute,
   AuthenticatedHymnsIndexRoute: AuthenticatedHymnsIndexRoute,
+  AuthenticatedLibraryIndexRoute: AuthenticatedLibraryIndexRoute,
   AuthenticatedMembersIndexRoute: AuthenticatedMembersIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,

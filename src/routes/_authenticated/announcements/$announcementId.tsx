@@ -1,4 +1,5 @@
 import {
+  BooksIcon,
   CaretDownIcon,
   CaretUpDownIcon,
   CaretUpIcon,
@@ -8,7 +9,9 @@ import {
   EyeIcon,
   FloppyDiskIcon,
   ImageIcon,
+  ImagesIcon,
   MagicWandIcon,
+  PencilSimpleIcon,
   PlusIcon,
   SparkleIcon,
   TrashIcon,
@@ -84,6 +87,7 @@ import {
 } from "~/components/ui/empty";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -98,6 +102,7 @@ import {
   useHtmlHistory,
 } from "~/hooks/use-html-history";
 import {
+  addLibraryImageAsVariation,
   approveAnnouncement,
   clearVariationContext,
   generateAnnouncementHtml,
@@ -119,6 +124,11 @@ import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
+import {
+  getLibraryImage,
+  listLibraryImages,
+} from "~/lib/image-library-data";
+import type { ImageLibraryItem } from "~/lib/image-library-types";
 import { requirePermission } from "~/lib/route-guards";
 import { cn } from "~/lib/utils";
 
@@ -204,13 +214,15 @@ const createVariationColumns = ({
       const isSelected = row.original.id === selectedVariationId;
       const isBusy =
         selectingId === row.original.id || removingId === row.original.id;
+      const isLibrary = row.original.source === "library";
 
       return (
         <div className="flex items-center gap-2">
           <div
             className={cn(
               "bg-muted relative size-14 shrink-0 overflow-hidden rounded-md border",
-              isSelected && "ring-primary ring-2"
+              isSelected && "ring-primary ring-2",
+              isLibrary && "ring-sky-500/70 ring-1"
             )}
           >
             {url ? (
@@ -220,18 +232,31 @@ const createVariationColumns = ({
                 …
               </div>
             )}
+            {isLibrary ? (
+              <div className="absolute inset-x-0 bottom-0 flex justify-center bg-sky-600/90 py-0.5">
+                <BooksIcon className="size-3 text-white" weight="fill" />
+              </div>
+            ) : null}
             {isBusy ? (
               <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                 <CircleNotchIcon className="size-4 animate-spin text-white" />
               </div>
             ) : null}
           </div>
-          {isSelected ? (
-            <Badge variant="default">
-              <SparkleIcon className="size-3" />
-              Context
-            </Badge>
-          ) : null}
+          <div className="flex flex-col gap-1">
+            {isSelected ? (
+              <Badge variant="default">
+                <SparkleIcon className="size-3" />
+                Context
+              </Badge>
+            ) : null}
+            {isLibrary ? (
+              <Badge className="bg-sky-600 text-white hover:bg-sky-600" variant="secondary">
+                <BooksIcon className="size-3" weight="fill" />
+                Library
+              </Badge>
+            ) : null}
+          </div>
         </div>
       );
     },
@@ -247,12 +272,35 @@ const createVariationColumns = ({
       Date.parse(rowA.original.createdAt) - Date.parse(rowB.original.createdAt),
   },
   {
-    cell: () => (
-      <span className="font-mono text-xs">{BACKGROUND_IMAGE_MODEL}</span>
-    ),
+    cell: ({ row }) => {
+      if (row.original.source === "library") {
+        return (
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm font-medium">Image library</span>
+            <span
+              className="text-muted-foreground truncate text-xs"
+              title={row.original.libraryFilename ?? undefined}
+            >
+              {row.original.libraryFilename ?? "Template image"}
+            </span>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="font-mono text-xs">{BACKGROUND_IMAGE_MODEL}</span>
+          {row.original.parentVariationId ? (
+            <span className="text-muted-foreground text-xs">
+              From selected context
+            </span>
+          ) : null}
+        </div>
+      );
+    },
     enableSorting: false,
-    header: "Model",
-    id: "model",
+    header: "Source",
+    id: "source",
   },
   {
     cell: ({ row }) => (
@@ -382,8 +430,8 @@ const VariationLibraryCard = ({
           <CardTitle>Variation library</CardTitle>
           <CardDescription>
             Select a variation to mark it as the happy path. That selection
-            becomes context for the next AI background batch. Right-click a row
-            to remove it.
+            becomes context for the next AI background batch — including library
+            template images. Right-click a row to remove it.
           </CardDescription>
         </div>
         {variations.length > 0 ? (
@@ -452,7 +500,8 @@ const VariationLibraryCard = ({
       <CardContent>
         {variations.length === 0 ? (
           <p className="text-muted-foreground text-sm">
-            No backgrounds yet. Generate variations from a prompt above.
+            No backgrounds yet. Generate AI variations from a prompt, or add a
+            template image from the image library.
           </p>
         ) : (
           <Table>
@@ -549,6 +598,369 @@ const VariationLibraryCard = ({
   );
 };
 
+const LibraryImagePickerDialog = ({
+  isAdding,
+  onAdd,
+  onOpenChange,
+  open,
+}: {
+  isAdding: boolean;
+  onAdd: (image: ImageLibraryItem) => void;
+  onOpenChange: (open: boolean) => void;
+  open: boolean;
+}) => {
+  const listFn = useServerFn(listLibraryImages);
+  const getImageFn = useServerFn(getLibraryImage);
+  const [images, setImages] = useState<ImageLibraryItem[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [addingKey, setAddingKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setAddingKey(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+
+      try {
+        const items = await listFn();
+
+        if (cancelled) {
+          return;
+        }
+
+        setImages(items);
+
+        const entries = await Promise.all(
+          items.map(async (item) => {
+            try {
+              const asset = await getImageFn({ data: item.objectKey });
+              return [
+                item.objectKey,
+                toDataUrl(asset.base64, asset.contentType),
+              ] as const;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setPreviewUrls((previous) => {
+          const next = { ...previous };
+
+          for (const entry of entries) {
+            if (!entry) {
+              continue;
+            }
+
+            const [objectKey, dataUrl] = entry;
+            next[objectKey] = dataUrl;
+          }
+
+          return next;
+        });
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Could not load the image library."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getImageFn, listFn, open]);
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Use library image as background</DialogTitle>
+          <DialogDescription>
+            Choose a 1920×1080 template from the image library. It is copied into
+            this announcement&apos;s variation library so you can select it and
+            generate AI variations from it.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {Array.from({ length: 6 }, (_, index) => (
+              <Skeleton className="aspect-video w-full rounded-lg" key={index} />
+            ))}
+          </div>
+        ) : null}
+
+        {!isLoading && loadError ? (
+          <p className="text-destructive text-sm">{loadError}</p>
+        ) : null}
+
+        {!isLoading && !loadError && images.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>No library images yet</EmptyTitle>
+              <EmptyDescription>
+                Upload 1920×1080 templates under Image Library, then return here
+                to use them as announcement backgrounds.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/library">Open image library</Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : null}
+
+        {!isLoading && !loadError && images.length > 0 ? (
+          <div className="grid max-h-[min(28rem,60vh)] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+            {images.map((image) => {
+              const previewUrl = previewUrls[image.objectKey];
+              const isThisAdding =
+                isAdding && addingKey === image.objectKey;
+
+              return (
+                <button
+                  className={cn(
+                    "group relative overflow-hidden rounded-lg border text-left transition-colors",
+                    "hover:border-primary focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                    isThisAdding && "border-primary opacity-80"
+                  )}
+                  disabled={isAdding}
+                  key={image.id}
+                  onClick={() => {
+                    setAddingKey(image.objectKey);
+                    onAdd(image);
+                  }}
+                  type="button"
+                >
+                  <div className="bg-muted aspect-video w-full overflow-hidden">
+                    {previewUrl ? (
+                      <img
+                        alt={image.filename}
+                        className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        src={previewUrl}
+                      />
+                    ) : (
+                      <Skeleton className="size-full rounded-none" />
+                    )}
+                  </div>
+                  <div className="flex items-start justify-between gap-2 p-2">
+                    <div className="min-w-0">
+                      <p
+                        className="truncate text-sm font-medium"
+                        title={image.filename}
+                      >
+                        {image.filename}
+                      </p>
+                      <p className="text-muted-foreground text-xs">
+                        Library template
+                      </p>
+                    </div>
+                    <Badge
+                      className="shrink-0 bg-sky-600 text-white hover:bg-sky-600"
+                      variant="secondary"
+                    >
+                      <BooksIcon className="size-3" weight="fill" />
+                      Library
+                    </Badge>
+                  </div>
+                  {isThisAdding ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/45">
+                      <CircleNotchIcon className="size-6 animate-spin text-white" />
+                    </div>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button disabled={isAdding} type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const BackgroundImageCard = ({
+  backgroundPrompt,
+  isGeneratingBg,
+  onAddLibraryImage,
+  onGenerateBackgrounds,
+  selectedVariation,
+  setBackgroundPrompt,
+  setVariationCount,
+  variationCount,
+}: {
+  backgroundPrompt: string;
+  isGeneratingBg: boolean;
+  onAddLibraryImage: (image: ImageLibraryItem) => Promise<void>;
+  onGenerateBackgrounds: () => void;
+  selectedVariation: AnnouncementVariation | null;
+  setBackgroundPrompt: (value: string) => void;
+  setVariationCount: (value: number) => void;
+  variationCount: number;
+}) => {
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [isAddingLibraryImage, setIsAddingLibraryImage] = useState(false);
+
+  const handleAddLibraryImage = async (image: ImageLibraryItem) => {
+    setIsAddingLibraryImage(true);
+
+    try {
+      await onAddLibraryImage(image);
+      setLibraryPickerOpen(false);
+    } finally {
+      setIsAddingLibraryImage(false);
+    }
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Background image</CardTitle>
+          <CardDescription>
+            Use a template from the image library, or generate AI images without
+            text. A selected variation becomes context for the next AI batch
+            (happy path) — library images included.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={isAddingLibraryImage || isGeneratingBg}
+              onClick={() => {
+                setLibraryPickerOpen(true);
+              }}
+              type="button"
+              variant="outline"
+            >
+              {isAddingLibraryImage ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <ImagesIcon data-icon="inline-start" />
+              )}
+              Use library image
+            </Button>
+            <Button asChild size="default" variant="ghost">
+              <Link to="/library">Manage library</Link>
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="bg-prompt">Background prompt</Label>
+            <Textarea
+              id="bg-prompt"
+              onChange={(event) => setBackgroundPrompt(event.target.value)}
+              rows={4}
+              value={backgroundPrompt}
+            />
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="variation-count">Variations</Label>
+              <Input
+                className="w-24"
+                id="variation-count"
+                max={4}
+                min={1}
+                onChange={(event) =>
+                  setVariationCount(
+                    Math.min(
+                      4,
+                      Math.max(1, Number.parseInt(event.target.value, 10) || 1)
+                    )
+                  )
+                }
+                type="number"
+                value={variationCount}
+              />
+            </div>
+            <Button
+              disabled={isGeneratingBg || !backgroundPrompt.trim()}
+              onClick={onGenerateBackgrounds}
+              type="button"
+            >
+              {isGeneratingBg ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <ImageIcon data-icon="inline-start" />
+              )}
+              {selectedVariation
+                ? "Generate from selected"
+                : "Generate backgrounds"}
+            </Button>
+          </div>
+          {selectedVariation ? (
+            <p className="text-muted-foreground text-sm">
+              Active context:{" "}
+              {selectedVariation.source === "library" ? (
+                <>
+                  library image{" "}
+                  <span className="font-medium text-foreground">
+                    {selectedVariation.libraryFilename ?? "template"}
+                  </span>
+                </>
+              ) : (
+                <>
+                  variation{" "}
+                  <span className="font-mono text-xs">
+                    {selectedVariation.id.slice(0, 8)}
+                  </span>
+                </>
+              )}
+              . Next AI batch will use it as reference.
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <LibraryImagePickerDialog
+        isAdding={isAddingLibraryImage}
+        onAdd={(image) => {
+          void handleAddLibraryImage(image);
+        }}
+        onOpenChange={setLibraryPickerOpen}
+        open={libraryPickerOpen}
+      />
+    </>
+  );
+};
+
 const AnnouncementEditor = ({
   announcement: initial,
 }: {
@@ -557,6 +969,7 @@ const AnnouncementEditor = ({
   const router = useRouter();
   const saveFn = useServerFn(saveAnnouncement);
   const generateBgFn = useServerFn(generateBackgrounds);
+  const addLibraryFn = useServerFn(addLibraryImageAsVariation);
   const selectFn = useServerFn(selectVariation);
   const clearContextFn = useServerFn(clearVariationContext);
   const removeVariationFn = useServerFn(removeVariation);
@@ -587,6 +1000,8 @@ const AnnouncementEditor = ({
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [exportPreview, setExportPreview] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(initial.name);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingBg, setIsGeneratingBg] = useState(false);
   const [isGeneratingHtml, setIsGeneratingHtml] = useState(false);
@@ -646,6 +1061,8 @@ const AnnouncementEditor = ({
   useEffect(() => {
     setDraft(initial);
     setName(initial.name);
+    setNameDraft(initial.name);
+    setIsEditingName(false);
     setContent(initial.content);
     setBackgroundPrompt(initial.backgroundPrompt);
 
@@ -905,6 +1322,21 @@ const AnnouncementEditor = ({
     }
   };
 
+  const onAddLibraryImage = async (image: ImageLibraryItem) => {
+    const next = await addLibraryFn({
+      data: {
+        id: draft.id,
+        libraryObjectKey: image.objectKey,
+        select: true,
+      },
+    });
+    applyDraft(next);
+    await router.invalidate();
+    toast.success(
+      `"${image.filename}" added to the variation library and selected as context.`
+    );
+  };
+
   const onSelectVariation = async (variationId: string) => {
     if (variationId === draft.selectedVariationId) {
       return;
@@ -1112,8 +1544,37 @@ const AnnouncementEditor = ({
         .replaceAll(/^-|-$/gu, "") || "announcement";
     const link = document.createElement("a");
     link.href = exportPreview;
-    link.download = `${slug}-approved.jpg`;
+    link.download = `${slug}.jpg`;
     link.click();
+  };
+
+  const skipNameCommitRef = useRef(false);
+
+  const startEditName = () => {
+    skipNameCommitRef.current = false;
+    setNameDraft(name);
+    setIsEditingName(true);
+  };
+
+  const commitEditName = () => {
+    if (skipNameCommitRef.current) {
+      skipNameCommitRef.current = false;
+      return;
+    }
+
+    const next = nameDraft.trim();
+
+    if (next.length > 0) {
+      setName(next);
+    }
+
+    setIsEditingName(false);
+  };
+
+  const cancelEditName = () => {
+    skipNameCommitRef.current = true;
+    setNameDraft(name);
+    setIsEditingName(false);
   };
 
   return (
@@ -1122,10 +1583,44 @@ const AnnouncementEditor = ({
       <div className={VIEWPORT_CANVAS_SHELL}>
         <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-                {name || "Announcement"}
-              </h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {isEditingName ? (
+                <Input
+                  aria-label="Announcement name"
+                  autoFocus
+                  className="font-heading h-auto max-w-md py-1 text-2xl font-semibold tracking-tight sm:text-3xl"
+                  onBlur={commitEditName}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      commitEditName();
+                    }
+
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      cancelEditName();
+                    }
+                  }}
+                  value={nameDraft}
+                />
+              ) : (
+                <>
+                  <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+                    {name || "Announcement"}
+                  </h1>
+                  <Button
+                    aria-label="Edit announcement name"
+                    className="text-muted-foreground size-8 shrink-0"
+                    onClick={startEditName}
+                    size="icon"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <PencilSimpleIcon className="size-4" />
+                  </Button>
+                </>
+              )}
               <Badge
                 variant={draft.status === "approved" ? "default" : "secondary"}
               >
@@ -1202,14 +1697,6 @@ const AnnouncementEditor = ({
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-2 sm:col-span-2">
-                <Label htmlFor="announcement-name">Library name</Label>
-                <Input
-                  id="announcement-name"
-                  onChange={(event) => setName(event.target.value)}
-                  value={name}
-                />
-              </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-title">Title</Label>
                 <Input
@@ -1253,75 +1740,29 @@ const AnnouncementEditor = ({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Background image (AI)</CardTitle>
-              <CardDescription>
-                Images are generated without text. A selected variation becomes
-                context for the next batch (happy path).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="bg-prompt">Background prompt</Label>
-                <Textarea
-                  id="bg-prompt"
-                  onChange={(event) => setBackgroundPrompt(event.target.value)}
-                  rows={4}
-                  value={backgroundPrompt}
-                />
-              </div>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="variation-count">Variations</Label>
-                  <Input
-                    className="w-24"
-                    id="variation-count"
-                    max={4}
-                    min={1}
-                    onChange={(event) =>
-                      setVariationCount(
-                        Math.min(
-                          4,
-                          Math.max(
-                            1,
-                            Number.parseInt(event.target.value, 10) || 1
-                          )
-                        )
-                      )
-                    }
-                    type="number"
-                    value={variationCount}
-                  />
-                </div>
-                <Button
-                  disabled={isGeneratingBg || !backgroundPrompt.trim()}
-                  onClick={() => void onGenerateBackgrounds()}
-                  type="button"
-                >
-                  {isGeneratingBg ? (
-                    <CircleNotchIcon
-                      className="animate-spin"
-                      data-icon="inline-start"
-                    />
-                  ) : (
-                    <ImageIcon data-icon="inline-start" />
-                  )}
-                  {draft.selectedVariationId
-                    ? "Generate from selected"
-                    : "Generate backgrounds"}
-                </Button>
-              </div>
-              {draft.selectedVariationId ? (
-                <p className="text-muted-foreground text-sm">
-                  Active context: variation{" "}
-                  <span className="font-mono text-xs">
-                    {draft.selectedVariationId.slice(0, 8)}
-                  </span>
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
+          <BackgroundImageCard
+            backgroundPrompt={backgroundPrompt}
+            isGeneratingBg={isGeneratingBg}
+            onAddLibraryImage={async (image) => {
+              try {
+                await onAddLibraryImage(image);
+              } catch (error) {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not add library image as a background."
+                );
+                throw error;
+              }
+            }}
+            onGenerateBackgrounds={() => {
+              void onGenerateBackgrounds();
+            }}
+            selectedVariation={selectedVariation}
+            setBackgroundPrompt={setBackgroundPrompt}
+            setVariationCount={setVariationCount}
+            variationCount={variationCount}
+          />
         </div>
 
         <Card>

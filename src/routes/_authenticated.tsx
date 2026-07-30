@@ -4,6 +4,7 @@ import {
   CalendarCheckIcon,
   GearIcon,
   HouseIcon,
+  ImageIcon,
   ListChecksIcon,
   MegaphoneIcon,
   MusicNotesIcon,
@@ -110,6 +111,16 @@ const teamManagementItems = [
   },
 ] as const;
 
+const libraryItems = [
+  {
+    action: "view",
+    icon: ImageIcon,
+    label: "Image Library",
+    resource: "library",
+    to: "/library",
+  },
+] as const;
+
 const createItems = [
   {
     action: "create",
@@ -153,6 +164,7 @@ const routeLabels = new Map([
   ["templates", "Templates"],
   ["hymns", "Hymns"],
   ["announcements", "Announcements"],
+  ["library", "Image Library"],
   ["teams", "Teams"],
   ["members", "Team Members"],
   ["admin", "Admin"],
@@ -212,6 +224,9 @@ const AppSidebar = () => {
   const { permissions, user } = Route.useRouteContext();
   const isAdmin = user?.role === "admin";
   const visibleTeamItems = teamManagementItems.filter((item) =>
+    canSee(permissions, item)
+  );
+  const visibleLibraryItems = libraryItems.filter((item) =>
     canSee(permissions, item)
   );
   const visibleCreateItems = createItems.filter((item) =>
@@ -274,6 +289,31 @@ const AppSidebar = () => {
             <SidebarGroupContent>
               <SidebarMenu>
                 {visibleTeamItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    pathname === item.to || pathname.startsWith(`${item.to}/`);
+
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <Link to={item.to}>
+                          <Icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+        {visibleLibraryItems.length > 0 ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>Library</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleLibraryItems.map((item) => {
                   const Icon = item.icon;
                   const isActive =
                     pathname === item.to || pathname.startsWith(`${item.to}/`);

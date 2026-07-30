@@ -12,12 +12,21 @@ export interface AnnouncementContent {
   title: string;
 }
 
+/** Where a background variation originated. */
+export type AnnouncementVariationSource = "generated" | "library";
+
 export interface AnnouncementVariation {
   createdAt: string;
   id: string;
+  /** Original library image filename when `source` is `"library"`. */
+  libraryFilename: string | null;
+  /** Original library image id when `source` is `"library"`. */
+  libraryImageId: string | null;
   objectKey: string;
   parentVariationId: string | null;
   prompt: string;
+  /** `"library"` for template images copied from the image library. */
+  source: AnnouncementVariationSource;
 }
 
 export interface AnnouncementDraft {
@@ -72,6 +81,14 @@ export interface GenerateBackgroundsInput {
   id: string;
   prompt?: string;
   useSelectedAsContext?: boolean;
+}
+
+/** Add a shared image-library template as an announcement background variation. */
+export interface AddLibraryImageAsVariationInput {
+  id: string;
+  libraryObjectKey: string;
+  /** When true (default), select the new variation as active context. */
+  select?: boolean;
 }
 
 export interface SelectVariationInput {
