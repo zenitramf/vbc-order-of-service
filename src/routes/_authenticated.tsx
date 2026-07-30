@@ -1,6 +1,5 @@
 // oxlint-disable no-use-before-define
 import {
-  BookOpenTextIcon,
   CalendarCheckIcon,
   GearIcon,
   HouseIcon,
@@ -8,7 +7,6 @@ import {
   ListChecksIcon,
   MegaphoneIcon,
   MusicNotesIcon,
-  PlusIcon,
   ShieldCheckIcon,
   UserCircleIcon,
   UsersIcon,
@@ -121,31 +119,6 @@ const libraryItems = [
   },
 ] as const;
 
-const createItems = [
-  {
-    action: "create",
-    icon: PlusIcon,
-    label: "New Order",
-    resource: "orders",
-    to: "/orders/new",
-  },
-  {
-    action: "create",
-    icon: BookOpenTextIcon,
-    label: "New Template",
-    resource: "templates",
-    to: "/templates/new",
-  },
-  {
-    action: "create",
-    icon: MegaphoneIcon,
-    label: "New Announcement",
-    resource: "announcements",
-    search: { create: true as const },
-    to: "/announcements",
-  },
-] as const;
-
 interface NavItem {
   action?: string;
   label: string;
@@ -228,9 +201,6 @@ const AppSidebar = () => {
     canSee(permissions, item)
   );
   const visibleLibraryItems = libraryItems.filter((item) =>
-    canSee(permissions, item)
-  );
-  const visibleCreateItems = createItems.filter((item) =>
     canSee(permissions, item)
   );
   const canSeeSettings = hasPermission(permissions, "settings", "view");
@@ -323,30 +293,6 @@ const AppSidebar = () => {
                     <SidebarMenuItem key={item.to}>
                       <SidebarMenuButton asChild isActive={isActive}>
                         <Link to={item.to}>
-                          <Icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-        {visibleCreateItems.length > 0 ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Create</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleCreateItems.map((item) => {
-                  const Icon = item.icon;
-                  const search = "search" in item ? item.search : undefined;
-
-                  return (
-                    <SidebarMenuItem key={item.label}>
-                      <SidebarMenuButton asChild>
-                        <Link search={search} to={item.to}>
                           <Icon />
                           <span>{item.label}</span>
                         </Link>
