@@ -319,6 +319,79 @@ export const normalizeStylesheetBackgrounds = (css: string): string => {
 };
 
 /**
+ * GrapesJS device styles are stored as `@media (max-width: 1920px) { … }`.
+ * That only applies when the *browser viewport* is ≤1920px. Export/html-to-image
+ * runs in the host document — wide monitors skip the whole rule set, so the JPG
+ * looks unstyled. Announcements are a fixed 1920×1080 stage: unwrap those media
+ * queries so rules always apply.
+ */
+export const flattenStageMediaQueries = (css: string): string => {
+  if (!css.includes("@media")) {
+    return css;
+  }
+
+  const openRe = /@media\s*\(\s*max-width\s*:\s*(?<width>\d+)px\s*\)\s*\{/giu;
+  let result = "";
+  let cursor = 0;
+  let match = openRe.exec(css);
+
+  while (match) {
+    const width = Number.parseInt(match.groups?.width ?? "0", 10);
+    const openIndex = match.index;
+    const bodyStart = openIndex + match[0].length;
+
+    // Only flatten stage-sized (or larger) max-width queries — our canvas is fixed.
+    if (width < ANNOUNCEMENT_WIDTH) {
+      match = openRe.exec(css);
+      continue;
+    }
+
+    let depth = 1;
+    let i = bodyStart;
+
+    while (i < css.length && depth > 0) {
+      const char = css[i];
+
+      if (char === "{") {
+        depth += 1;
+      } else if (char === "}") {
+        depth -= 1;
+      }
+
+      i += 1;
+    }
+
+    if (depth !== 0) {
+      // Malformed — leave the rest untouched.
+      break;
+    }
+
+    const body = css.slice(bodyStart, i - 1);
+    result += css.slice(cursor, openIndex);
+    result += body;
+    cursor = i;
+    openRe.lastIndex = cursor;
+    match = openRe.exec(css);
+  }
+
+  result += css.slice(cursor);
+  return result.replaceAll(/\n{3,}/gu, "\n\n").trim();
+};
+
+/**
+ * GrapesJS sometimes emits a real `<body id="…">` wrapper. Nested in a div via
+ * innerHTML that is invalid chrome — convert to a plain div so IDs/CSS still match.
+ */
+export const normalizeOverlayComponentsHtml = (html: string): string =>
+  html
+    .replaceAll(/<html\b[^>]*>/giu, "")
+    .replaceAll(/<\/html>/giu, "")
+    .replaceAll(/<head\b[^>]*>[\s\S]*?<\/head>/giu, "")
+    .replaceAll(/<body\b/giu, "<div")
+    .replaceAll(/<\/body>/giu, "</div>")
+    .trim();
+
+/**
  * Split a stored overlay HTML string into components markup + CSS.
  * Supports legacy fully-inline markup and style-tag bundles from GrapesJS.
  * Pure string parsing so unit tests can run without a DOM.
@@ -356,29 +429,41 @@ export const parseOverlayHtml = (
     if (closeIndex > openEnd) {
       return {
         components: normalizeInlineBackgroundStyles(
-          stripAnnouncementBackgroundHtml(
-            withoutStyles.slice(openEnd, closeIndex).trim()
+          normalizeOverlayComponentsHtml(
+            stripAnnouncementBackgroundHtml(
+              withoutStyles.slice(openEnd, closeIndex).trim()
+            )
           )
         ),
-        css: normalizeStylesheetBackgrounds(cssParts.join("\n").trim()),
+        css: normalizeStylesheetBackgrounds(
+          flattenStageMediaQueries(cssParts.join("\n").trim())
+        ),
       };
     }
   }
 
   return {
     components: normalizeInlineBackgroundStyles(
-      stripAnnouncementBackgroundHtml(withoutStyles)
+      normalizeOverlayComponentsHtml(
+        stripAnnouncementBackgroundHtml(withoutStyles)
+      )
     ),
-    css: normalizeStylesheetBackgrounds(cssParts.join("\n").trim()),
+    css: normalizeStylesheetBackgrounds(
+      flattenStageMediaQueries(cssParts.join("\n").trim())
+    ),
   };
 };
 
 /** Build a self-contained overlay fragment for storage/export. */
 export const buildOverlayHtml = (components: string, css: string): string => {
   const safeComponents = normalizeInlineBackgroundStyles(
-    stripAnnouncementBackgroundHtml(components.trim())
+    normalizeOverlayComponentsHtml(
+      stripAnnouncementBackgroundHtml(components.trim())
+    )
   );
-  const safeCss = normalizeStylesheetBackgrounds(css.trim());
+  const safeCss = normalizeStylesheetBackgrounds(
+    flattenStageMediaQueries(css.trim())
+  );
 
   const styleBlock =
     safeCss.length > 0
@@ -386,4 +471,25 @@ export const buildOverlayHtml = (components: string, css: string): string => {
       : "";
 
   return `<div class="announcement-overlay" style="${OVERLAY_ROOT_STYLE}">\n${styleBlock}${safeComponents}\n</div>`;
+};
+
+/**
+ * Normalize stored overlay HTML for DOM render / html-to-image capture.
+ * Flattens stage media queries and repairs body wrappers so existing drafts
+ * export correctly without a re-edit.
+ */
+export const prepareOverlayHtmlForRender = (raw: string): string => {
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    return raw;
+  }
+
+  const { components, css } = parseOverlayHtml(trimmed);
+
+  if (!components && !css) {
+    return raw;
+  }
+
+  return buildOverlayHtml(components, css);
 };

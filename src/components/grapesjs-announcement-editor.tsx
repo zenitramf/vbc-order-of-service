@@ -2,7 +2,8 @@ import { grapesjs } from "grapesjs";
 import type { Editor } from "grapesjs";
 
 import "grapesjs/dist/css/grapes.min.css";
-import { useEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef } from "react";
+import type { Ref } from "react";
 
 import {
   ANNOUNCEMENT_BG_ATTR,
@@ -20,11 +21,18 @@ import {
 } from "~/lib/announcement-types";
 import { cn } from "~/lib/utils";
 
+/** Imperative API for parent flows that need a synchronous canvas snapshot (e.g. JPG export). */
+export interface GrapesjsAnnouncementEditorHandle {
+  /** Serialize the live canvas immediately (cancels pending debounced save). */
+  flush: () => string | null;
+}
+
 export interface GrapesjsAnnouncementEditorProps {
   backgroundUrl: string | null;
   className?: string;
   html: string;
   onHtmlChange: (html: string) => void;
+  ref?: Ref<GrapesjsAnnouncementEditorHandle>;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -70,12 +78,17 @@ const backgroundImageCss = (url: string): string => `url("${url}")`;
 /** Serialize GrapesJS project into a self-contained overlay fragment for export/storage. */
 export const serializeOverlayHtml = (editor: Editor): string => {
   // Photo lives on Body as runtime style only — never persist variation URLs.
-  const components = stripAnnouncementBackgroundHtml(
-    editor.getHtml({ cleanId: true }).trim()
-  );
+  //
+  // Keep auto-generated component IDs. GrapesJS stores styles as `#ixyz{…}` rules
+  // (avoidInlineStyle). `cleanId: true` strips those IDs via a buggy rule check, so
+  // the CSS no longer matches — export/preview render as unstyled black text.
+  const components = stripAnnouncementBackgroundHtml(editor.getHtml().trim());
   const css = stripRuntimePhotoBackgroundCss(
-    editor.getCss({ avoidProtected: true })?.trim() ?? ""
+    editor.getCss({ avoidProtected: true, keepUnusedStyles: true })?.trim() ??
+      ""
   );
+  // buildOverlayHtml flattens @media (max-width: 1920px) device rules so export
+  // is not viewport-dependent, and converts any <body> wrapper to <div>.
   return buildOverlayHtml(components, css);
 };
 
@@ -433,6 +446,7 @@ export const GrapesjsAnnouncementEditor = ({
   className,
   html,
   onHtmlChange,
+  ref,
 }: GrapesjsAnnouncementEditorProps) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
@@ -442,9 +456,32 @@ export const GrapesjsAnnouncementEditor = ({
   const suppressEmitRef = useRef(false);
   const coercingBackgroundRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushSaveRef = useRef<(() => void) | null>(null);
 
   onHtmlChangeRef.current = onHtmlChange;
   backgroundUrlRef.current = backgroundUrl;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      flush: () => {
+        const editor = editorRef.current;
+
+        if (!editor) {
+          return null;
+        }
+
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+
+        flushSaveRef.current?.();
+        return syncedHtmlRef.current;
+      },
+    }),
+    []
+  );
 
   // Mount GrapesJS once (client-only).
   useEffect(() => {
@@ -465,9 +502,14 @@ export const GrapesjsAnnouncementEditor = ({
             height: `${ANNOUNCEMENT_HEIGHT}px`,
             name: "Announcement 16:9",
             width: `${ANNOUNCEMENT_WIDTH}px`,
+            // Empty widthMedia → styles are not device-media-scoped.
+            widthMedia: "",
           },
         ],
       },
+      // Single fixed stage — don't wrap component styles in viewport media queries.
+      // Media-scoped rules break export when the host window is wider than 1920px.
+      devicePreviewMode: true,
       fromElement: false,
       height: "100%",
       noticeOnUnload: false,
@@ -553,6 +595,8 @@ export const GrapesjsAnnouncementEditor = ({
       syncedHtmlRef.current = next;
       onHtmlChangeRef.current(next);
     };
+
+    flushSaveRef.current = flushSave;
 
     const scheduleSave = (): void => {
       if (suppressEmitRef.current) {
@@ -663,6 +707,7 @@ export const GrapesjsAnnouncementEditor = ({
         // Editor may already be partially torn down.
       }
 
+      flushSaveRef.current = null;
       editor.destroy();
       editorRef.current = null;
     };

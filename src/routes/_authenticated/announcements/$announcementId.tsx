@@ -27,9 +27,12 @@ import {
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { toJpeg } from "html-to-image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Ref } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
 import { GrapesjsAnnouncementEditor } from "~/components/grapesjs-announcement-editor";
+import type { GrapesjsAnnouncementEditorHandle } from "~/components/grapesjs-announcement-editor";
 import { HtmlCodeEditor } from "~/components/html-code-editor";
 import {
   AlertDialog,
@@ -100,6 +103,7 @@ import {
   saveAnnouncement,
   selectVariation,
 } from "~/lib/announcement-data";
+import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
 import type {
   AnnouncementContent,
   AnnouncementDraft,
@@ -142,30 +146,36 @@ const AnnouncementStage = ({
 }: {
   backgroundUrl: string | null;
   html: string;
-}) => (
-  <div
-    className="relative overflow-hidden bg-black"
-    style={{ height: ANNOUNCEMENT_HEIGHT, width: ANNOUNCEMENT_WIDTH }}
-  >
-    {backgroundUrl ? (
-      <img
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-        crossOrigin="anonymous"
-        src={backgroundUrl}
-      />
-    ) : (
-      <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-2xl">
-        Select or generate a background
-      </div>
-    )}
+}) => {
+  // Flatten GrapesJS device @media rules + repair body wrappers so export
+  // matches the canvas even when the host viewport is wider than 1920px.
+  const renderHtml = prepareOverlayHtmlForRender(html);
+
+  return (
     <div
-      className="absolute inset-0 size-full [&_.announcement-overlay]:size-full"
-      // User/AI-authored overlay markup for the composite canvas.
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  </div>
-);
+      className="relative overflow-hidden bg-black"
+      style={{ height: ANNOUNCEMENT_HEIGHT, width: ANNOUNCEMENT_WIDTH }}
+    >
+      {backgroundUrl ? (
+        <img
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          crossOrigin="anonymous"
+          src={backgroundUrl}
+        />
+      ) : (
+        <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-2xl">
+          Select or generate a background
+        </div>
+      )}
+      <div
+        className="absolute inset-0 size-full [&_.announcement-overlay]:size-full"
+        // User/AI-authored overlay markup for the composite canvas.
+        dangerouslySetInnerHTML={{ __html: renderHtml }}
+      />
+    </div>
+  );
+};
 
 interface VariationColumnsOptions {
   assetUrls: Record<string, string>;
@@ -272,10 +282,12 @@ const VIEWPORT_CANVAS_SHELL =
 
 const LiveCanvasEditor = ({
   backgroundUrl,
+  editorRef,
   html,
   onHtmlChange,
 }: {
   backgroundUrl: string | null;
+  editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
   html: string;
   onHtmlChange: (html: string) => void;
 }) => (
@@ -301,6 +313,7 @@ const LiveCanvasEditor = ({
     </CardHeader>
     <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
       <GrapesjsAnnouncementEditor
+        ref={editorRef}
         backgroundUrl={backgroundUrl}
         className="min-h-0 flex-1"
         html={html}
@@ -576,6 +589,7 @@ const AnnouncementEditor = ({
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [isRemovingAll, setIsRemovingAll] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const grapesEditorRef = useRef<GrapesjsAnnouncementEditorHandle>(null);
   const htmlRef = useRef(html);
   const nameRef = useRef(name);
   const contentRef = useRef(content);
@@ -1017,8 +1031,25 @@ const AnnouncementEditor = ({
     setIsApproving(true);
 
     try {
-      await persist();
-      // Yield so the off-screen export surface paints the latest HTML + background.
+      // Flush debounced GrapesJS serialization so IDs + CSS match the canvas.
+      let exportHtml = html;
+      flushSync(() => {
+        const flushed = grapesEditorRef.current?.flush();
+        if (flushed) {
+          exportHtml = flushed;
+        }
+      });
+
+      await persist({ htmlOverride: exportHtml });
+
+      // Ensure the off-screen surface has committed the flushed markup.
+      flushSync(() => {
+        if (exportHtml !== htmlRef.current) {
+          setHtml(exportHtml);
+        }
+      });
+      // Let the browser apply nested <style> rules before html-to-image clones.
+      await Promise.resolve();
       await Promise.resolve();
 
       const surface = exportRef.current;
@@ -1146,6 +1177,7 @@ const AnnouncementEditor = ({
 
         <LiveCanvasEditor
           backgroundUrl={selectedBackgroundUrl}
+          editorRef={grapesEditorRef}
           html={html}
           onHtmlChange={onCanvasHtmlChange}
         />
@@ -1403,10 +1435,12 @@ const AnnouncementEditor = ({
         </DialogContent>
       </Dialog>
 
-      {/* Off-screen full-resolution surface for html-to-image export */}
+      {/* Off-screen full-resolution surface for html-to-image export.
+          Keep the node fully painted (no opacity:0 / visibility:hidden) so
+          getComputedStyle and stylesheet rules apply during capture. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed top-0 left-[-10000px] opacity-0"
+        className="pointer-events-none fixed top-0 left-[-10000px]"
       >
         <div ref={exportRef}>
           <AnnouncementStage
