@@ -148,11 +148,16 @@ const buildDefaultHtml = (content: AnnouncementContent): string => {
   const heading = content.heading || "Heading";
   const tertiary = content.tertiary || "Additional details";
 
-  return `<div class="announcement-overlay" style="box-sizing:border-box;width:1920px;height:1080px;position:relative;font-family:Georgia,'Times New Roman',serif;color:#ffffff;padding:80px 100px;display:flex;flex-direction:column;justify-content:flex-end;background:linear-gradient(to top,rgba(0,0,0,0.72) 0%,rgba(0,0,0,0.25) 45%,transparent 75%);">
+  // Root stays transparent so the photo layer shows through. Readability comes
+  // from an alpha gradient scrim only — never a solid fill.
+  return `<div class="announcement-overlay" style="box-sizing:border-box;width:1920px;height:1080px;position:relative;overflow:hidden;background:transparent;font-family:Georgia,'Times New Roman',serif;color:#ffffff;">
+  <div style="position:absolute;left:0;right:0;bottom:0;height:55%;pointer-events:none;background:linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%);background-color:transparent;"></div>
+  <div style="position:absolute;left:0;right:0;bottom:0;box-sizing:border-box;padding:80px 100px;display:flex;flex-direction:column;justify-content:flex-end;background:transparent;">
   <p style="margin:0 0 12px;font-size:28px;letter-spacing:0.28em;text-transform:uppercase;opacity:0.92;font-family:system-ui,sans-serif;">${escapeHtml(heading)}</p>
   <h1 style="margin:0 0 18px;font-size:96px;line-height:1.05;font-weight:700;text-shadow:0 4px 24px rgba(0,0,0,0.45);">${escapeHtml(title)}</h1>
   <p style="margin:0 0 28px;font-size:42px;line-height:1.25;font-weight:400;opacity:0.95;">${escapeHtml(subtitle)}</p>
   <p style="margin:0;font-size:28px;line-height:1.4;opacity:0.88;font-family:system-ui,sans-serif;max-width:1200px;">${escapeHtml(tertiary)}</p>
+  </div>
 </div>`;
 };
 
@@ -457,8 +462,10 @@ const generateHtmlWithAi = async (options: {
     "The root element MUST be exactly 1920px wide and 1080px tall.",
     "Use only inline styles. Do not load external fonts, scripts, or images.",
     "Do NOT paint a photographic background; the background will be a separate image under this HTML.",
-    "A semi-transparent gradient or scrim for readability is OK.",
-    "Text must be highly legible on varied photos (shadows, contrast).",
+    "CRITICAL: The root and any full-bleed layers MUST use background:transparent (or omit background).",
+    "CRITICAL: Any readability scrim or panel background MUST be an alpha linear-gradient using rgba() stops that fade to transparent — NEVER solid background-color, NEVER opaque fills (no #000, black, rgb without alpha).",
+    "Example scrim: background:linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%); background-color:transparent;",
+    "Text must be highly legible on varied photos (text-shadow + alpha gradient scrims only).",
     "Include semantic structure for title, subtitle, heading, and tertiary info.",
     "Escape any user content that could break HTML.",
   ].join(" ");

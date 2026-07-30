@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BOTTOM_SCRIM_GRADIENT,
+  PANEL_SCRIM_GRADIENT,
   buildOverlayHtml,
+  coerceBackgroundToAlphaGradient,
+  normalizeBackgroundDeclarations,
   parseOverlayHtml,
+  solidColorToAlphaGradient,
 } from "~/lib/announcement-overlay-html";
 
 describe("parseOverlayHtml", () => {
@@ -33,7 +38,7 @@ describe("parseOverlayHtml", () => {
 </div>`;
 
     const parsed = parseOverlayHtml(raw);
-    expect(parsed.css).toContain(".foo { color: red; }");
+    expect(parsed.css.replaceAll(/\s+/gu, " ")).toContain(".foo {color:red}");
     expect(parsed.components).toContain('class="foo"');
     expect(parsed.components).not.toContain("<style>");
   });
@@ -52,6 +57,7 @@ describe("buildOverlayHtml", () => {
     expect(html).toContain('class="announcement-overlay"');
     expect(html).toContain("width:1920px");
     expect(html).toContain("height:1080px");
+    expect(html).toContain("background:transparent");
     expect(html).toContain("<h1>Title</h1>");
     expect(html).not.toContain("<style>");
   });
@@ -61,5 +67,46 @@ describe("buildOverlayHtml", () => {
     expect(html).toContain("<style>");
     expect(html).toContain(".x{color:red}");
     expect(html).toContain('class="x"');
+  });
+
+  it("converts solid component backgrounds into alpha gradients", () => {
+    const html = buildOverlayHtml(
+      '<div style="background-color:#000000;color:#fff">Hi</div>',
+      ""
+    );
+    expect(html).toContain("linear-gradient");
+    expect(html).toContain("background-color:transparent");
+    expect(html).not.toMatch(/background-color\s*:\s*#000000/iu);
+  });
+});
+
+describe("background coercion", () => {
+  it("passes gradients through unchanged", () => {
+    expect(coerceBackgroundToAlphaGradient(BOTTOM_SCRIM_GRADIENT)).toBe(
+      BOTTOM_SCRIM_GRADIENT
+    );
+    expect(coerceBackgroundToAlphaGradient(PANEL_SCRIM_GRADIENT)).toBe(
+      PANEL_SCRIM_GRADIENT
+    );
+  });
+
+  it("turns solid colors into alpha gradients", () => {
+    const panel = solidColorToAlphaGradient("#000000", "panel");
+    expect(panel).toContain("linear-gradient");
+    expect(panel).toContain("rgba(0,0,0,");
+    expect(panel).toMatch(/rgba\(0,0,0,0\.\d+\)/u);
+
+    const bottom = solidColorToAlphaGradient("#000000", "bottom");
+    expect(bottom).toContain("transparent");
+  });
+
+  it("rewrites solid background-color declarations", () => {
+    const normalized = normalizeBackgroundDeclarations(
+      "color:#fff;background-color:black;padding:8px"
+    );
+    expect(normalized).toContain("linear-gradient");
+    expect(normalized).toContain("background-color:transparent");
+    expect(normalized).toContain("color:#fff");
+    expect(normalized).not.toContain("background-color:black");
   });
 });

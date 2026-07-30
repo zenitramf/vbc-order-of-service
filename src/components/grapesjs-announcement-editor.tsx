@@ -5,7 +5,10 @@ import "grapesjs/dist/css/grapes.min.css";
 import { useEffect, useRef } from "react";
 
 import {
+  BOTTOM_SCRIM_GRADIENT,
+  PANEL_SCRIM_GRADIENT,
   buildOverlayHtml,
+  coerceBackgroundToAlphaGradient,
   parseOverlayHtml,
 } from "~/lib/announcement-overlay-html";
 import {
@@ -25,13 +28,14 @@ const SAVE_DEBOUNCE_MS = 400;
 
 /** Canvas-frame CSS: transparent so the host background layer shows through. */
 const FRAME_BODY_CSS = `
-  html, body {
+  html, body, #wrapper {
     margin: 0;
     padding: 0;
     width: ${ANNOUNCEMENT_WIDTH}px;
     height: ${ANNOUNCEMENT_HEIGHT}px;
     overflow: hidden;
     background: transparent !important;
+    background-color: transparent !important;
   }
   body {
     min-height: ${ANNOUNCEMENT_HEIGHT}px;
@@ -186,7 +190,8 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
         },
       ],
       style: {
-        "background-color": "rgba(0,0,0,0.35)",
+        background: PANEL_SCRIM_GRADIENT,
+        "background-color": "transparent",
         "border-radius": "12px",
         "box-sizing": "border-box",
         padding: "24px 32px",
@@ -202,8 +207,8 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       style: {
-        background:
-          "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.25) 45%, transparent 75%)",
+        background: BOTTOM_SCRIM_GRADIENT,
+        "background-color": "transparent",
         bottom: "0",
         height: "55%",
         left: "0",
@@ -285,6 +290,55 @@ const loadHtmlIntoEditor = (editor: Editor, html: string): void => {
   }
 };
 
+const isClearPaint = (value: string): boolean =>
+  value === "" || value === "transparent" || value === "none";
+
+/**
+ * Coerce one component's background paint to an alpha gradient.
+ * Returns true when styles were rewritten.
+ */
+const coerceComponentBackground = (component: {
+  addStyle: (style: Record<string, string>) => void;
+  getStyle: () => Record<string, string | undefined>;
+}): boolean => {
+  const style = component.getStyle();
+  const background = (style.background ?? "").trim();
+  const backgroundColor = (style["background-color"] ?? "").trim();
+
+  if (/gradient\s*\(/iu.test(background)) {
+    if (!isClearPaint(backgroundColor)) {
+      component.addStyle({ "background-color": "transparent" });
+      return true;
+    }
+
+    return false;
+  }
+
+  let solidSource: string | null = null;
+
+  if (!isClearPaint(backgroundColor)) {
+    solidSource = backgroundColor;
+  } else if (!isClearPaint(background)) {
+    solidSource = background;
+  }
+
+  if (!solidSource) {
+    return false;
+  }
+
+  const gradient = coerceBackgroundToAlphaGradient(solidSource, "panel");
+
+  if (background === gradient && isClearPaint(backgroundColor)) {
+    return false;
+  }
+
+  component.addStyle({
+    background: gradient,
+    "background-color": "transparent",
+  });
+  return true;
+};
+
 /**
  * GrapesJS-powered announcement overlay editor.
  *
@@ -304,6 +358,7 @@ export const GrapesjsAnnouncementEditor = ({
   const backgroundUrlRef = useRef(backgroundUrl);
   const syncedHtmlRef = useRef(html);
   const suppressEmitRef = useRef(false);
+  const coercingBackgroundRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   onHtmlChangeRef.current = onHtmlChange;
@@ -375,7 +430,7 @@ export const GrapesjsAnnouncementEditor = ({
             name: "Decorations",
             open: false,
             properties: [
-              "background-color",
+              // Solid background-color overpowers the photo — only gradient paints.
               "background",
               "border-radius",
               "border",
@@ -432,9 +487,47 @@ export const GrapesjsAnnouncementEditor = ({
       }, SAVE_DEBOUNCE_MS);
     };
 
+    /**
+     * Keep component paints as alpha gradients so solid fills never bury the
+     * independently swappable background image layer.
+     */
+    const coerceSelectedBackgrounds = (): void => {
+      if (suppressEmitRef.current || coercingBackgroundRef.current) {
+        return;
+      }
+
+      const selected = editor.getSelectedAll();
+      let changed = false;
+      coercingBackgroundRef.current = true;
+
+      try {
+        for (const component of selected) {
+          if (
+            coerceComponentBackground(
+              component as unknown as {
+                addStyle: (style: Record<string, string>) => void;
+                getStyle: () => Record<string, string | undefined>;
+              }
+            )
+          ) {
+            changed = true;
+          }
+        }
+      } finally {
+        coercingBackgroundRef.current = false;
+      }
+
+      if (changed) {
+        scheduleSave();
+      }
+    };
+
     editor.on("update", scheduleSave);
     editor.on("component:update", scheduleSave);
-    editor.on("style:change", scheduleSave);
+    editor.on("style:change", () => {
+      coerceSelectedBackgrounds();
+      scheduleSave();
+    });
     editor.on("component:add", scheduleSave);
     editor.on("component:remove", scheduleSave);
     editor.on("component:drag:end", scheduleSave);
