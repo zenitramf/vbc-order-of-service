@@ -35,6 +35,29 @@ export const stripAnnouncementBackgroundHtml = (html: string): string =>
     .trim();
 
 /**
+ * Strip photo `background-image:url(...)` paints that belong on the GrapesJS
+ * Body/wrapper only (runtime), so draft CSS never embeds variation URLs.
+ * Leaves gradients and non-url backgrounds alone.
+ */
+export const stripRuntimePhotoBackgroundCss = (css: string): string => {
+  if (!css.trim()) {
+    return css;
+  }
+
+  // Drop background-image declarations that reference remote/data URLs.
+  const withoutImages = css.replaceAll(
+    /background-image\s*:\s*url\(\s*(?<quote>["']?)(?:https?:|data:|blob:)[^)"']*\k<quote>\s*\)\s*;?/giu,
+    ""
+  );
+
+  // Clean empty rule bodies left behind.
+  return withoutImages
+    .replaceAll(/[^{}]+ \{\s*\}/gu, "")
+    .replaceAll(/\n{3,}/gu, "\n\n")
+    .trim();
+};
+
+/**
  * Readability scrims must be alpha gradients so the photo shows through.
  * Never solid fills — those overpower the background image layer.
  */

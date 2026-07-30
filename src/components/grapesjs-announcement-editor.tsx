@@ -6,13 +6,13 @@ import { useEffect, useRef } from "react";
 
 import {
   ANNOUNCEMENT_BG_ATTR,
-  ANNOUNCEMENT_BG_TYPE,
   BOTTOM_SCRIM_GRADIENT,
   PANEL_SCRIM_GRADIENT,
   buildOverlayHtml,
   coerceBackgroundToAlphaGradient,
   parseOverlayHtml,
   stripAnnouncementBackgroundHtml,
+  stripRuntimePhotoBackgroundCss,
 } from "~/lib/announcement-overlay-html";
 import {
   ANNOUNCEMENT_HEIGHT,
@@ -30,11 +30,11 @@ export interface GrapesjsAnnouncementEditorProps {
 const SAVE_DEBOUNCE_MS = 400;
 
 /**
- * Canvas-frame CSS: wrapper is a fixed 1920×1080 positioning context.
- * The locked background must stay out of normal flow so it never pushes text.
+ * Canvas-frame CSS: fixed 1920×1080 stage.
+ * Photo is painted on #wrapper (Body) via background-image — not a child node.
  */
 const FRAME_BODY_CSS = `
-  html, body, #wrapper {
+  html, body {
     margin: 0 !important;
     padding: 0 !important;
     width: ${ANNOUNCEMENT_WIDTH}px !important;
@@ -44,95 +44,50 @@ const FRAME_BODY_CSS = `
     background: transparent !important;
     background-color: transparent !important;
   }
-  body, #wrapper {
+  #wrapper {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: ${ANNOUNCEMENT_WIDTH}px !important;
+    height: ${ANNOUNCEMENT_HEIGHT}px !important;
+    max-height: ${ANNOUNCEMENT_HEIGHT}px !important;
+    min-height: ${ANNOUNCEMENT_HEIGHT}px !important;
+    overflow: hidden !important;
     position: relative !important;
+    box-sizing: border-box !important;
+    /* Photo comes from component styles on Body — do not force transparent here. */
+    background-color: transparent;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
   }
   * {
     box-sizing: border-box;
   }
-  /* Div or img — always pinned, never contributes to document flow height. */
-  [${ANNOUNCEMENT_BG_ATTR}],
-  [${ANNOUNCEMENT_BG_ATTR}]="1" {
-    position: absolute !important;
-    top: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: ${ANNOUNCEMENT_WIDTH}px !important;
-    height: ${ANNOUNCEMENT_HEIGHT}px !important;
-    max-width: ${ANNOUNCEMENT_WIDTH}px !important;
-    max-height: ${ANNOUNCEMENT_HEIGHT}px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    display: block !important;
-    object-fit: cover !important;
-    background-size: cover !important;
-    background-position: center !important;
-    background-repeat: no-repeat !important;
-    pointer-events: none !important;
-    z-index: 0 !important;
-    user-select: none !important;
-  }
-  /*
-   * Raise non-background siblings above the photo without changing their
-   * position scheme (forcing position:relative was collapsing absolute text).
-   */
-  #wrapper > *:not([${ANNOUNCEMENT_BG_ATTR}]) {
-    z-index: 1;
-  }
 `;
 
-const BACKGROUND_LAYER_STYLE: Record<string, string> = {
-  "background-position": "center",
-  "background-repeat": "no-repeat",
-  "background-size": "cover",
-  border: "none",
-  bottom: "0",
-  display: "block",
-  height: `${ANNOUNCEMENT_HEIGHT}px`,
-  left: "0",
-  margin: "0",
-  "max-height": `${ANNOUNCEMENT_HEIGHT}px`,
-  "max-width": `${ANNOUNCEMENT_WIDTH}px`,
-  padding: "0",
-  "pointer-events": "none",
-  position: "absolute",
-  right: "0",
-  top: "0",
-  width: `${ANNOUNCEMENT_WIDTH}px`,
-  "z-index": "0",
-};
+const backgroundImageCss = (url: string): string => `url("${url}")`;
 
 /** Serialize GrapesJS project into a self-contained overlay fragment for export/storage. */
 export const serializeOverlayHtml = (editor: Editor): string => {
-  // Background is runtime-only; variation selection owns the photo URL.
+  // Photo lives on Body as runtime style only — never persist variation URLs.
   const components = stripAnnouncementBackgroundHtml(
     editor.getHtml({ cleanId: true }).trim()
   );
-  const css = editor.getCss({ avoidProtected: true })?.trim() ?? "";
+  const css = stripRuntimePhotoBackgroundCss(
+    editor.getCss({ avoidProtected: true })?.trim() ?? ""
+  );
   return buildOverlayHtml(components, css);
 };
 
-const makeFrameTransparent = (editor: Editor): void => {
+const makeCanvasChrome = (editor: Editor): void => {
   const frameEl = editor.Canvas.getFrameEl();
-  const body = editor.Canvas.getBody();
   const canvasEl = editor.Canvas.getElement();
 
   if (frameEl) {
     frameEl.style.background = "transparent";
   }
 
-  if (body) {
-    body.style.background = "transparent";
-    const doc = body.ownerDocument;
-
-    if (doc?.documentElement) {
-      doc.documentElement.style.background = "transparent";
-    }
-  }
-
-  // Empty-state chrome only — photo is inside the component tree.
+  // Outside the iframe: empty-state color only (photo is on Body inside).
   if (canvasEl) {
     canvasEl.style.backgroundImage = "none";
     canvasEl.style.backgroundColor = "#111";
@@ -140,84 +95,17 @@ const makeFrameTransparent = (editor: Editor): void => {
 };
 
 interface GrapesComponentLike {
-  addAttributes: (attrs: Record<string, string>) => void;
   addStyle: (style: Record<string, string>) => void;
-  get: (key: string) => unknown;
-  getAttributes: () => Record<string, string>;
-  getStyle: () => Record<string, string | undefined>;
-  move: (parent: unknown, options: { at: number }) => void;
   remove: () => void;
+  removeStyle: (style: string) => void;
 }
 
-const isBackgroundComponent = (component: {
-  get: (key: string) => unknown;
-  getAttributes?: () => Record<string, string>;
-}): boolean => {
-  if (component.get("type") === ANNOUNCEMENT_BG_TYPE) {
-    return true;
-  }
-
-  const attrs = component.getAttributes?.() ?? {};
-  return attrs[ANNOUNCEMENT_BG_ATTR] === "1";
-};
-
-const backgroundImageCss = (url: string): string => `url("${url}")`;
-
-/** Pin the layer out of flow with fixed stage dimensions (no intrinsic img size). */
-const applyBackgroundLayerStyle = (
-  component: GrapesComponentLike,
-  backgroundUrl: string
-): void => {
-  component.addAttributes({
-    [ANNOUNCEMENT_BG_ATTR]: "1",
-    "aria-hidden": "true",
-  });
-  component.addStyle({
-    ...BACKGROUND_LAYER_STYLE,
-    "background-image": backgroundImageCss(backgroundUrl),
-  });
-};
-
-const registerBackgroundComponentType = (editor: Editor): void => {
-  editor.DomComponents.addType(ANNOUNCEMENT_BG_TYPE, {
-    isComponent: (el: HTMLElement) =>
-      el.getAttribute?.(ANNOUNCEMENT_BG_ATTR) === "1"
-        ? { type: ANNOUNCEMENT_BG_TYPE }
-        : false,
-    model: {
-      defaults: {
-        attributes: {
-          [ANNOUNCEMENT_BG_ATTR]: "1",
-          "aria-hidden": "true",
-        },
-        copyable: false,
-        draggable: false,
-        droppable: false,
-        highlightable: false,
-        hoverable: false,
-        layerable: true,
-        locked: true,
-        name: "Background photo",
-        removable: false,
-        resizable: false,
-        selectable: false,
-        // Empty div + CSS background-image has no intrinsic size, so even if
-        // absolute positioning is briefly missing it won't shove siblings down.
-        style: { ...BACKGROUND_LAYER_STYLE },
-        tagName: "div",
-        type: ANNOUNCEMENT_BG_TYPE,
-      },
-    },
-  });
-};
-
 /**
- * Ensure a locked full-bleed background layer matches the active variation URL.
- * Uses an absolutely positioned empty div (not <img>) so the photo never
- * participates in normal document flow or pushes overlay text.
- * Not persisted in draft HTML — re-injected on load / variation change.
+ * Paint the selected variation on the GrapesJS Body (`#wrapper`) component —
+ * not a separate child. Removes any legacy background child nodes.
+ * Variation URL is runtime-only (not saved in draft HTML).
  */
-export const syncBackgroundComponent = (
+export const syncBackgroundOnBody = (
   editor: Editor,
   backgroundUrl: string | null
 ): void => {
@@ -227,7 +115,16 @@ export const syncBackgroundComponent = (
     return;
   }
 
-  // Fixed stage box — absolute children position against this, not content height.
+  // Drop legacy per-component background nodes from earlier iterations.
+  const legacy = wrapper.find(
+    `[${ANNOUNCEMENT_BG_ATTR}="1"]`
+  ) as unknown as GrapesComponentLike[];
+
+  for (const node of legacy) {
+    node.remove();
+  }
+
+  // Stage geometry on Body.
   wrapper.addStyle({
     height: `${ANNOUNCEMENT_HEIGHT}px`,
     "max-height": `${ANNOUNCEMENT_HEIGHT}px`,
@@ -237,58 +134,34 @@ export const syncBackgroundComponent = (
     width: `${ANNOUNCEMENT_WIDTH}px`,
   });
 
-  const existing = wrapper.find(
-    `[${ANNOUNCEMENT_BG_ATTR}="1"]`
-  ) as unknown as GrapesComponentLike[];
-
   if (!backgroundUrl) {
-    for (const node of existing) {
-      node.remove();
+    wrapper.addStyle({
+      "background-color": "transparent",
+      "background-image": "none",
+    });
+    // Prefer remove so it doesn't serialize as noise.
+    for (const property of [
+      "background-image",
+      "background-size",
+      "background-position",
+      "background-repeat",
+    ]) {
+      try {
+        wrapper.removeStyle(property);
+      } catch {
+        // ignore unsupported removeStyle
+      }
     }
     return;
   }
 
-  const [bg] = existing;
-
-  if (bg) {
-    applyBackgroundLayerStyle(bg, backgroundUrl);
-
-    // Always keep the photo as the first child (behind content).
-    try {
-      bg.move(wrapper, { at: 0 });
-    } catch {
-      // move may fail mid-teardown; styles still keep it out of flow.
-    }
-
-    for (const extra of existing.slice(1)) {
-      extra.remove();
-    }
-
-    return;
-  }
-
-  const created = wrapper.components().add(
-    {
-      attributes: {
-        [ANNOUNCEMENT_BG_ATTR]: "1",
-        "aria-hidden": "true",
-      },
-      style: {
-        ...BACKGROUND_LAYER_STYLE,
-        "background-image": backgroundImageCss(backgroundUrl),
-      },
-      type: ANNOUNCEMENT_BG_TYPE,
-    },
-    { at: 0 }
-  );
-
-  const node = (Array.isArray(created) ? created[0] : created) as
-    | GrapesComponentLike
-    | undefined;
-
-  if (node) {
-    applyBackgroundLayerStyle(node, backgroundUrl);
-  }
+  wrapper.addStyle({
+    "background-color": "transparent",
+    "background-image": backgroundImageCss(backgroundUrl),
+    "background-position": "center",
+    "background-repeat": "no-repeat",
+    "background-size": "cover",
+  });
 };
 
 const registerAnnouncementBlocks = (editor: Editor): void => {
@@ -503,6 +376,16 @@ const coerceComponentBackground = (component: {
   const style = component.getStyle();
   const background = (style.background ?? "").trim();
   const backgroundColor = (style["background-color"] ?? "").trim();
+  const backgroundImage = (style["background-image"] ?? "").trim();
+
+  // Never rewrite the Body photo paint (url) into a gradient.
+  if (
+    /url\s*\(/iu.test(background) ||
+    /url\s*\(/iu.test(backgroundImage) ||
+    /url\s*\(/iu.test(backgroundColor)
+  ) {
+    return false;
+  }
 
   if (/gradient\s*\(/iu.test(background)) {
     if (!isClearPaint(backgroundColor)) {
@@ -541,10 +424,9 @@ const coerceComponentBackground = (component: {
 /**
  * GrapesJS-powered announcement overlay editor.
  *
- * The selected background variation is a locked full-bleed GrapesJS component
- * (`announcement-bg`) that updates when `backgroundUrl` changes. It is stripped
- * from serialized draft HTML so R2 variations remain the source of truth.
- * Overlay blocks use native GrapesJS panels (blocks, styles, layers, traits).
+ * The selected background variation is painted on the GrapesJS Body (`#wrapper`)
+ * as `background-image` and updates when `backgroundUrl` changes. Photo URLs are
+ * stripped from serialized draft HTML so R2 variations remain the source of truth.
  */
 export const GrapesjsAnnouncementEditor = ({
   backgroundUrl,
@@ -655,7 +537,6 @@ export const GrapesjsAnnouncementEditor = ({
       width: "100%",
     });
 
-    registerBackgroundComponentType(editor);
     registerAnnouncementBlocks(editor);
 
     const flushSave = (): void => {
@@ -689,28 +570,22 @@ export const GrapesjsAnnouncementEditor = ({
     };
 
     /**
-     * Keep component paints as alpha gradients so solid fills never bury the
-     * independently swappable background image layer.
+     * Keep overlay paints as alpha gradients so solid fills never bury the
+     * Body photo. Skips the wrapper itself and any url(...) photo paint.
      */
     const coerceSelectedBackgrounds = (): void => {
       if (suppressEmitRef.current || coercingBackgroundRef.current) {
         return;
       }
 
+      const wrapper = editor.getWrapper();
       const selected = editor.getSelectedAll();
       let changed = false;
       coercingBackgroundRef.current = true;
 
       try {
         for (const component of selected) {
-          if (
-            isBackgroundComponent(
-              component as unknown as {
-                get: (key: string) => unknown;
-                getAttributes?: () => Record<string, string>;
-              }
-            )
-          ) {
+          if (component === wrapper) {
             continue;
           }
 
@@ -734,64 +609,33 @@ export const GrapesjsAnnouncementEditor = ({
       }
     };
 
-    // Ignore updates that only touch the locked background (src swaps).
-    const scheduleSaveUnlessBackgroundOnly = (component?: {
-      get: (key: string) => unknown;
-      getAttributes?: () => Record<string, string>;
-    }): void => {
-      if (
-        component &&
-        isBackgroundComponent(component) &&
-        !suppressEmitRef.current
-      ) {
-        return;
-      }
-
-      scheduleSave();
-    };
-
     editor.on("update", scheduleSave);
-    editor.on("component:update", scheduleSaveUnlessBackgroundOnly);
+    editor.on("component:update", scheduleSave);
     editor.on("style:change", () => {
       coerceSelectedBackgrounds();
+      // If the user edits Body styles, re-apply the active variation photo.
+      if (backgroundUrlRef.current) {
+        const selected = editor.getSelectedAll();
+        const wrapper = editor.getWrapper();
+
+        if (selected.some((component) => component === wrapper)) {
+          suppressEmitRef.current = true;
+          syncBackgroundOnBody(editor, backgroundUrlRef.current);
+          requestAnimationFrame(() => {
+            suppressEmitRef.current = false;
+          });
+        }
+      }
       scheduleSave();
     });
-    editor.on("component:add", scheduleSaveUnlessBackgroundOnly);
-    editor.on(
-      "component:remove",
-      (component: {
-        get: (key: string) => unknown;
-        getAttributes?: () => Record<string, string>;
-      }) => {
-        // Re-inject if something forced the locked bg out while a URL is active.
-        if (
-          isBackgroundComponent(component) &&
-          backgroundUrlRef.current &&
-          !suppressEmitRef.current
-        ) {
-          requestAnimationFrame(() => {
-            if (editorRef.current !== editor) {
-              return;
-            }
-
-            suppressEmitRef.current = true;
-            syncBackgroundComponent(editor, backgroundUrlRef.current);
-            requestAnimationFrame(() => {
-              suppressEmitRef.current = false;
-            });
-          });
-          return;
-        }
-
-        scheduleSaveUnlessBackgroundOnly(component);
-      }
-    );
+    editor.on("component:add", scheduleSave);
+    editor.on("component:remove", scheduleSave);
     editor.on("component:drag:end", scheduleSave);
 
     editor.on("canvas:frame:load", () => {
-      makeFrameTransparent(editor);
+      makeCanvasChrome(editor);
       suppressEmitRef.current = true;
-      syncBackgroundComponent(editor, backgroundUrlRef.current);
+      syncBackgroundOnBody(editor, backgroundUrlRef.current);
       requestAnimationFrame(() => {
         suppressEmitRef.current = false;
       });
@@ -799,11 +643,11 @@ export const GrapesjsAnnouncementEditor = ({
 
     suppressEmitRef.current = true;
     loadHtmlIntoEditor(editor, syncedHtmlRef.current);
-    syncBackgroundComponent(editor, backgroundUrlRef.current);
+    syncBackgroundOnBody(editor, backgroundUrlRef.current);
     editor.UndoManager.clear();
     suppressEmitRef.current = false;
 
-    makeFrameTransparent(editor);
+    makeCanvasChrome(editor);
 
     editorRef.current = editor;
 
@@ -846,16 +690,16 @@ export const GrapesjsAnnouncementEditor = ({
     }
 
     loadHtmlIntoEditor(editor, html);
-    syncBackgroundComponent(editor, backgroundUrlRef.current);
+    syncBackgroundOnBody(editor, backgroundUrlRef.current);
     editor.UndoManager.clear();
-    makeFrameTransparent(editor);
+    makeCanvasChrome(editor);
 
     requestAnimationFrame(() => {
       suppressEmitRef.current = false;
     });
   }, [html]);
 
-  // Swappable background — locked GrapesJS component, dynamic with variation.
+  // Swappable background — painted on GrapesJS Body, dynamic with variation.
   useEffect(() => {
     const editor = editorRef.current;
 
@@ -864,8 +708,8 @@ export const GrapesjsAnnouncementEditor = ({
     }
 
     suppressEmitRef.current = true;
-    syncBackgroundComponent(editor, backgroundUrl);
-    makeFrameTransparent(editor);
+    syncBackgroundOnBody(editor, backgroundUrl);
+    makeCanvasChrome(editor);
     requestAnimationFrame(() => {
       suppressEmitRef.current = false;
     });

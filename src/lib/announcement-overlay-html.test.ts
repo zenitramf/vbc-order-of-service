@@ -9,6 +9,7 @@ import {
   parseOverlayHtml,
   solidColorToAlphaGradient,
   stripAnnouncementBackgroundHtml,
+  stripRuntimePhotoBackgroundCss,
 } from "~/lib/announcement-overlay-html";
 
 describe("parseOverlayHtml", () => {
@@ -102,6 +103,20 @@ describe("stripAnnouncementBackgroundHtml", () => {
     expect(parsed.components).toContain("Title");
     expect(parsed.components).not.toContain("data-announcement-bg");
     expect(parsed.components).not.toContain("cdn.example");
+  });
+});
+
+describe("stripRuntimePhotoBackgroundCss", () => {
+  it("removes remote background-image urls from css", () => {
+    const css = `
+#wrapper { background-image: url("https://cdn.example/a.jpg"); width: 1920px; }
+.scrim { background: linear-gradient(to top, rgba(0,0,0,0.5), transparent); }
+`;
+    const stripped = stripRuntimePhotoBackgroundCss(css);
+    expect(stripped).not.toContain("cdn.example");
+    expect(stripped).not.toContain("background-image");
+    expect(stripped).toContain("linear-gradient");
+    expect(stripped).toContain("1920px");
   });
 });
 
