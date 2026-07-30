@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PresentationRouteImport } from './routes/presentation'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
@@ -35,7 +36,6 @@ import { Route as AuthenticatedMembersNewRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMembersMemberIdRouteImport } from './routes/_authenticated/members/$memberId'
 import { Route as AuthenticatedHymnsNewRouteImport } from './routes/_authenticated/hymns/new'
 import { Route as AuthenticatedHymnsHymnIdRouteImport } from './routes/_authenticated/hymns/$hymnId'
-import { Route as AuthenticatedAnnouncementsNewRouteImport } from './routes/_authenticated/announcements/new'
 import { Route as AuthenticatedAnnouncementsAnnouncementIdRouteImport } from './routes/_authenticated/announcements/$announcementId'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 import { Route as AuthenticatedAdminRolesIndexRouteImport } from './routes/_authenticated/admin/roles/index'
@@ -44,6 +44,11 @@ import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminRolesNewRouteImport } from './routes/_authenticated/admin/roles/new'
 import { Route as AuthenticatedAdminRolesRoleIdRouteImport } from './routes/_authenticated/admin/roles/$roleId'
 
+const PresentationRoute = PresentationRouteImport.update({
+  id: '/presentation',
+  path: '/presentation',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -185,12 +190,6 @@ const AuthenticatedHymnsHymnIdRoute =
     path: '/hymns/$hymnId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAnnouncementsNewRoute =
-  AuthenticatedAnnouncementsNewRouteImport.update({
-    id: '/announcements/new',
-    path: '/announcements/new',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAnnouncementsAnnouncementIdRoute =
   AuthenticatedAnnouncementsAnnouncementIdRouteImport.update({
     id: '/announcements/$announcementId',
@@ -237,11 +236,11 @@ const AuthenticatedAdminRolesRoleIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
+  '/presentation': typeof PresentationRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
   '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  '/announcements/new': typeof AuthenticatedAnnouncementsNewRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -271,11 +270,11 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
+  '/presentation': typeof PresentationRoute
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
   '/': typeof AuthenticatedIndexRoute
   '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  '/announcements/new': typeof AuthenticatedAnnouncementsNewRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -307,12 +306,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
+  '/presentation': typeof PresentationRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  '/_authenticated/announcements/new': typeof AuthenticatedAnnouncementsNewRoute
   '/_authenticated/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/_authenticated/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/_authenticated/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -345,11 +344,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
+    | '/presentation'
     | '/admin'
     | '/planner'
     | '/api/mcp'
     | '/announcements/$announcementId'
-    | '/announcements/new'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -379,11 +378,11 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
+    | '/presentation'
     | '/planner'
     | '/api/mcp'
     | '/'
     | '/announcements/$announcementId'
-    | '/announcements/new'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -414,12 +413,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
+    | '/presentation'
     | '/_authenticated/admin'
     | '/_authenticated/planner'
     | '/api/mcp'
     | '/_authenticated/'
     | '/_authenticated/announcements/$announcementId'
-    | '/_authenticated/announcements/new'
     | '/_authenticated/hymns/$hymnId'
     | '/_authenticated/hymns/new'
     | '/_authenticated/members/$memberId'
@@ -451,12 +450,20 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  PresentationRoute: typeof PresentationRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/presentation': {
+      id: '/presentation'
+      path: '/presentation'
+      fullPath: '/presentation'
+      preLoaderRoute: typeof PresentationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -639,13 +646,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHymnsHymnIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/announcements/new': {
-      id: '/_authenticated/announcements/new'
-      path: '/announcements/new'
-      fullPath: '/announcements/new'
-      preLoaderRoute: typeof AuthenticatedAnnouncementsNewRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/announcements/$announcementId': {
       id: '/_authenticated/announcements/$announcementId'
       path: '/announcements/$announcementId'
@@ -726,7 +726,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPlannerRoute: typeof AuthenticatedPlannerRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAnnouncementsAnnouncementIdRoute: typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  AuthenticatedAnnouncementsNewRoute: typeof AuthenticatedAnnouncementsNewRoute
   AuthenticatedHymnsHymnIdRoute: typeof AuthenticatedHymnsHymnIdRoute
   AuthenticatedHymnsNewRoute: typeof AuthenticatedHymnsNewRoute
   AuthenticatedMembersMemberIdRoute: typeof AuthenticatedMembersMemberIdRoute
@@ -753,7 +752,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAnnouncementsAnnouncementIdRoute:
     AuthenticatedAnnouncementsAnnouncementIdRoute,
-  AuthenticatedAnnouncementsNewRoute: AuthenticatedAnnouncementsNewRoute,
   AuthenticatedHymnsHymnIdRoute: AuthenticatedHymnsHymnIdRoute,
   AuthenticatedHymnsNewRoute: AuthenticatedHymnsNewRoute,
   AuthenticatedMembersMemberIdRoute: AuthenticatedMembersMemberIdRoute,
@@ -781,6 +779,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  PresentationRoute: PresentationRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }

@@ -5,6 +5,7 @@ import {
   Outlet,
   Scripts,
   createRootRoute,
+  useRouterState,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import type { ReactNode } from "react";
@@ -23,14 +24,35 @@ const RootDocument = ({ children }: { children: ReactNode }) => (
     </head>
     <body>
       {children}
-      <Toaster />
-      <TanStackRouterDevtools position="bottom-right" />
       <Scripts />
     </body>
   </html>
 );
 
-const RootApp = () => <Outlet />;
+/** App chrome that must not appear on the production presentation display. */
+const RootAppChrome = () => {
+  const isPresentation = useRouterState({
+    select: (state) => state.location.pathname === "/presentation",
+  });
+
+  if (isPresentation) {
+    return null;
+  }
+
+  return (
+    <>
+      <Toaster />
+      <TanStackRouterDevtools position="bottom-right" />
+    </>
+  );
+};
+
+const RootApp = () => (
+  <>
+    <Outlet />
+    <RootAppChrome />
+  </>
+);
 
 export const Route = createRootRoute({
   component: RootApp,

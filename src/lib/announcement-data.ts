@@ -16,11 +16,13 @@ import type {
   CreateAnnouncementInput,
   GenerateAnnouncementHtmlInput,
   GenerateBackgroundsInput,
+  PresentationSlide,
   SaveAnnouncementInput,
   ClearVariationContextInput,
   RemoveAllVariationsInput,
   RemoveVariationInput,
   SelectVariationInput,
+  SetShowInPresentationDeckInput,
 } from "~/lib/announcement-types";
 import {
   ANNOUNCEMENT_ASPECT_RATIO,
@@ -165,6 +167,7 @@ const normalizeDraft = (draft: AnnouncementDraft): AnnouncementDraft => ({
     typeof draft.appliedStyleId === "string" && draft.appliedStyleId.trim()
       ? draft.appliedStyleId.trim()
       : null,
+  showInPresentationDeck: Boolean(draft.showInPresentationDeck),
   variations: draft.variations.map((variation) =>
     normalizeVariation(variation)
   ),
@@ -200,8 +203,18 @@ const getJson = async <T>(key: string): Promise<T | null> => {
   return (await object.json()) as T;
 };
 
-const readIndex = async (): Promise<AnnouncementSummary[]> =>
-  (await getJson<AnnouncementSummary[]>(INDEX_KEY)) ?? [];
+/** Normalize index rows saved before `showInPresentationDeck` existed. */
+const normalizeSummary = (
+  summary: AnnouncementSummary
+): AnnouncementSummary => ({
+  ...summary,
+  showInPresentationDeck: Boolean(summary.showInPresentationDeck),
+});
+
+const readIndex = async (): Promise<AnnouncementSummary[]> => {
+  const items = (await getJson<AnnouncementSummary[]>(INDEX_KEY)) ?? [];
+  return items.map((item) => normalizeSummary(item));
+};
 
 const writeIndex = async (items: AnnouncementSummary[]): Promise<void> => {
   await putJson(INDEX_KEY, items);
@@ -220,6 +233,7 @@ const toSummary = (draft: AnnouncementDraft): AnnouncementSummary => {
     name: draft.name,
     previewObjectKey: selected?.objectKey ?? null,
     selectedVariationId: draft.selectedVariationId,
+    showInPresentationDeck: Boolean(draft.showInPresentationDeck),
     status: draft.status,
     updatedAt: draft.updatedAt,
     variationCount: draft.variations.length,
@@ -592,6 +606,7 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       id,
       name,
       selectedVariationId: null,
+      showInPresentationDeck: false,
       status: "draft",
       updatedAt: timestamp,
       variations: [],
@@ -914,6 +929,72 @@ export const approveAnnouncement = createServerFn({ method: "POST" })
     draft.approvedAt = nowIso();
     return await saveDraft(draft);
   });
+
+export const setShowInPresentationDeck = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: SetShowInPresentationDeckInput) => data)
+  .handler(async ({ data }): Promise<AnnouncementDraft> => {
+    const draft = await loadDraft(data.id);
+
+    if (draft.status !== "approved" || !draft.exportObjectKey) {
+      throw new Error(
+        "Only approved announcements can be shown in the presentation deck."
+      );
+    }
+
+    draft.showInPresentationDeck = Boolean(data.showInPresentationDeck);
+    return await saveDraft(draft);
+  });
+
+/**
+ * Public (unauthenticated) list of approved announcements opted into the
+ * presentation deck, with JPEG export payloads for the slideshow.
+ */
+export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PresentationSlide[]> => {
+    const index = await readIndex();
+    const eligible = index.filter(
+      (item) =>
+        item.status === "approved" &&
+        item.showInPresentationDeck &&
+        Boolean(item.exportObjectKey)
+    );
+
+    // Stable order: oldest approved first so the deck order is predictable.
+    eligible.sort(
+      (a, b) =>
+        (Date.parse(a.approvedAt ?? a.createdAt) || 0) -
+        (Date.parse(b.approvedAt ?? b.createdAt) || 0)
+    );
+
+    const results = await Promise.all(
+      eligible.map(async (item): Promise<PresentationSlide | null> => {
+        const objectKey = item.exportObjectKey;
+
+        if (!objectKey) {
+          return null;
+        }
+
+        try {
+          const asset = await readAssetBase64(objectKey);
+          return {
+            base64: asset.base64,
+            contentType: asset.contentType,
+            id: item.id,
+            name: item.name,
+          };
+        } catch {
+          // Skip missing exports rather than failing the whole deck.
+          return null;
+        }
+      })
+    );
+
+    return results.filter(
+      (slide): slide is PresentationSlide => slide !== null
+    );
+  }
+);
 
 export const deleteAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])

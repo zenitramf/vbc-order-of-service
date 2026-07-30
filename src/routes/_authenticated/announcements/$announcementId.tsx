@@ -64,6 +64,14 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "~/components/ui/combobox";
+import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -88,6 +96,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Switch } from "~/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -113,10 +122,10 @@ import {
   removeVariation,
   saveAnnouncement,
   selectVariation,
+  setShowInPresentationDeck,
 } from "~/lib/announcement-data";
 import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
 import { getStylePack, listStylePacks } from "~/lib/announcement-style-library";
-import type { AnnouncementStylePack } from "~/lib/announcement-style-library";
 import type {
   AnnouncementContent,
   AnnouncementDraft,
@@ -130,6 +139,18 @@ import { getLibraryImage, listLibraryImages } from "~/lib/image-library-data";
 import type { ImageLibraryItem } from "~/lib/image-library-types";
 import { requirePermission } from "~/lib/route-guards";
 import { cn } from "~/lib/utils";
+
+interface StylePackOption {
+  description: string;
+  label: string;
+  value: string;
+}
+
+const STYLE_PACK_OPTIONS: StylePackOption[] = listStylePacks().map((pack) => ({
+  description: pack.description,
+  label: pack.name,
+  value: pack.id,
+}));
 
 /** Display label for the background image model (generation is server-side). */
 const BACKGROUND_IMAGE_MODEL = "xai/grok-imagine-image-quality";
@@ -336,244 +357,103 @@ const createVariationColumns = ({
 const VIEWPORT_CANVAS_SHELL =
   "flex h-[calc(100svh-3.5rem-2rem)] min-h-[22rem] flex-col gap-4 overflow-hidden md:h-[calc(100svh-3.5rem-3rem)]";
 
-const StyleLibraryCard = ({
+const LiveCanvasEditor = ({
   appliedStyleId,
   applyingPackId,
-  onApply,
+  backgroundUrl,
+  editorRef,
+  html,
+  onApplyStylePack,
+  onHtmlChange,
 }: {
   appliedStyleId: string | null;
   applyingPackId: string | null;
-  onApply: (packId: string) => void;
+  backgroundUrl: string | null;
+  editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
+  html: string;
+  onApplyStylePack: (packId: string) => void;
+  onHtmlChange: (html: string) => void;
 }) => {
-  const packs = listStylePacks();
-  const lastApplied = appliedStyleId ? getStylePack(appliedStyleId) : null;
+  const selectedPackId = applyingPackId ?? appliedStyleId;
+  const selectedPack =
+    STYLE_PACK_OPTIONS.find((pack) => pack.value === selectedPackId) ?? null;
+  const isApplying = applyingPackId !== null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Design presets</CardTitle>
-        <CardDescription>
-          Full layout springboards — alignment, panels, scrims, and type —
-          filled from your content fields above. Applying a preset replaces the
-          canvas layout (background photo stays). Refine freely in GrapesJS
-          afterward.
-          {lastApplied ? (
-            <>
-              {" "}
-              Last applied: <strong>{lastApplied.name}</strong>.
-            </>
-          ) : null}
-        </CardDescription>
+    <Card
+      className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0"
+      size="sm"
+    >
+      <CardHeader className="shrink-0 border-b py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <CardTitle className="text-base">Announcements editor</CardTitle>
+            <CardDescription className="text-xs">
+              Blocks, styles, layers, and traits. Background photo swaps with
+              the selected variation. Auto-saves · up to{" "}
+              {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).
+            </CardDescription>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Label
+                className="text-muted-foreground shrink-0 text-xs"
+                htmlFor="announcement-presets"
+              >
+                Presets
+              </Label>
+              <Combobox
+                disabled={isApplying}
+                isItemEqualToValue={(item, value) => item.value === value.value}
+                items={STYLE_PACK_OPTIONS}
+                onValueChange={(pack) => {
+                  if (pack) {
+                    onApplyStylePack(pack.value);
+                  }
+                }}
+                value={selectedPack}
+              >
+                <ComboboxInput
+                  className="w-52"
+                  disabled={isApplying}
+                  id="announcement-presets"
+                  placeholder={isApplying ? "Applying…" : "Choose a preset"}
+                />
+                <ComboboxContent className="min-w-72">
+                  <ComboboxEmpty>No presets found.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(pack) => (
+                      <ComboboxItem key={pack.value} value={pack}>
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span>{pack.label}</span>
+                          <span className="text-muted-foreground text-xs font-normal">
+                            {pack.description}
+                          </span>
+                        </span>
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
+            </div>
+            <Badge className="w-fit shrink-0" variant="secondary">
+              1920×1080
+            </Badge>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {packs.map((pack) => (
-          <StylePackCard
-            applied={appliedStyleId === pack.id}
-            applying={applyingPackId === pack.id}
-            disabled={applyingPackId !== null}
-            key={pack.id}
-            onApply={() => {
-              onApply(pack.id);
-            }}
-            pack={pack}
-          />
-        ))}
+      <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
+        <GrapesjsAnnouncementEditor
+          ref={editorRef}
+          backgroundUrl={backgroundUrl}
+          className="min-h-0 flex-1"
+          html={html}
+          onHtmlChange={onHtmlChange}
+        />
       </CardContent>
     </Card>
   );
 };
-
-const compositionTextBlock = (className: string) => (
-  <span className={`absolute rounded-[2px] bg-white/85 ${className}`} />
-);
-
-/** Tiny abstract diagram of text placement on a 16:9 stage. */
-const CompositionThumb = ({
-  composition,
-}: {
-  composition: AnnouncementStylePack["composition"];
-}) => (
-  <div
-    aria-hidden
-    className="relative h-14 w-full overflow-hidden rounded-md border bg-zinc-800"
-  >
-    <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/40 to-zinc-900" />
-    {composition === "bottom-band" ? (
-      <>
-        <span className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/70 to-transparent" />
-        {compositionTextBlock("bottom-2 left-2 right-8 h-1.5")}
-        {compositionTextBlock("bottom-5 left-2 w-3/5 h-2")}
-      </>
-    ) : null}
-    {composition === "lower-left" ? (
-      <>
-        <span className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
-        {compositionTextBlock("bottom-2 left-2 w-2/5 h-1.5")}
-        {compositionTextBlock("bottom-5 left-2 w-1/3 h-2")}
-      </>
-    ) : null}
-    {composition === "centered" ? (
-      <>
-        <span className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/50 to-transparent" />
-        <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/50 to-transparent" />
-        {compositionTextBlock(
-          "left-1/2 top-1/2 h-2 w-2/5 -translate-x-1/2 -translate-y-1/2"
-        )}
-        {compositionTextBlock("left-1/2 top-[62%] h-1 w-1/3 -translate-x-1/2")}
-      </>
-    ) : null}
-    {composition === "top-banner" ? (
-      <>
-        <span className="absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-black/70 to-transparent" />
-        {compositionTextBlock("left-2 top-2 w-3/5 h-2")}
-        {compositionTextBlock("left-2 top-5 right-8 h-1.5")}
-      </>
-    ) : null}
-    {composition === "left-panel" ? (
-      <>
-        <span className="absolute inset-y-0 left-0 w-2/5 bg-gradient-to-r from-black/80 to-transparent" />
-        {compositionTextBlock("left-2 top-1/3 w-1/4 h-2")}
-        {compositionTextBlock("left-2 top-1/2 w-1/5 h-1.5")}
-      </>
-    ) : null}
-    {composition === "right-panel" ? (
-      <>
-        <span className="absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-black/80 to-transparent" />
-        {compositionTextBlock("right-2 top-1/3 w-1/4 h-2")}
-        {compositionTextBlock("right-2 top-1/2 w-1/5 h-1.5")}
-      </>
-    ) : null}
-    {composition === "two-panel" ? (
-      <>
-        <span className="absolute inset-y-0 left-0 w-[46%] bg-black/70" />
-        {compositionTextBlock("left-2 top-3 w-1/4 h-2")}
-        {compositionTextBlock("bottom-3 left-2 w-1/5 h-1.5")}
-      </>
-    ) : null}
-    {composition === "corner-card" ? (
-      <>
-        <span className="absolute bottom-1.5 left-1.5 h-[55%] w-[42%] rounded-sm bg-black/65" />
-        {compositionTextBlock("bottom-4 left-3 w-[28%] h-1.5")}
-        {compositionTextBlock("bottom-7 left-3 w-[22%] h-2")}
-      </>
-    ) : null}
-  </div>
-);
-
-const StylePackCard = ({
-  applied,
-  applying,
-  disabled,
-  onApply,
-  pack,
-}: {
-  applied: boolean;
-  applying: boolean;
-  disabled: boolean;
-  onApply: () => void;
-  pack: AnnouncementStylePack;
-}) => (
-  <div
-    className={`flex flex-col gap-3 rounded-lg border p-3 ${applied ? "border-primary/60 bg-muted/40" : ""}`}
-  >
-    <CompositionThumb composition={pack.composition} />
-    <div className="flex items-start justify-between gap-2">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-medium leading-tight">{pack.name}</p>
-          <Badge className="shrink-0 font-normal" variant="outline">
-            {pack.preview.compositionLabel}
-          </Badge>
-        </div>
-        <p className="text-muted-foreground mt-1 text-xs leading-snug">
-          {pack.description}
-        </p>
-      </div>
-      {applied ? (
-        <Badge className="shrink-0" variant="secondary">
-          Applied
-        </Badge>
-      ) : null}
-    </div>
-    <div className="flex items-center gap-2">
-      <span
-        aria-hidden
-        className="size-5 rounded-full border shadow-sm"
-        style={{ backgroundColor: pack.preview.text }}
-        title="Text"
-      />
-      <span
-        aria-hidden
-        className="size-5 rounded-full border shadow-sm"
-        style={{ backgroundColor: pack.preview.accent }}
-        title="Accent"
-      />
-      <span
-        aria-hidden
-        className="size-5 rounded-full border shadow-sm"
-        style={{ backgroundColor: pack.preview.scrimHint }}
-        title="Scrim"
-      />
-    </div>
-    <Button
-      disabled={disabled}
-      onClick={onApply}
-      size="sm"
-      type="button"
-      variant={applied ? "outline" : "default"}
-    >
-      {applying ? (
-        <CircleNotchIcon className="animate-spin" data-icon="inline-start" />
-      ) : (
-        <SparkleIcon data-icon="inline-start" />
-      )}
-      {applying ? "Applying…" : "Use as starting layout"}
-    </Button>
-  </div>
-);
-
-const LiveCanvasEditor = ({
-  backgroundUrl,
-  editorRef,
-  html,
-  onHtmlChange,
-}: {
-  backgroundUrl: string | null;
-  editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
-  html: string;
-  onHtmlChange: (html: string) => void;
-}) => (
-  <Card
-    className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden py-0"
-    size="sm"
-  >
-    <CardHeader className="shrink-0 border-b py-2.5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <CardTitle className="text-base">GrapesJS editor</CardTitle>
-          <CardDescription className="text-xs">
-            Native GrapesJS blocks, styles, layers, and traits. Background photo
-            is on the Body component (swaps with the selected variation).
-            Auto-saves · up to {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots
-            (Mod+Z / Mod+Y).
-          </CardDescription>
-        </div>
-        <Badge className="w-fit shrink-0" variant="secondary">
-          1920×1080
-        </Badge>
-      </div>
-    </CardHeader>
-    <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
-      <GrapesjsAnnouncementEditor
-        ref={editorRef}
-        backgroundUrl={backgroundUrl}
-        className="min-h-0 flex-1"
-        html={html}
-        onHtmlChange={onHtmlChange}
-      />
-    </CardContent>
-  </Card>
-);
 
 const VariationLibraryCard = ({
   assetUrls,
@@ -1161,6 +1041,77 @@ const BackgroundImageCard = ({
   );
 };
 
+const PresentationDeckControls = ({
+  announcementId,
+  enabled,
+  onUpdated,
+  showInPresentationDeck,
+}: {
+  announcementId: string;
+  enabled: boolean;
+  onUpdated: (next: AnnouncementDraft) => void;
+  showInPresentationDeck: boolean;
+}) => {
+  const router = useRouter();
+  const setDeckFn = useServerFn(setShowInPresentationDeck);
+  const [isTogglingDeck, setIsTogglingDeck] = useState(false);
+
+  if (!enabled) {
+    return null;
+  }
+
+  const onToggle = async (nextValue: boolean) => {
+    setIsTogglingDeck(true);
+
+    try {
+      const next = await setDeckFn({
+        data: { id: announcementId, showInPresentationDeck: nextValue },
+      });
+      onUpdated(next);
+      await router.invalidate();
+      toast.success(
+        nextValue
+          ? "Added to presentation deck."
+          : "Removed from presentation deck."
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update presentation deck setting."
+      );
+    } finally {
+      setIsTogglingDeck(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {showInPresentationDeck ? (
+        <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600/90">
+          In presentation deck
+        </Badge>
+      ) : null}
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={showInPresentationDeck}
+          disabled={isTogglingDeck}
+          id="show-in-presentation-deck"
+          onCheckedChange={(checked) => {
+            void onToggle(checked);
+          }}
+        />
+        <Label
+          className="cursor-pointer font-normal"
+          htmlFor="show-in-presentation-deck"
+        >
+          Show in presentation deck
+        </Label>
+      </div>
+    </div>
+  );
+};
+
 const AnnouncementEditor = ({
   announcement: initial,
 }: {
@@ -1231,6 +1182,8 @@ const AnnouncementEditor = ({
 
   const hasApprovedExport =
     draft.status === "approved" && Boolean(exportPreview);
+  const presentationDeckEnabled =
+    draft.status === "approved" && Boolean(draft.exportObjectKey);
 
   const selectedVariation = useMemo(
     () =>
@@ -1685,7 +1638,7 @@ const AnnouncementEditor = ({
       setDraft(next);
 
       toast.success(
-        `Loaded “${pack.name}” layout — refine in GrapesJS as needed.`
+        `Loaded “${pack.name}” layout — refine on the canvas as needed.`
       );
     } catch (error) {
       toast.error(
@@ -1881,9 +1834,15 @@ const AnnouncementEditor = ({
               </Badge>
             </div>
             <p className="text-muted-foreground max-w-2xl text-sm">
-              Edit components with GrapesJS. Swap backgrounds independently
-              below; AI HTML generation and draft tools follow.
+              Edit the overlay layout on the canvas. Swap backgrounds
+              independently below; AI HTML generation and draft tools follow.
             </p>
+            <PresentationDeckControls
+              announcementId={draft.id}
+              enabled={presentationDeckEnabled}
+              onUpdated={applyDraft}
+              showInPresentationDeck={draft.showInPresentationDeck}
+            />
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button
@@ -1931,9 +1890,14 @@ const AnnouncementEditor = ({
         </div>
 
         <LiveCanvasEditor
+          appliedStyleId={draft.appliedStyleId}
+          applyingPackId={applyingStylePackId}
           backgroundUrl={selectedBackgroundUrl}
           editorRef={grapesEditorRef}
           html={html}
+          onApplyStylePack={(packId) => {
+            void onApplyStylePack(packId);
+          }}
           onHtmlChange={onCanvasHtmlChange}
         />
       </div>
@@ -1945,8 +1909,8 @@ const AnnouncementEditor = ({
             <CardHeader>
               <CardTitle>Content fields</CardTitle>
               <CardDescription>
-                Feed AI HTML generation. Values are not baked into the
-                background image — edit layout in GrapesJS above.
+                Feed AI HTML generation and design presets. Values are not baked
+                into the background image — edit layout on the canvas above.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -2018,21 +1982,13 @@ const AnnouncementEditor = ({
           />
         </div>
 
-        <StyleLibraryCard
-          appliedStyleId={draft.appliedStyleId}
-          applyingPackId={applyingStylePackId}
-          onApply={(packId) => {
-            void onApplyStylePack(packId);
-          }}
-        />
-
         <Card>
           <CardHeader>
             <CardTitle>Generate overlay with AI</CardTitle>
             <CardDescription>
               Builds layout HTML from the content fields above. Optional style
-              notes steer typography, alignment, and accents. Prefer GrapesJS
-              for manual edits after generation.
+              notes steer typography, alignment, and accents. Prefer the canvas
+              editor for manual edits after generation.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -2098,8 +2054,8 @@ const AnnouncementEditor = ({
               <span className="flex flex-col items-start gap-1">
                 <span className="text-base">HTML markup (advanced)</span>
                 <span className="text-muted-foreground text-sm font-normal">
-                  Source view of the same draft HTML as the GrapesJS canvas.
-                  Expand only when you need to inspect or hand-edit markup.
+                  Source view of the same draft HTML as the canvas above. Expand
+                  only when you need to inspect or hand-edit markup.
                 </span>
               </span>
             </AccordionTrigger>
@@ -2199,7 +2155,7 @@ const AnnouncementEditorRoute = () => {
         </EmptyHeader>
         <EmptyContent>
           <Button asChild>
-            <Link to="/announcements/new">
+            <Link search={{ create: true }} to="/announcements">
               <PlusIcon data-icon="inline-start" />
               Create announcement
             </Link>

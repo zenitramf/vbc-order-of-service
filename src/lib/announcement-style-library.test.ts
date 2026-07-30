@@ -109,17 +109,55 @@ describe("announcement-style-library", () => {
     expect(buildDesignPresetHtml("nope", sampleContent)).toBeNull();
   });
 
-  it("fills placeholder copy when content fields are empty", () => {
+  it("omits empty content fields instead of placeholder copy", () => {
     const html = buildDesignPresetHtml("corner-card", {
+      heading: "",
+      subtitle: "Join us",
+      tertiary: "",
+      title: "Welcome",
+    });
+
+    expect(html).not.toBeNull();
+    expect(html).toContain("Welcome");
+    expect(html).toContain("Join us");
+    expect(html).toContain(`${ANNOUNCEMENT_ROLE_ATTR}="title"`);
+    expect(html).toContain(`${ANNOUNCEMENT_ROLE_ATTR}="subtitle"`);
+    expect(html).not.toContain("Announcement Title");
+    expect(html).not.toContain("Heading");
+    expect(html).not.toContain("Additional details");
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="heading"`);
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="body"`);
+  });
+
+  it("renders no text roles when all content fields are empty", () => {
+    const html = buildDesignPresetHtml("classic-bottom", {
       heading: "",
       subtitle: "",
       tertiary: "",
       title: "",
     });
 
-    expect(html).toContain("Announcement Title");
-    expect(html).toContain("Heading");
-    expect(html).toContain("Subtitle");
-    expect(html).toContain("Additional details");
+    expect(html).not.toBeNull();
+    expect(html).toContain("announcement-overlay");
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="heading"`);
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="title"`);
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="subtitle"`);
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="body"`);
+    expect(html).not.toContain("Announcement Title");
+  });
+
+  it("omits empty fields in two-panel layout", () => {
+    const html = buildDesignPresetHtml("two-panel", {
+      heading: "",
+      subtitle: "",
+      tertiary: "Details only",
+      title: "Main title",
+    });
+
+    expect(html).not.toBeNull();
+    expect(html).toContain("Main title");
+    expect(html).toContain("Details only");
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="heading"`);
+    expect(html).not.toContain(`${ANNOUNCEMENT_ROLE_ATTR}="subtitle"`);
   });
 });

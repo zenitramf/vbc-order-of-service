@@ -42,6 +42,11 @@ export interface AnnouncementDraft {
   id: string;
   name: string;
   selectedVariationId: string | null;
+  /**
+   * When true and status is `approved`, include this announcement in the
+   * public presentation deck slideshow.
+   */
+  showInPresentationDeck: boolean;
   status: AnnouncementStatus;
   updatedAt: string;
   variations: AnnouncementVariation[];
@@ -56,9 +61,23 @@ export interface AnnouncementSummary {
   name: string;
   previewObjectKey: string | null;
   selectedVariationId: string | null;
+  showInPresentationDeck: boolean;
   status: AnnouncementStatus;
   updatedAt: string;
   variationCount: number;
+}
+
+/** Slide payload for the unauthenticated presentation deck. */
+export interface PresentationSlide {
+  base64: string;
+  contentType: string;
+  id: string;
+  name: string;
+}
+
+export interface SetShowInPresentationDeckInput {
+  id: string;
+  showInPresentationDeck: boolean;
 }
 
 export interface CreateAnnouncementInput {

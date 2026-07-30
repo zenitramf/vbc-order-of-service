@@ -3,7 +3,7 @@
  *
  * Each preset is a full 1920×1080 layout springboard (structure + typography +
  * scrims). Applying a preset replaces the overlay HTML with content from the
- * draft fields; the Body photo is never included. Users refine further in GrapesJS.
+ * draft fields; the Body photo is never included. Users refine further on the canvas.
  */
 
 import {
@@ -95,11 +95,12 @@ interface ResolvedContent {
   title: string;
 }
 
+/** Trim draft fields; empty strings mean “do not render this role”. */
 const resolveContent = (content: AnnouncementContent): ResolvedContent => ({
-  body: content.tertiary.trim() || "Additional details",
-  heading: content.heading.trim() || "Heading",
-  subtitle: content.subtitle.trim() || "Subtitle",
-  title: content.title.trim() || "Announcement Title",
+  body: content.tertiary.trim(),
+  heading: content.heading.trim(),
+  subtitle: content.subtitle.trim(),
+  title: content.title.trim(),
 });
 
 const role = (name: AnnouncementStyleRole): string =>
@@ -119,12 +120,34 @@ const textStack = (
   const textAlign = `text-align:${align};`;
 
   // Spacing tuned for large TV type so lines don't crowd at 1080p.
-  return [
-    `<p ${role("heading")} style="margin:0 0 16px;${textAlign}${options.headingStyle ?? ""}">${escapeHtml(c.heading)}</p>`,
-    `<h1 ${role("title")} style="margin:0 0 24px;${textAlign}${options.titleStyle ?? ""}">${escapeHtml(c.title)}</h1>`,
-    `<p ${role("subtitle")} style="margin:0 0 32px;${textAlign}${options.subtitleStyle ?? ""}">${escapeHtml(c.subtitle)}</p>`,
-    `<p ${role("body")} style="margin:0;${textAlign}${options.bodyStyle ?? ""}">${escapeHtml(c.body)}</p>`,
-  ].join("\n  ");
+  // Skip empty fields so presets never invent placeholder copy.
+  const parts: string[] = [];
+
+  if (c.heading) {
+    parts.push(
+      `<p ${role("heading")} style="margin:0 0 16px;${textAlign}${options.headingStyle ?? ""}">${escapeHtml(c.heading)}</p>`
+    );
+  }
+
+  if (c.title) {
+    parts.push(
+      `<h1 ${role("title")} style="margin:0 0 24px;${textAlign}${options.titleStyle ?? ""}">${escapeHtml(c.title)}</h1>`
+    );
+  }
+
+  if (c.subtitle) {
+    parts.push(
+      `<p ${role("subtitle")} style="margin:0 0 32px;${textAlign}${options.subtitleStyle ?? ""}">${escapeHtml(c.subtitle)}</p>`
+    );
+  }
+
+  if (c.body) {
+    parts.push(
+      `<p ${role("body")} style="margin:0;${textAlign}${options.bodyStyle ?? ""}">${escapeHtml(c.body)}</p>`
+    );
+  }
+
+  return parts.join("\n  ");
 };
 
 const wrapOverlay = (inner: string): string =>
@@ -237,16 +260,51 @@ const buildRightPanel = (content: AnnouncementContent): string => {
 const buildTwoPanel = (content: AnnouncementContent): string => {
   const c = resolveContent(content);
   // Left solid-feeling panel with copy; right half stays open for the photo.
+  const topParts: string[] = [];
+
+  if (c.heading) {
+    topParts.push(
+      `<p ${role("heading")} style="margin:0 0 24px;text-align:left;${HEADING_CLASSIC}">${escapeHtml(c.heading)}</p>`
+    );
+  }
+
+  if (c.title) {
+    topParts.push(
+      `<h1 ${role("title")} style="margin:0;text-align:left;font-size:108px;line-height:1.04;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 6px 28px rgba(0,0,0,0.5);">${escapeHtml(c.title)}</h1>`
+    );
+  }
+
+  const bottomParts: string[] = [];
+
+  if (c.subtitle) {
+    bottomParts.push(
+      `<p ${role("subtitle")} style="margin:0 0 24px;text-align:left;${SUBTITLE_CLASSIC}">${escapeHtml(c.subtitle)}</p>`
+    );
+  }
+
+  if (c.body) {
+    bottomParts.push(
+      `<p ${role("body")} style="margin:0;text-align:left;${BODY_CLASSIC}max-width:720px;">${escapeHtml(c.body)}</p>`
+    );
+  }
+
+  const topBlock =
+    topParts.length > 0
+      ? `  <div style="display:flex;flex-direction:column;align-items:flex-start;background:transparent;">
+  ${topParts.join("\n  ")}
+  </div>`
+      : "";
+  const bottomBlock =
+    bottomParts.length > 0
+      ? `  <div style="display:flex;flex-direction:column;align-items:flex-start;background:transparent;margin-top:48px;">
+  ${bottomParts.join("\n  ")}
+  </div>`
+      : "";
+
   return wrapOverlay(`  <div ${role("scrim-left")} style="position:absolute;left:0;top:0;bottom:0;width:54%;pointer-events:none;background:linear-gradient(to right, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.55) 70%, transparent 100%);background-color:transparent;"></div>
   <div ${role("panel")} style="position:absolute;left:0;top:0;bottom:0;width:48%;box-sizing:border-box;padding:88px 56px 88px 88px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;background:linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.22) 100%);background-color:transparent;border-right:1px solid rgba(255,255,255,0.12);">
-  <div style="display:flex;flex-direction:column;align-items:flex-start;background:transparent;">
-  <p ${role("heading")} style="margin:0 0 24px;text-align:left;${HEADING_CLASSIC}">${escapeHtml(c.heading)}</p>
-  <h1 ${role("title")} style="margin:0;text-align:left;font-size:108px;line-height:1.04;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 6px 28px rgba(0,0,0,0.5);">${escapeHtml(c.title)}</h1>
-  </div>
-  <div style="display:flex;flex-direction:column;align-items:flex-start;background:transparent;margin-top:48px;">
-  <p ${role("subtitle")} style="margin:0 0 24px;text-align:left;${SUBTITLE_CLASSIC}">${escapeHtml(c.subtitle)}</p>
-  <p ${role("body")} style="margin:0;text-align:left;${BODY_CLASSIC}max-width:720px;">${escapeHtml(c.body)}</p>
-  </div>
+${topBlock}
+${bottomBlock}
   </div>`);
 };
 
@@ -369,7 +427,7 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     buildHtml: buildCornerCard,
     composition: "corner-card",
     description:
-      "Floating lower-left card with soft panel fill — editorial and easy to nudge in GrapesJS.",
+      "Floating lower-left card with soft panel fill — editorial and easy to nudge on the canvas.",
     id: "corner-card",
     name: "Corner card",
     preview: {
