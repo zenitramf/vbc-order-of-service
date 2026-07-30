@@ -20,22 +20,17 @@ import {
 } from "~/lib/announcement-overlay-html";
 import {
   ANNOUNCEMENT_ROLE_ATTR,
-  applyStylePackToTarget,
-  getStylePack,
-  roleSelector,
-} from "~/lib/announcement-style-library";
-import type {
-  StylePackApplyResult,
-  StyleableComponent,
+  buildDesignPresetHtml,
 } from "~/lib/announcement-style-library";
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
+import type { AnnouncementContent } from "~/lib/announcement-types";
 import { cn } from "~/lib/utils";
 
-export interface ApplyStylePackHandleResult extends StylePackApplyResult {
-  /** Serialized overlay HTML after applying the pack. */
+export interface ApplyStylePackHandleResult {
+  /** Serialized overlay HTML after applying the design preset layout. */
   html: string;
   packId: string;
 }
@@ -43,11 +38,14 @@ export interface ApplyStylePackHandleResult extends StylePackApplyResult {
 /** Imperative API for parent flows that need a synchronous canvas snapshot (e.g. JPG export). */
 export interface GrapesjsAnnouncementEditorHandle {
   /**
-   * Apply a hand-authored style pack (typography / scrim / color / shadow) to
-   * role-tagged components. Never touches Body photo paints.
-   * Returns serialized HTML so the parent can persist style id + markup together.
+   * Replace the canvas with a full design-preset layout (structure + type +
+   * scrims) filled from content fields. Never paints the Body photo.
+   * Returns serialized HTML so the parent can persist preset id + markup.
    */
-  applyStylePack: (packId: string) => ApplyStylePackHandleResult | null;
+  applyStylePack: (
+    packId: string,
+    content: AnnouncementContent
+  ) => ApplyStylePackHandleResult | null;
   /** Serialize the live canvas immediately (cancels pending debounced save). */
   flush: () => string | null;
 }
@@ -477,32 +475,6 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   });
 };
 
-/** Apply a style pack to role-tagged components inside a live GrapesJS editor. */
-export const applyStylePackToEditor = (
-  editor: Editor,
-  packId: string
-): StylePackApplyResult | null => {
-  const pack = getStylePack(packId);
-
-  if (!pack) {
-    return null;
-  }
-
-  const wrapper = editor.getWrapper();
-
-  if (!wrapper) {
-    return null;
-  }
-
-  return applyStylePackToTarget(pack, {
-    findByRole: (role) =>
-      (wrapper.find(roleSelector(role)) as unknown as StyleableComponent[]) ??
-      [],
-    isWrapper: (component) =>
-      component === (wrapper as unknown as StyleableComponent),
-  });
-};
-
 const loadHtmlIntoEditor = (editor: Editor, html: string): void => {
   const { components, css } = parseOverlayHtml(html);
   editor.DomComponents.clear();
@@ -512,6 +484,27 @@ const loadHtmlIntoEditor = (editor: Editor, html: string): void => {
   if (css) {
     editor.setStyle(css);
   }
+};
+
+/**
+ * Replace the editor canvas with a design-preset layout HTML fragment.
+ * Photo stays on Body via syncBackgroundOnBody (caller should re-sync after).
+ */
+export const applyDesignPresetToEditor = (
+  editor: Editor,
+  packId: string,
+  content: AnnouncementContent
+): ApplyStylePackHandleResult | null => {
+  const presetHtml = buildDesignPresetHtml(packId, content);
+
+  if (!presetHtml) {
+    return null;
+  }
+
+  loadHtmlIntoEditor(editor, presetHtml);
+  const overlayHtml = serializeOverlayHtml(editor);
+
+  return { html: overlayHtml, packId };
 };
 
 const isClearPaint = (value: string): boolean =>
@@ -603,14 +596,14 @@ export const GrapesjsAnnouncementEditor = ({
   useImperativeHandle(
     ref,
     () => ({
-      applyStylePack: (packId: string) => {
+      applyStylePack: (packId: string, content: AnnouncementContent) => {
         const editor = editorRef.current;
 
         if (!editor) {
           return null;
         }
 
-        // Suppress event-driven saves while restyling; parent persists once.
+        // Suppress event-driven saves while replacing layout; parent persists once.
         suppressEmitRef.current = true;
 
         if (saveTimerRef.current) {
@@ -618,18 +611,25 @@ export const GrapesjsAnnouncementEditor = ({
           saveTimerRef.current = null;
         }
 
-        const result = applyStylePackToEditor(editor, packId);
+        const result = applyDesignPresetToEditor(editor, packId, content);
 
         if (!result) {
           suppressEmitRef.current = false;
           return null;
         }
 
-        const overlayHtml = serializeOverlayHtml(editor);
-        syncedHtmlRef.current = overlayHtml;
+        // Keep the selected variation photo on Body after layout swap.
+        syncBackgroundOnBody(editor, backgroundUrlRef.current);
+        makeCanvasChrome(editor);
+        editor.UndoManager.clear();
+        requestAnimationFrame(() => {
+          fitAnnouncementViewport(editor);
+        });
+
+        syncedHtmlRef.current = result.html;
         suppressEmitRef.current = false;
 
-        return { ...result, html: overlayHtml, packId };
+        return result;
       },
       flush: () => {
         const editor = editorRef.current;

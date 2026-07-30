@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { v4 as uuidv4 } from "uuid";
 
+import { buildDesignPresetHtml } from "~/lib/announcement-style-library";
 import type {
   AddLibraryImageAsVariationInput,
   AnnouncementAsset,
@@ -178,34 +179,10 @@ const emptyContent = (
   title: partial?.title?.trim() ?? "",
 });
 
-const escapeHtml = (value: string): string =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-
-/** Sensible default overlay — user can edit or regenerate with AI. */
-const buildDefaultHtml = (content: AnnouncementContent): string => {
-  const title = content.title || "Announcement Title";
-  const subtitle = content.subtitle || "Subtitle";
-  const heading = content.heading || "Heading";
-  const tertiary = content.tertiary || "Additional details";
-
-  // Root stays transparent so the photo layer shows through. Readability comes
-  // from an alpha gradient scrim only — never a solid fill.
-  // data-ann-role markers let style library packs retarget typography/scrims.
-  return `<div class="announcement-overlay" style="box-sizing:border-box;width:1920px;height:1080px;position:relative;overflow:hidden;background:transparent;font-family:Georgia,'Times New Roman',serif;color:#ffffff;">
-  <div data-ann-role="scrim-bottom" style="position:absolute;left:0;right:0;bottom:0;height:55%;pointer-events:none;background:linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%);background-color:transparent;"></div>
-  <div style="position:absolute;left:0;right:0;bottom:0;box-sizing:border-box;padding:80px 100px;display:flex;flex-direction:column;justify-content:flex-end;background:transparent;">
-  <p data-ann-role="heading" style="margin:0 0 12px;font-size:28px;letter-spacing:0.28em;text-transform:uppercase;opacity:0.92;font-family:system-ui,sans-serif;">${escapeHtml(heading)}</p>
-  <h1 data-ann-role="title" style="margin:0 0 18px;font-size:96px;line-height:1.05;font-weight:700;text-shadow:0 4px 24px rgba(0,0,0,0.45);">${escapeHtml(title)}</h1>
-  <p data-ann-role="subtitle" style="margin:0 0 28px;font-size:42px;line-height:1.25;font-weight:400;opacity:0.95;">${escapeHtml(subtitle)}</p>
-  <p data-ann-role="body" style="margin:0;font-size:28px;line-height:1.4;opacity:0.88;font-family:system-ui,sans-serif;max-width:1200px;">${escapeHtml(tertiary)}</p>
-  </div>
-</div>`;
-};
+/** Sensible default overlay — classic bottom band design preset. */
+const buildDefaultHtml = (content: AnnouncementContent): string =>
+  buildDesignPresetHtml("classic-bottom", content) ??
+  `<div class="announcement-overlay" style="box-sizing:border-box;width:1920px;height:1080px;position:relative;overflow:hidden;background:transparent;"></div>`;
 
 const putJson = async (key: string, value: unknown): Promise<void> => {
   await getBucket().put(key, JSON.stringify(value, null, 2), {
@@ -604,7 +581,7 @@ export const createAnnouncement = createServerFn({ method: "POST" })
     });
 
     await saveDraft({
-      appliedStyleId: "classic-warm",
+      appliedStyleId: "classic-bottom",
       approvedAt: null,
       backgroundPrompt: data.backgroundPrompt?.trim() || "",
       content,

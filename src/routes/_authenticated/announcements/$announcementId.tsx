@@ -351,13 +351,12 @@ const StyleLibraryCard = ({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Style library</CardTitle>
+        <CardTitle>Design presets</CardTitle>
         <CardDescription>
-          Pre-generated typography, scrim, color, and shadow packs. Apply one as
-          a springboard, then refine in GrapesJS. Layout and background photo
-          stay put. Works best on elements tagged with{" "}
-          <code className="text-xs">data-ann-role</code> (default layout and
-          Announcement blocks include these).
+          Full layout springboards — alignment, panels, scrims, and type —
+          filled from your content fields above. Applying a preset replaces the
+          canvas layout (background photo stays). Refine freely in GrapesJS
+          afterward.
           {lastApplied ? (
             <>
               {" "}
@@ -384,6 +383,83 @@ const StyleLibraryCard = ({
   );
 };
 
+const compositionTextBlock = (className: string) => (
+  <span className={`absolute rounded-[2px] bg-white/85 ${className}`} />
+);
+
+/** Tiny abstract diagram of text placement on a 16:9 stage. */
+const CompositionThumb = ({
+  composition,
+}: {
+  composition: AnnouncementStylePack["composition"];
+}) => (
+  <div
+    aria-hidden
+    className="relative h-14 w-full overflow-hidden rounded-md border bg-zinc-800"
+  >
+    <div className="absolute inset-0 bg-gradient-to-br from-zinc-600/40 to-zinc-900" />
+    {composition === "bottom-band" ? (
+      <>
+        <span className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/70 to-transparent" />
+        {compositionTextBlock("bottom-2 left-2 right-8 h-1.5")}
+        {compositionTextBlock("bottom-5 left-2 w-3/5 h-2")}
+      </>
+    ) : null}
+    {composition === "lower-left" ? (
+      <>
+        <span className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
+        {compositionTextBlock("bottom-2 left-2 w-2/5 h-1.5")}
+        {compositionTextBlock("bottom-5 left-2 w-1/3 h-2")}
+      </>
+    ) : null}
+    {composition === "centered" ? (
+      <>
+        <span className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/50 to-transparent" />
+        <span className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/50 to-transparent" />
+        {compositionTextBlock(
+          "left-1/2 top-1/2 h-2 w-2/5 -translate-x-1/2 -translate-y-1/2"
+        )}
+        {compositionTextBlock("left-1/2 top-[62%] h-1 w-1/3 -translate-x-1/2")}
+      </>
+    ) : null}
+    {composition === "top-banner" ? (
+      <>
+        <span className="absolute inset-x-0 top-0 h-2/5 bg-gradient-to-b from-black/70 to-transparent" />
+        {compositionTextBlock("left-2 top-2 w-3/5 h-2")}
+        {compositionTextBlock("left-2 top-5 right-8 h-1.5")}
+      </>
+    ) : null}
+    {composition === "left-panel" ? (
+      <>
+        <span className="absolute inset-y-0 left-0 w-2/5 bg-gradient-to-r from-black/80 to-transparent" />
+        {compositionTextBlock("left-2 top-1/3 w-1/4 h-2")}
+        {compositionTextBlock("left-2 top-1/2 w-1/5 h-1.5")}
+      </>
+    ) : null}
+    {composition === "right-panel" ? (
+      <>
+        <span className="absolute inset-y-0 right-0 w-2/5 bg-gradient-to-l from-black/80 to-transparent" />
+        {compositionTextBlock("right-2 top-1/3 w-1/4 h-2")}
+        {compositionTextBlock("right-2 top-1/2 w-1/5 h-1.5")}
+      </>
+    ) : null}
+    {composition === "two-panel" ? (
+      <>
+        <span className="absolute inset-y-0 left-0 w-[46%] bg-black/70" />
+        {compositionTextBlock("left-2 top-3 w-1/4 h-2")}
+        {compositionTextBlock("bottom-3 left-2 w-1/5 h-1.5")}
+      </>
+    ) : null}
+    {composition === "corner-card" ? (
+      <>
+        <span className="absolute bottom-1.5 left-1.5 h-[55%] w-[42%] rounded-sm bg-black/65" />
+        {compositionTextBlock("bottom-4 left-3 w-[28%] h-1.5")}
+        {compositionTextBlock("bottom-7 left-3 w-[22%] h-2")}
+      </>
+    ) : null}
+  </div>
+);
+
 const StylePackCard = ({
   applied,
   applying,
@@ -400,9 +476,15 @@ const StylePackCard = ({
   <div
     className={`flex flex-col gap-3 rounded-lg border p-3 ${applied ? "border-primary/60 bg-muted/40" : ""}`}
   >
+    <CompositionThumb composition={pack.composition} />
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0">
-        <p className="font-medium leading-tight">{pack.name}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium leading-tight">{pack.name}</p>
+          <Badge className="shrink-0 font-normal" variant="outline">
+            {pack.preview.compositionLabel}
+          </Badge>
+        </div>
         <p className="text-muted-foreground mt-1 text-xs leading-snug">
           {pack.description}
         </p>
@@ -445,7 +527,7 @@ const StylePackCard = ({
       ) : (
         <SparkleIcon data-icon="inline-start" />
       )}
-      {applying ? "Applying…" : "Apply style"}
+      {applying ? "Applying…" : "Use as starting layout"}
     </Button>
   </div>
 );
@@ -1570,14 +1652,17 @@ const AnnouncementEditor = ({
     const pack = getStylePack(packId);
 
     if (!pack) {
-      toast.error("Style pack not found.");
+      toast.error("Design preset not found.");
       return;
     }
 
     setApplyingStylePackId(packId);
 
     try {
-      const result = grapesEditorRef.current?.applyStylePack(packId);
+      const result = grapesEditorRef.current?.applyStylePack(
+        packId,
+        contentRef.current
+      );
 
       if (!result) {
         toast.error("Editor is not ready. Try again in a moment.");
@@ -1599,18 +1684,14 @@ const AnnouncementEditor = ({
       });
       setDraft(next);
 
-      if (result.updatedCount === 0) {
-        toast.message(
-          "No role-tagged elements matched. Add Announcement blocks or use the default layout, then try again."
-        );
-      } else {
-        toast.success(
-          `Applied “${pack.name}” to ${result.updatedCount} element${result.updatedCount === 1 ? "" : "s"}.`
-        );
-      }
+      toast.success(
+        `Loaded “${pack.name}” layout — refine in GrapesJS as needed.`
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not apply style pack."
+        error instanceof Error
+          ? error.message
+          : "Could not apply design preset."
       );
     } finally {
       setApplyingStylePackId(null);
