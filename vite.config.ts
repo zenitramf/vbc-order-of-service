@@ -28,7 +28,7 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   server: {
-    allowedHosts: ["zen-devbox-1", "zen-devbox-1.tail208664.ts.net"],
+    allowedHosts: ["fresnovictory.ngrok.app"],
     port: 3000,
   },
 });

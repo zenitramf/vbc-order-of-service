@@ -5,6 +5,7 @@ import {
   GearIcon,
   HouseIcon,
   ListChecksIcon,
+  MegaphoneIcon,
   MusicNotesIcon,
   PlusIcon,
   ShieldCheckIcon,
@@ -83,6 +84,13 @@ const navigationItems = [
     resource: "hymns",
     to: "/hymns",
   },
+  {
+    action: "view",
+    icon: MegaphoneIcon,
+    label: "Announcements",
+    resource: "announcements",
+    to: "/announcements",
+  },
 ] as const;
 
 const teamManagementItems = [
@@ -117,6 +125,13 @@ const createItems = [
     resource: "templates",
     to: "/templates/new",
   },
+  {
+    action: "create",
+    icon: MegaphoneIcon,
+    label: "New Announcement",
+    resource: "announcements",
+    to: "/announcements/new",
+  },
 ] as const;
 
 interface NavItem {
@@ -137,6 +152,7 @@ const routeLabels = new Map([
   ["new", "New"],
   ["templates", "Templates"],
   ["hymns", "Hymns"],
+  ["announcements", "Announcements"],
   ["teams", "Teams"],
   ["members", "Team Members"],
   ["admin", "Admin"],

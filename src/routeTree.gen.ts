@@ -21,6 +21,7 @@ import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedMembersIndexRouteImport } from './routes/_authenticated/members/index'
 import { Route as AuthenticatedHymnsIndexRouteImport } from './routes/_authenticated/hymns/index'
+import { Route as AuthenticatedAnnouncementsIndexRouteImport } from './routes/_authenticated/announcements/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedTemplatesNewRouteImport } from './routes/_authenticated/templates/new'
@@ -33,6 +34,8 @@ import { Route as AuthenticatedMembersNewRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMembersMemberIdRouteImport } from './routes/_authenticated/members/$memberId'
 import { Route as AuthenticatedHymnsNewRouteImport } from './routes/_authenticated/hymns/new'
 import { Route as AuthenticatedHymnsHymnIdRouteImport } from './routes/_authenticated/hymns/$hymnId'
+import { Route as AuthenticatedAnnouncementsNewRouteImport } from './routes/_authenticated/announcements/new'
+import { Route as AuthenticatedAnnouncementsAnnouncementIdRouteImport } from './routes/_authenticated/announcements/$announcementId'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 import { Route as AuthenticatedAdminRolesIndexRouteImport } from './routes/_authenticated/admin/roles/index'
 import { Route as AuthenticatedAdminUsersNewRouteImport } from './routes/_authenticated/admin/users/new'
@@ -103,6 +106,12 @@ const AuthenticatedHymnsIndexRoute = AuthenticatedHymnsIndexRouteImport.update({
   path: '/hymns/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAnnouncementsIndexRoute =
+  AuthenticatedAnnouncementsIndexRouteImport.update({
+    id: '/announcements/',
+    path: '/announcements/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -169,6 +178,18 @@ const AuthenticatedHymnsHymnIdRoute =
     path: '/hymns/$hymnId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAnnouncementsNewRoute =
+  AuthenticatedAnnouncementsNewRouteImport.update({
+    id: '/announcements/new',
+    path: '/announcements/new',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAnnouncementsAnnouncementIdRoute =
+  AuthenticatedAnnouncementsAnnouncementIdRouteImport.update({
+    id: '/announcements/$announcementId',
+    path: '/announcements/$announcementId',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAdminUsersIndexRoute =
   AuthenticatedAdminUsersIndexRouteImport.update({
     id: '/users/',
@@ -212,6 +233,8 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  '/announcements/new': typeof AuthenticatedAnnouncementsNewRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -224,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/announcements/': typeof AuthenticatedAnnouncementsIndexRoute
   '/hymns/': typeof AuthenticatedHymnsIndexRoute
   '/members/': typeof AuthenticatedMembersIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
@@ -242,6 +266,8 @@ export interface FileRoutesByTo {
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
   '/': typeof AuthenticatedIndexRoute
+  '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  '/announcements/new': typeof AuthenticatedAnnouncementsNewRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -254,6 +280,7 @@ export interface FileRoutesByTo {
   '/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/announcements': typeof AuthenticatedAnnouncementsIndexRoute
   '/hymns': typeof AuthenticatedHymnsIndexRoute
   '/members': typeof AuthenticatedMembersIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
@@ -275,6 +302,8 @@ export interface FileRoutesById {
   '/_authenticated/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  '/_authenticated/announcements/new': typeof AuthenticatedAnnouncementsNewRoute
   '/_authenticated/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/_authenticated/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/_authenticated/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -287,6 +316,7 @@ export interface FileRoutesById {
   '/_authenticated/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/announcements/': typeof AuthenticatedAnnouncementsIndexRoute
   '/_authenticated/hymns/': typeof AuthenticatedHymnsIndexRoute
   '/_authenticated/members/': typeof AuthenticatedMembersIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
@@ -308,6 +338,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/planner'
     | '/api/mcp'
+    | '/announcements/$announcementId'
+    | '/announcements/new'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -320,6 +352,7 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/api/auth/$'
     | '/admin/'
+    | '/announcements/'
     | '/hymns/'
     | '/members/'
     | '/profile/'
@@ -338,6 +371,8 @@ export interface FileRouteTypes {
     | '/planner'
     | '/api/mcp'
     | '/'
+    | '/announcements/$announcementId'
+    | '/announcements/new'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -350,6 +385,7 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/api/auth/$'
     | '/admin'
+    | '/announcements'
     | '/hymns'
     | '/members'
     | '/profile'
@@ -370,6 +406,8 @@ export interface FileRouteTypes {
     | '/_authenticated/planner'
     | '/api/mcp'
     | '/_authenticated/'
+    | '/_authenticated/announcements/$announcementId'
+    | '/_authenticated/announcements/new'
     | '/_authenticated/hymns/$hymnId'
     | '/_authenticated/hymns/new'
     | '/_authenticated/members/$memberId'
@@ -382,6 +420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/templates/new'
     | '/api/auth/$'
     | '/_authenticated/admin/'
+    | '/_authenticated/announcements/'
     | '/_authenticated/hymns/'
     | '/_authenticated/members/'
     | '/_authenticated/profile/'
@@ -489,6 +528,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHymnsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/announcements/': {
+      id: '/_authenticated/announcements/'
+      path: '/announcements'
+      fullPath: '/announcements/'
+      preLoaderRoute: typeof AuthenticatedAnnouncementsIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/': {
       id: '/_authenticated/admin/'
       path: '/'
@@ -573,6 +619,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHymnsHymnIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/announcements/new': {
+      id: '/_authenticated/announcements/new'
+      path: '/announcements/new'
+      fullPath: '/announcements/new'
+      preLoaderRoute: typeof AuthenticatedAnnouncementsNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/announcements/$announcementId': {
+      id: '/_authenticated/announcements/$announcementId'
+      path: '/announcements/$announcementId'
+      fullPath: '/announcements/$announcementId'
+      preLoaderRoute: typeof AuthenticatedAnnouncementsAnnouncementIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/admin/users/': {
       id: '/_authenticated/admin/users/'
       path: '/users'
@@ -645,6 +705,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedPlannerRoute: typeof AuthenticatedPlannerRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedAnnouncementsAnnouncementIdRoute: typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  AuthenticatedAnnouncementsNewRoute: typeof AuthenticatedAnnouncementsNewRoute
   AuthenticatedHymnsHymnIdRoute: typeof AuthenticatedHymnsHymnIdRoute
   AuthenticatedHymnsNewRoute: typeof AuthenticatedHymnsNewRoute
   AuthenticatedMembersMemberIdRoute: typeof AuthenticatedMembersMemberIdRoute
@@ -655,6 +717,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTeamsNewRoute: typeof AuthenticatedTeamsNewRoute
   AuthenticatedTemplatesTemplateIdRoute: typeof AuthenticatedTemplatesTemplateIdRoute
   AuthenticatedTemplatesNewRoute: typeof AuthenticatedTemplatesNewRoute
+  AuthenticatedAnnouncementsIndexRoute: typeof AuthenticatedAnnouncementsIndexRoute
   AuthenticatedHymnsIndexRoute: typeof AuthenticatedHymnsIndexRoute
   AuthenticatedMembersIndexRoute: typeof AuthenticatedMembersIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
@@ -667,6 +730,9 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedPlannerRoute: AuthenticatedPlannerRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedAnnouncementsAnnouncementIdRoute:
+    AuthenticatedAnnouncementsAnnouncementIdRoute,
+  AuthenticatedAnnouncementsNewRoute: AuthenticatedAnnouncementsNewRoute,
   AuthenticatedHymnsHymnIdRoute: AuthenticatedHymnsHymnIdRoute,
   AuthenticatedHymnsNewRoute: AuthenticatedHymnsNewRoute,
   AuthenticatedMembersMemberIdRoute: AuthenticatedMembersMemberIdRoute,
@@ -677,6 +743,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTeamsNewRoute: AuthenticatedTeamsNewRoute,
   AuthenticatedTemplatesTemplateIdRoute: AuthenticatedTemplatesTemplateIdRoute,
   AuthenticatedTemplatesNewRoute: AuthenticatedTemplatesNewRoute,
+  AuthenticatedAnnouncementsIndexRoute: AuthenticatedAnnouncementsIndexRoute,
   AuthenticatedHymnsIndexRoute: AuthenticatedHymnsIndexRoute,
   AuthenticatedMembersIndexRoute: AuthenticatedMembersIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
