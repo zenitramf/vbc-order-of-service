@@ -1,7 +1,7 @@
 import serverEntry from "@tanstack/react-start/server-entry";
 
 import { OrderEmailStatusDurableObject } from "~/email-status-durable-object";
-import { processAnnouncementImageGen } from "~/lib/announcement-data";
+import { processAnnouncementImageGen } from "~/lib/announcement-image-gen-consumer";
 import type { AnnouncementImageGenQueueMessage } from "~/lib/announcement-types";
 import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
 
