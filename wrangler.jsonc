@@ -36,6 +36,10 @@
         "binding": "OOS_EMAIL_SENDER",
         "queue": "oos-email-sender",
       },
+      {
+        "binding": "OOS_ANNOUNCEMENT_IMAGE_GEN",
+        "queue": "oos-announcement-image-gen",
+      },
     ],
     "consumers": [
       {
@@ -43,6 +47,15 @@
         "max_batch_size": 5,
         "max_batch_timeout": 10,
         "max_retries": 0,
+      },
+      {
+        "queue": "oos-announcement-image-gen",
+        "max_batch_size": 1,
+        "max_batch_timeout": 5,
+        "max_retries": 3,
+        "max_concurrency": 2,
+        "dead_letter_queue": "oos-announcement-image-gen-dlq",
+        "retry_delay": 30,
       },
     ],
   },

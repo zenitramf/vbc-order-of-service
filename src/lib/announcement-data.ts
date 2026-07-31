@@ -17,6 +17,8 @@ import type {
   AnnouncementAsset,
   AnnouncementContent,
   AnnouncementDraft,
+  AnnouncementGenerationJob,
+  AnnouncementImageGenQueueMessage,
   AnnouncementSummary,
   AnnouncementVariation,
   ApproveAnnouncementInput,
@@ -70,6 +72,26 @@ const getAi = (): Ai => {
 
   return env.AI;
 };
+
+const getImageGenQueue = (): Queue<AnnouncementImageGenQueueMessage> => {
+  const queue = (
+    env as unknown as {
+      OOS_ANNOUNCEMENT_IMAGE_GEN?: Queue<AnnouncementImageGenQueueMessage>;
+    }
+  ).OOS_ANNOUNCEMENT_IMAGE_GEN;
+
+  if (!queue) {
+    throw new Error(
+      "Cloudflare Queue binding OOS_ANNOUNCEMENT_IMAGE_GEN is not configured."
+    );
+  }
+
+  return queue;
+};
+
+const isGenerationJobActive = (
+  job: AnnouncementGenerationJob | null | undefined
+): boolean => job?.status === "queued" || job?.status === "running";
 
 /** Gateway id from wrangler vars / .env (default auto-created gateway). */
 const getAiGatewayId = (): string => {
@@ -217,6 +239,52 @@ const asNullableString = (value: unknown): string | null => {
 const asString = (value: unknown, fallback = ""): string =>
   typeof value === "string" ? value : fallback;
 
+const asNonNegativeInt = (value: unknown, fallback = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+
+  return fallback;
+};
+
+const isGenerationStatus = (
+  value: unknown
+): value is AnnouncementGenerationJob["status"] =>
+  value === "idle" ||
+  value === "queued" ||
+  value === "running" ||
+  value === "completed" ||
+  value === "failed";
+
+/** Backfill for drafts saved before async generation jobs existed. */
+const normalizeGenerationJob = (
+  value: unknown
+): AnnouncementGenerationJob | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Partial<AnnouncementGenerationJob>;
+  const status = isGenerationStatus(raw.status) ? raw.status : "idle";
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    completedCount: asNonNegativeInt(raw.completedCount),
+    error: asNullableString(raw.error),
+    id,
+    prompt: asString(raw.prompt),
+    requestedCount: Math.max(1, asNonNegativeInt(raw.requestedCount, 1)),
+    startedAt: asNullableString(raw.startedAt),
+    status,
+    updatedAt: asString(raw.updatedAt, nowIso()),
+    useSelectedAsContext: Boolean(raw.useSelectedAsContext),
+  };
+};
+
 const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
   const projectData = normalizeProjectData(raw.projectData);
   const legacyHtmlFromFile =
@@ -241,6 +309,7 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
     content: emptyContent(contentPartial),
     createdAt: asString(raw.createdAt, nowIso()),
     exportObjectKey: asNullableString(raw.exportObjectKey),
+    generationJob: normalizeGenerationJob(raw.generationJob),
     height: typeof raw.height === "number" ? raw.height : ANNOUNCEMENT_HEIGHT,
     id: asString(raw.id),
     legacyHtml,
@@ -265,6 +334,7 @@ const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
   content: draft.content,
   createdAt: draft.createdAt,
   exportObjectKey: draft.exportObjectKey,
+  generationJob: draft.generationJob,
   height: draft.height,
   id: draft.id,
   name: draft.name,
@@ -460,6 +530,10 @@ const extractImageFromAiResponse = (response: unknown): string | null => {
   return null;
 };
 
+/**
+ * Generate a single background image.
+ * Uses response_format "url" so the Worker never holds multi-MB base64 JSON.
+ */
 const generateOneBackgroundImage = async (options: {
   index: number;
   prompt: string;
@@ -486,7 +560,8 @@ const generateOneBackgroundImage = async (options: {
     prompt: `${basePrompt}${variationHint}`,
     quality: "high",
     resolution: "2k",
-    response_format: "b64_json",
+    // Prefer URL over b64_json to keep isolate memory under the 128 MB limit.
+    response_format: "url",
   };
 
   if (options.referenceImageBase64) {
@@ -509,25 +584,6 @@ const generateOneBackgroundImage = async (options: {
   }
 
   return await resolveImagePayload(imagePayload);
-};
-
-const generateBackgroundImages = async (options: {
-  count: number;
-  prompt: string;
-  referenceContentType?: string;
-  referenceImageBase64?: string;
-}): Promise<ArrayBuffer[]> => {
-  const tasks = Array.from({ length: options.count }, (_, index) =>
-    generateOneBackgroundImage({
-      index,
-      prompt: options.prompt,
-      referenceContentType: options.referenceContentType,
-      referenceImageBase64: options.referenceImageBase64,
-      total: options.count,
-    })
-  );
-
-  return await Promise.all(tasks);
 };
 
 const layoutSystemPrompt = [
@@ -694,6 +750,7 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       content,
       createdAt: timestamp,
       exportObjectKey: null,
+      generationJob: null,
       height: ANNOUNCEMENT_HEIGHT,
       id,
       legacyHtml: null,
@@ -750,6 +807,10 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
     return await saveDraft(draft);
   });
 
+/**
+ * Enqueue async AI background generation (HTTP path stays thin).
+ * Consumer: `processAnnouncementImageGen` via OOS_ANNOUNCEMENT_IMAGE_GEN.
+ */
 export const generateBackgrounds = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
   .validator((data: GenerateBackgroundsInput) => data)
@@ -761,65 +822,268 @@ export const generateBackgrounds = createServerFn({ method: "POST" })
       throw new Error("A background prompt is required to generate images.");
     }
 
+    if (isGenerationJobActive(draft.generationJob)) {
+      throw new Error(
+        "Background generation is already in progress for this announcement."
+      );
+    }
+
     const count = Math.min(
       MAX_VARIATIONS_PER_REQUEST,
       Math.max(1, data.count ?? DEFAULT_VARIATION_COUNT)
     );
 
-    draft.backgroundPrompt = prompt;
-
-    let referenceImageBase64: string | undefined;
-    let referenceContentType: string | undefined;
+    const useSelectedAsContext = data.useSelectedAsContext !== false;
     let parentVariationId: string | null = null;
+    let referenceObjectKey: string | null = null;
 
-    if (data.useSelectedAsContext !== false && draft.selectedVariationId) {
+    if (useSelectedAsContext && draft.selectedVariationId) {
       const selected = draft.variations.find(
         (variation) => variation.id === draft.selectedVariationId
       );
 
       if (selected) {
-        const asset = await readAssetBase64(selected.objectKey);
-        referenceImageBase64 = asset.base64;
-        referenceContentType = asset.contentType;
         parentVariationId = selected.id;
+        referenceObjectKey = selected.objectKey;
       }
     }
 
-    const images = await generateBackgroundImages({
-      count,
+    const jobId = uuidv4();
+    const timestamp = nowIso();
+    draft.backgroundPrompt = prompt;
+    draft.generationJob = {
+      completedCount: 0,
+      error: null,
+      id: jobId,
       prompt,
+      requestedCount: count,
+      startedAt: null,
+      status: "queued",
+      updatedAt: timestamp,
+      useSelectedAsContext: Boolean(referenceObjectKey),
+    };
+    markDirtyIfApproved(draft);
+    const saved = await saveDraft(draft);
+
+    const message: AnnouncementImageGenQueueMessage = {
+      announcementId: draft.id,
+      count,
+      jobId,
+      parentVariationId,
+      prompt,
+      referenceObjectKey,
+    };
+
+    try {
+      await getImageGenQueue().send(message, { contentType: "json" });
+    } catch (error) {
+      saved.generationJob = {
+        completedCount: 0,
+        error: formatAiError(error),
+        id: jobId,
+        prompt,
+        requestedCount: count,
+        startedAt: null,
+        status: "failed",
+        updatedAt: nowIso(),
+        useSelectedAsContext: Boolean(referenceObjectKey),
+      };
+      await saveDraft(saved);
+      throw new Error(
+        `Could not enqueue background generation: ${formatAiError(error)}`,
+        { cause: error }
+      );
+    }
+
+    return saved;
+  });
+
+const markJob = (
+  draft: AnnouncementDraft,
+  message: AnnouncementImageGenQueueMessage,
+  patch: Partial<AnnouncementGenerationJob> &
+    Pick<AnnouncementGenerationJob, "status">
+): void => {
+  draft.generationJob = {
+    completedCount:
+      patch.completedCount ?? draft.generationJob?.completedCount ?? 0,
+    error:
+      patch.error === undefined
+        ? (draft.generationJob?.error ?? null)
+        : patch.error,
+    id: message.jobId,
+    prompt: message.prompt,
+    requestedCount: message.count,
+    startedAt:
+      patch.startedAt === undefined
+        ? (draft.generationJob?.startedAt ?? nowIso())
+        : patch.startedAt,
+    status: patch.status,
+    updatedAt: nowIso(),
+    useSelectedAsContext: Boolean(message.referenceObjectKey),
+  };
+};
+
+const persistGeneratedVariation = async (options: {
+  draft: AnnouncementDraft;
+  index: number;
+  message: AnnouncementImageGenQueueMessage;
+  referenceContentType?: string;
+  referenceImageBase64?: string;
+}): Promise<void> => {
+  const { draft, index, message } = options;
+  const bytes = await generateOneBackgroundImage({
+    index,
+    prompt: message.prompt,
+    referenceContentType: options.referenceContentType,
+    referenceImageBase64: options.referenceImageBase64,
+    total: message.count,
+  });
+
+  const variationId = uuidv4();
+  const objectKey = backgroundKey(draft.id, variationId);
+  await putImageBytes(objectKey, bytes);
+
+  const variation: AnnouncementVariation = {
+    createdAt: nowIso(),
+    id: variationId,
+    libraryFilename: null,
+    libraryImageId: null,
+    objectKey,
+    parentVariationId: message.parentVariationId,
+    prompt: message.prompt,
+    source: "generated",
+  };
+
+  draft.variations = [variation, ...draft.variations];
+
+  if (!draft.selectedVariationId) {
+    draft.selectedVariationId = variation.id;
+  }
+
+  markJob(draft, message, {
+    completedCount: index + 1,
+    error: null,
+    status: "running",
+  });
+  markDirtyIfApproved(draft);
+  await saveDraft(draft);
+};
+
+/**
+ * Generate remaining variations one-by-one (recursive) so peak memory stays
+ * at a single image buffer — never Promise.all.
+ */
+const generateVariationsSequentially = async (options: {
+  draft: AnnouncementDraft;
+  index: number;
+  message: AnnouncementImageGenQueueMessage;
+  referenceContentType?: string;
+  referenceImageBase64?: string;
+}): Promise<void> => {
+  if (options.index >= options.message.count) {
+    return;
+  }
+
+  await persistGeneratedVariation(options);
+  await generateVariationsSequentially({
+    ...options,
+    index: options.index + 1,
+  });
+};
+
+const markJobFailed = async (
+  message: AnnouncementImageGenQueueMessage,
+  fallback: AnnouncementDraft,
+  error: unknown
+): Promise<void> => {
+  const latest = await loadDraft(message.announcementId).catch(() => fallback);
+  const currentJob = latest.generationJob;
+
+  if (currentJob?.id !== message.jobId) {
+    return;
+  }
+
+  markJob(latest, message, {
+    completedCount: currentJob.completedCount,
+    error: formatAiError(error),
+    startedAt: currentJob.startedAt,
+    status: "failed",
+  });
+  await saveDraft(latest);
+};
+
+/**
+ * Queue consumer: generate variations sequentially, one image at a time.
+ * Resumes from generationJob.completedCount for safe retries.
+ */
+export const processAnnouncementImageGen = async (
+  message: AnnouncementImageGenQueueMessage
+): Promise<void> => {
+  const draft = await loadDraft(message.announcementId);
+  const job = draft.generationJob;
+
+  if (!job || job.id !== message.jobId || job.status === "completed") {
+    return;
+  }
+
+  if (job.status === "failed" && job.completedCount >= message.count) {
+    return;
+  }
+
+  const startIndex = Math.min(
+    Math.max(0, job.completedCount),
+    Math.max(0, message.count)
+  );
+
+  if (startIndex >= message.count) {
+    markJob(draft, message, {
+      completedCount: message.count,
+      error: null,
+      startedAt: job.startedAt,
+      status: "completed",
+    });
+    await saveDraft(draft);
+    return;
+  }
+
+  markJob(draft, message, {
+    completedCount: job.completedCount,
+    error: null,
+    startedAt: job.startedAt ?? nowIso(),
+    status: "running",
+  });
+  await saveDraft(draft);
+
+  let referenceImageBase64: string | undefined;
+  let referenceContentType: string | undefined;
+
+  if (message.referenceObjectKey) {
+    const asset = await readAssetBase64(message.referenceObjectKey);
+    referenceImageBase64 = asset.base64;
+    referenceContentType = asset.contentType;
+  }
+
+  try {
+    await generateVariationsSequentially({
+      draft,
+      index: startIndex,
+      message,
       referenceContentType,
       referenceImageBase64,
     });
 
-    const created = await Promise.all(
-      images.map(async (bytes) => {
-        const variationId = uuidv4();
-        const objectKey = backgroundKey(draft.id, variationId);
-        await putImageBytes(objectKey, bytes);
-        const variation: AnnouncementVariation = {
-          createdAt: nowIso(),
-          id: variationId,
-          libraryFilename: null,
-          libraryImageId: null,
-          objectKey,
-          parentVariationId,
-          prompt,
-          source: "generated",
-        };
-        return variation;
-      })
-    );
-
-    draft.variations = [...created, ...draft.variations];
-
-    if (!draft.selectedVariationId && created[0]) {
-      draft.selectedVariationId = created[0].id;
-    }
-
-    markDirtyIfApproved(draft);
-    return await saveDraft(draft);
-  });
+    markJob(draft, message, {
+      completedCount: message.count,
+      error: null,
+      status: "completed",
+    });
+    await saveDraft(draft);
+  } catch (error) {
+    await markJobFailed(message, draft, error);
+    throw error;
+  }
+};
 
 export const addLibraryImageAsVariation = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])

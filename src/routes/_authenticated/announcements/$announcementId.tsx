@@ -139,6 +139,7 @@ import type {
   AnnouncementCanvasSnapshot,
   AnnouncementContent,
   AnnouncementDraft,
+  AnnouncementGenerationJob,
   AnnouncementVariation,
   GrapesProjectData,
 } from "~/lib/announcement-types";
@@ -943,8 +944,101 @@ const LibraryImagePickerDialog = ({
   );
 };
 
+const isActiveGenerationJob = (
+  job: AnnouncementGenerationJob | null | undefined
+): boolean => job?.status === "queued" || job?.status === "running";
+
+/** Poll draft while a background image-gen job is queued/running. */
+const useGenerationJobPoll = (options: {
+  announcementId: string;
+  generationJob: AnnouncementGenerationJob | null;
+  getAnnouncementFn: (args: {
+    data: string;
+  }) => Promise<AnnouncementDraft | null>;
+  onDraft: (draft: AnnouncementDraft) => void;
+  onInvalidate: () => Promise<unknown>;
+}) => {
+  const {
+    announcementId,
+    generationJob,
+    getAnnouncementFn,
+    onDraft,
+    onInvalidate,
+  } = options;
+
+  const jobActive = isActiveGenerationJob(generationJob);
+  const jobId = generationJob?.id ?? null;
+  const jobStatus = generationJob?.status ?? null;
+
+  useEffect(() => {
+    if (!jobActive) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      try {
+        const next = await getAnnouncementFn({ data: announcementId });
+
+        if (cancelled || !next) {
+          return;
+        }
+
+        onDraft(next);
+
+        const job = next.generationJob;
+
+        if (job?.status === "completed") {
+          toast.success(
+            `Generated ${job.completedCount} background variation(s).`
+          );
+          await onInvalidate();
+          return;
+        }
+
+        if (job?.status === "failed") {
+          toast.error(job.error || "Background generation failed.");
+          await onInvalidate();
+          return;
+        }
+      } catch {
+        // Keep polling; transient errors are expected under load.
+      }
+
+      if (!cancelled) {
+        timeoutId = setTimeout(() => {
+          void poll();
+        }, 2500);
+      }
+    };
+
+    timeoutId = setTimeout(() => {
+      void poll();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [
+    announcementId,
+    getAnnouncementFn,
+    jobActive,
+    jobId,
+    jobStatus,
+    onDraft,
+    onInvalidate,
+  ]);
+};
+
 const BackgroundImageCard = ({
   backgroundPrompt,
+  generationJob,
   isGeneratingBg,
   onAddLibraryImage,
   onGenerateBackgrounds,
@@ -954,6 +1048,7 @@ const BackgroundImageCard = ({
   variationCount,
 }: {
   backgroundPrompt: string;
+  generationJob: AnnouncementGenerationJob | null;
   isGeneratingBg: boolean;
   onAddLibraryImage: (image: ImageLibraryItem) => Promise<void>;
   onGenerateBackgrounds: () => void;
@@ -964,6 +1059,7 @@ const BackgroundImageCard = ({
 }) => {
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [isAddingLibraryImage, setIsAddingLibraryImage] = useState(false);
+  const jobBusy = isGeneratingBg || isActiveGenerationJob(generationJob);
 
   const handleAddLibraryImage = async (image: ImageLibraryItem) => {
     setIsAddingLibraryImage(true);
@@ -990,7 +1086,7 @@ const BackgroundImageCard = ({
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={isAddingLibraryImage || isGeneratingBg}
+              disabled={isAddingLibraryImage || jobBusy}
               onClick={() => {
                 setLibraryPickerOpen(true);
               }}
@@ -1015,6 +1111,7 @@ const BackgroundImageCard = ({
           <div className="flex flex-col gap-2">
             <Label htmlFor="bg-prompt">Background prompt</Label>
             <Textarea
+              disabled={jobBusy}
               id="bg-prompt"
               onChange={(event) => setBackgroundPrompt(event.target.value)}
               rows={4}
@@ -1026,6 +1123,7 @@ const BackgroundImageCard = ({
               <Label htmlFor="variation-count">Variations</Label>
               <Input
                 className="w-24"
+                disabled={jobBusy}
                 id="variation-count"
                 max={4}
                 min={1}
@@ -1042,11 +1140,11 @@ const BackgroundImageCard = ({
               />
             </div>
             <Button
-              disabled={isGeneratingBg || !backgroundPrompt.trim()}
+              disabled={jobBusy || !backgroundPrompt.trim()}
               onClick={onGenerateBackgrounds}
               type="button"
             >
-              {isGeneratingBg ? (
+              {jobBusy ? (
                 <CircleNotchIcon
                   className="animate-spin"
                   data-icon="inline-start"
@@ -1059,6 +1157,21 @@ const BackgroundImageCard = ({
                 : "Generate backgrounds"}
             </Button>
           </div>
+          {isActiveGenerationJob(generationJob) ? (
+            <p className="text-muted-foreground text-sm">
+              Generating in the background…{" "}
+              <span className="font-medium text-foreground">
+                {generationJob?.completedCount ?? 0}/
+                {generationJob?.requestedCount ?? variationCount}
+              </span>
+              {generationJob?.status === "queued" ? " (queued)" : null}
+            </p>
+          ) : null}
+          {generationJob?.status === "failed" && generationJob.error ? (
+            <p className="text-destructive text-sm">
+              Generation failed: {generationJob.error}
+            </p>
+          ) : null}
           {selectedVariation ? (
             <p className="text-muted-foreground text-sm">
               Active context:{" "}
@@ -1180,6 +1293,7 @@ const AnnouncementEditor = ({
   const removeVariationFn = useServerFn(removeVariation);
   const removeAllVariationsFn = useServerFn(removeAllVariations);
   const generateLayoutFn = useServerFn(generateAnnouncementLayout);
+  const getAnnouncementFn = useServerFn(getAnnouncement);
   const getAssetFn = useServerFn(getAnnouncementAsset);
   const approveFn = useServerFn(approveAnnouncement);
 
@@ -1602,8 +1716,8 @@ const AnnouncementEditor = ({
       await router.invalidate();
       toast.success(
         draft.selectedVariationId
-          ? `Generated ${variationCount} variation(s) from the selected context.`
-          : `Generated ${variationCount} background variation(s).`
+          ? `Queued ${variationCount} variation(s) from the selected context.`
+          : `Queued ${variationCount} background variation(s).`
       );
     } catch (error) {
       toast.error(
@@ -1613,6 +1727,21 @@ const AnnouncementEditor = ({
       setIsGeneratingBg(false);
     }
   };
+
+  const onPolledDraft = useCallback((next: AnnouncementDraft) => {
+    setDraft(next);
+    setBackgroundPrompt(next.backgroundPrompt);
+  }, []);
+
+  const invalidateRouter = useCallback(() => router.invalidate(), [router]);
+
+  useGenerationJobPoll({
+    announcementId: draft.id,
+    generationJob: draft.generationJob,
+    getAnnouncementFn,
+    onDraft: onPolledDraft,
+    onInvalidate: invalidateRouter,
+  });
 
   const onAddLibraryImage = async (image: ImageLibraryItem) => {
     const next = await addLibraryFn({
@@ -2123,6 +2252,7 @@ const AnnouncementEditor = ({
 
           <BackgroundImageCard
             backgroundPrompt={backgroundPrompt}
+            generationJob={draft.generationJob}
             isGeneratingBg={isGeneratingBg}
             onAddLibraryImage={async (image) => {
               try {

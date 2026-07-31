@@ -65,6 +65,41 @@ export interface AnnouncementVariation {
   source: AnnouncementVariationSource;
 }
 
+/** Lifecycle of an async background image generation job (Queue consumer). */
+export type AnnouncementGenerationStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed";
+
+/** In-flight / last-finished AI background generation job stored on the draft. */
+export interface AnnouncementGenerationJob {
+  completedCount: number;
+  error: string | null;
+  id: string;
+  prompt: string;
+  requestedCount: number;
+  startedAt: string | null;
+  status: AnnouncementGenerationStatus;
+  updatedAt: string;
+  useSelectedAsContext: boolean;
+}
+
+/**
+ * Queue message for announcement image generation.
+ * Keep under 128 KB — pass R2 keys, never image bytes.
+ */
+export interface AnnouncementImageGenQueueMessage {
+  announcementId: string;
+  count: number;
+  jobId: string;
+  parentVariationId: string | null;
+  prompt: string;
+  /** R2 object key for reference context; never base64. */
+  referenceObjectKey: string | null;
+}
+
 export interface AnnouncementDraft {
   /** Last-applied style library pack id (informational; styles bake into project). */
   appliedStyleId: string | null;
@@ -73,6 +108,8 @@ export interface AnnouncementDraft {
   content: AnnouncementContent;
   createdAt: string;
   exportObjectKey: string | null;
+  /** Async AI background generation job state (null when never started). */
+  generationJob: AnnouncementGenerationJob | null;
   height: number;
   id: string;
   /**
