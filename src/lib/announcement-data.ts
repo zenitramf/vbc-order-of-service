@@ -4,6 +4,14 @@ import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { v4 as uuidv4 } from "uuid";
 
+import {
+  canvasPlanJsonSchema,
+  extractStructuredJson,
+  parseCanvasPlan,
+} from "~/lib/announcement-ai-plan";
+import type { CanvasPlan } from "~/lib/announcement-ai-plan";
+import { ANNOUNCEMENT_BLOCK_IDS } from "~/lib/announcement-block-templates";
+import { listStylePacks } from "~/lib/announcement-style-library";
 import type {
   AddLibraryImageAsVariationInput,
   AnnouncementAsset,
@@ -13,8 +21,8 @@ import type {
   AnnouncementVariation,
   ApproveAnnouncementInput,
   CreateAnnouncementInput,
-  GenerateAnnouncementHtmlInput,
-  GenerateAnnouncementHtmlResult,
+  GenerateAnnouncementLayoutInput,
+  GenerateAnnouncementLayoutResult,
   GenerateBackgroundsInput,
   PresentationSlide,
   SaveAnnouncementInput,
@@ -35,8 +43,13 @@ import { LIBRARY_R2_PREFIX } from "~/lib/image-library-types";
 const INDEX_KEY = "announcements/index.json";
 /** xAI image model via Cloudflare AI Gateway — backgrounds only, no baked text. */
 const IMAGE_MODEL = "xai/grok-imagine-image-quality";
-/** Fast non-reasoning chat model for HTML overlay generation. */
-const TEXT_MODEL = "xai/grok-4.20-0309-non-reasoning";
+/**
+ * Layout ops (CanvasPlan) via structured JSON schema output.
+ * @see https://docs.x.ai/developers/model-capabilities/text/structured-outputs
+ */
+const LAYOUT_MODEL = "xai/grok-4.5";
+/** Fallback if 4.5 rejects schema path provider-side. */
+const LAYOUT_MODEL_FALLBACK = "xai/grok-4.3";
 const MAX_VARIATIONS_PER_REQUEST = 4;
 const DEFAULT_VARIATION_COUNT = 2;
 
@@ -517,79 +530,29 @@ const generateBackgroundImages = async (options: {
   return await Promise.all(tasks);
 };
 
-const stripCodeFences = (value: string): string => {
-  const trimmed = value.trim();
-  const fenced = /^```(?:html)?\s*(?<body>[\s\S]*?)```$/iu.exec(trimmed);
+const layoutSystemPrompt = [
+  "You design church announcement overlays for a 1920×1080 GrapesJS canvas.",
+  "Your output is constrained to the canvas_plan JSON schema.",
+  "Prefer: applyPreset with a known packId from the provided list, then optional updateRole style tweaks.",
+  "Never paint photographic backgrounds (the variation photo is applied separately on the Body).",
+  "Scrims/panels must use alpha linear-gradients fading to transparent (never solid opaque fills).",
+  "Use content fields exactly as provided for text (no copy rewrite unless style notes request polish).",
+  "Do not emit HTML. Do not emit GrapesJS project JSON. Only CanvasPlan ops.",
+].join(" ");
 
-  if (fenced?.groups?.body) {
-    return fenced.groups.body.trim();
-  }
-
-  return trimmed;
-};
-
-const extractChatContent = (response: unknown): string | null => {
-  if (!response || typeof response !== "object") {
-    return null;
-  }
-
-  const record = response as Record<string, unknown>;
-
-  if (typeof record.response === "string") {
-    return record.response;
-  }
-
-  const { choices } = record;
-  if (Array.isArray(choices) && choices[0]) {
-    const choice = choices[0] as Record<string, unknown>;
-    const message = choice.message as Record<string, unknown> | undefined;
-    if (typeof message?.content === "string") {
-      return message.content;
-    }
-    if (typeof choice.text === "string") {
-      return choice.text;
-    }
-  }
-
-  const { result } = record;
-  if (result && typeof result === "object") {
-    const resultRecord = result as Record<string, unknown>;
-    if (typeof resultRecord.response === "string") {
-      return resultRecord.response;
-    }
-    if (Array.isArray(resultRecord.choices) && resultRecord.choices[0]) {
-      const choice = resultRecord.choices[0] as Record<string, unknown>;
-      const message = choice.message as Record<string, unknown> | undefined;
-      if (typeof message?.content === "string") {
-        return message.content;
-      }
-    }
-  }
-
-  return null;
-};
-
-const generateHtmlWithAi = async (options: {
+const buildLayoutUserPayload = (options: {
   content: AnnouncementContent;
   styleNotes?: string;
-}): Promise<string> => {
-  const system = [
-    "You design HTML overlays for church announcement graphics.",
-    "Output ONLY a single HTML fragment (no markdown, no explanation).",
-    "The root element MUST be exactly 1920px wide and 1080px tall.",
-    "Use only inline styles. Do not load external fonts, scripts, or images.",
-    "Do NOT paint a photographic background; the background will be a separate image under this HTML.",
-    "CRITICAL: The root and any full-bleed layers MUST use background:transparent (or omit background).",
-    "CRITICAL: Any readability scrim or panel background MUST be an alpha linear-gradient using rgba() stops that fade to transparent — NEVER solid background-color, NEVER opaque fills (no #000, black, rgb without alpha).",
-    "Example scrim: background:linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%); background-color:transparent;",
-    "Text must be highly legible on varied photos (text-shadow + alpha gradient scrims only).",
-    "Include semantic structure for title, subtitle, heading, and tertiary info.",
-    'Prefer data-ann-role attributes on semantic pieces so style packs can retarget them: data-ann-role="heading", "title", "subtitle", "body", "scrim-bottom", "scrim-top", "scrim-left", "scrim-right", or "panel".',
-    "Escape any user content that could break HTML.",
-  ].join(" ");
-
-  const user = JSON.stringify(
+}): string =>
+  JSON.stringify(
     {
+      availableBlocks: ANNOUNCEMENT_BLOCK_IDS,
+      availablePresets: listStylePacks().map((pack) => ({
+        composition: pack.composition,
+        description: pack.description,
+        id: pack.id,
+        name: pack.name,
+      })),
       canvas: {
         height: ANNOUNCEMENT_HEIGHT,
         width: ANNOUNCEMENT_WIDTH,
@@ -603,27 +566,77 @@ const generateHtmlWithAi = async (options: {
     2
   );
 
-  const response = await runAiGateway(TEXT_MODEL, {
-    messages: [
-      { content: system, role: "system" },
-      { content: user, role: "user" },
-    ],
-    temperature: 0.6,
-  });
+const layoutRequestInput = (userPayload: string): Record<string, unknown> => ({
+  messages: [
+    { content: layoutSystemPrompt, role: "system" },
+    { content: userPayload, role: "user" },
+  ],
+  response_format: {
+    json_schema: {
+      name: "canvas_plan",
+      schema: canvasPlanJsonSchema,
+      strict: true,
+    },
+    type: "json_schema",
+  },
+  temperature: 0.4,
+});
 
-  const raw = extractChatContent(response)?.trim();
+const generateLayoutPlanWithAi = async (options: {
+  content: AnnouncementContent;
+  styleNotes?: string;
+}): Promise<CanvasPlan> => {
+  const userPayload = buildLayoutUserPayload(options);
+  const input = layoutRequestInput(userPayload);
 
-  if (!raw) {
-    throw new Error("AI Gateway returned empty HTML.");
+  let response: unknown;
+  try {
+    response = await runAiGateway(LAYOUT_MODEL, input);
+  } catch (primaryError) {
+    try {
+      response = await runAiGateway(LAYOUT_MODEL_FALLBACK, input);
+    } catch {
+      throw primaryError instanceof Error
+        ? primaryError
+        : new Error(String(primaryError));
+    }
   }
 
-  const html = stripCodeFences(raw);
+  const structured = extractStructuredJson(response);
 
-  if (!html.includes("<")) {
-    throw new Error("AI did not return valid HTML markup.");
+  if (structured === null) {
+    throw new Error("AI Gateway returned empty layout plan.");
   }
 
-  return html;
+  try {
+    return parseCanvasPlan(structured);
+  } catch (firstError) {
+    // One repair attempt: ask the same model to fix schema issues.
+    const repairPayload = JSON.stringify(
+      {
+        error:
+          firstError instanceof Error
+            ? firstError.message
+            : "Invalid canvas plan",
+        previous: structured,
+        task: "Return a corrected canvas_plan that satisfies the schema.",
+      },
+      null,
+      2
+    );
+
+    try {
+      const repaired = await runAiGateway(LAYOUT_MODEL, {
+        ...layoutRequestInput(repairPayload),
+        temperature: 0.2,
+      });
+      return parseCanvasPlan(extractStructuredJson(repaired));
+    } catch {
+      throw firstError instanceof Error
+        ? firstError
+        : new Error(String(firstError));
+    }
+  }
 };
 
 const readAssetBase64 = async (
@@ -948,10 +961,14 @@ export const removeAllVariations = createServerFn({ method: "POST" })
     return await saveDraft(draft);
   });
 
-export const generateAnnouncementHtml = createServerFn({ method: "POST" })
+/**
+ * Generate a CanvasPlan via AI (structured JSON schema).
+ * Client applies the plan with GrapesJS Editor APIs — never HTML seed.
+ */
+export const generateAnnouncementLayout = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
-  .validator((data: GenerateAnnouncementHtmlInput) => data)
-  .handler(async ({ data }): Promise<GenerateAnnouncementHtmlResult> => {
+  .validator((data: GenerateAnnouncementLayoutInput) => data)
+  .handler(async ({ data }): Promise<GenerateAnnouncementLayoutResult> => {
     const draft = await loadDraft(data.id);
 
     if (
@@ -965,9 +982,7 @@ export const generateAnnouncementHtml = createServerFn({ method: "POST" })
       throw new Error("Add title, subtitle, heading, or tertiary text first.");
     }
 
-    // AI still emits HTML (JSON builders are a separate PR). Do not persist it —
-    // client loads seed HTML into GrapesJS, then saves projectData only.
-    const generatedHtml = await generateHtmlWithAi({
+    const plan = await generateLayoutPlanWithAi({
       content: draft.content,
       styleNotes: data.styleNotes,
     });
@@ -975,7 +990,8 @@ export const generateAnnouncementHtml = createServerFn({ method: "POST" })
     markDirtyIfApproved(draft);
     const saved = await saveDraft(draft);
 
-    return { draft: saved, generatedHtml };
+    // Plan is ephemeral — not stored on the draft.
+    return { draft: saved, plan };
   });
 
 export const getAnnouncementAsset = createServerFn({ method: "GET" })

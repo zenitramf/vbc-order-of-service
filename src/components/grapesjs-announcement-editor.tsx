@@ -5,13 +5,11 @@ import "grapesjs/dist/css/grapes.min.css";
 import { useEffect, useImperativeHandle, useRef } from "react";
 import type { Ref } from "react";
 
+import { applyCanvasPlanToEditor } from "~/lib/announcement-ai-executor";
+import type { CanvasPlan } from "~/lib/announcement-ai-plan";
+import { listAnnouncementBlockTemplates } from "~/lib/announcement-block-templates";
 import {
   ANNOUNCEMENT_BG_ATTR,
-  BOTTOM_SCRIM_GRADIENT,
-  LEFT_SCRIM_GRADIENT,
-  PANEL_SCRIM_GRADIENT,
-  RIGHT_SCRIM_GRADIENT,
-  TOP_SCRIM_GRADIENT,
   buildOverlayHtml,
   coerceBackgroundToAlphaGradient,
   isUsableProjectData,
@@ -21,10 +19,7 @@ import {
   stripAnnouncementBackgroundHtml,
   stripRuntimePhotoBackgroundCss,
 } from "~/lib/announcement-overlay-html";
-import {
-  ANNOUNCEMENT_ROLE_ATTR,
-  buildDesignPresetProject,
-} from "~/lib/announcement-style-library";
+import { buildDesignPresetProject } from "~/lib/announcement-style-library";
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
@@ -42,6 +37,14 @@ export interface ApplyStylePackHandleResult extends AnnouncementCanvasSnapshot {
 
 /** Imperative API for parent flows that need a synchronous canvas snapshot (e.g. JPG export). */
 export interface GrapesjsAnnouncementEditorHandle {
+  /**
+   * Apply an AI CanvasPlan via GrapesJS Editor APIs (not HTML / project JSON dump).
+   * Returns project JSON (persist) + ephemeral export HTML.
+   */
+  applyAiPlan: (
+    plan: CanvasPlan,
+    content: AnnouncementContent
+  ) => AnnouncementCanvasSnapshot | null;
   /**
    * Replace the canvas with a full design-preset layout (structure + type +
    * scrims) filled from content fields. Never paints the Body photo.
@@ -73,13 +76,12 @@ export interface GrapesjsAnnouncementEditorProps {
   projectData: GrapesProjectData | null;
   ref?: Ref<GrapesjsAnnouncementEditorHandle>;
   /**
-   * One-shot HTML seed for: legacy draft migration, AI generate (until JSON
-   * builders land), design presets applied outside the editor, or empty new
-   * drafts. Loaded only when `projectData` is null or `seedRevision` changes.
-   * Never persisted.
+   * One-shot HTML seed for legacy draft migration only.
+   * Loaded when `projectData` is null or `seedRevision` changes. Never persisted.
+   * AI layouts use `applyAiPlan` (GrapesJS API ops), not seed HTML.
    */
   seedHtml?: string | null;
-  /** Bump to force a seedHtml reload (e.g. AI generation, code-view apply). */
+  /** Bump to force a seedHtml reload (legacy migrate). */
   seedRevision?: number;
 }
 
@@ -268,275 +270,23 @@ export const syncBackgroundOnBody = (
   });
 };
 
-const roleAttrs = (role: string): Record<string, string> => ({
-  [ANNOUNCEMENT_ROLE_ATTR]: role,
-});
-
 const registerAnnouncementBlocks = (editor: Editor): void => {
   const blockManager = editor.BlockManager;
 
   // Prefer announcement-specific blocks; keep a lean Basic set.
   blockManager.getAll().reset();
 
-  blockManager.add("ann-heading", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("heading"),
-      content: "HEADING",
-      name: "heading",
-      style: {
-        color: "#ffffff",
-        "font-family": "system-ui, sans-serif",
-        "font-size": "42px",
-        "letter-spacing": "0.28em",
-        margin: "0 0 16px 0",
-        "text-shadow": "0 3px 16px rgba(0,0,0,0.5)",
-        "text-transform": "uppercase",
-      },
-      type: "text",
-    },
-    label: "Heading",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4 4h2v7h6V4h2v16h-2v-7H6v7H4V4zm14 8h2v8h-2v-8zm0-6h2v4h-2V6z"/></svg>`,
-  });
-
-  blockManager.add("ann-title", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("title"),
-      content: "Announcement Title",
-      name: "title",
-      style: {
-        color: "#ffffff",
-        "font-family": "Georgia, 'Times New Roman', serif",
-        "font-size": "132px",
-        "font-weight": "700",
-        "line-height": "1.02",
-        margin: "0 0 24px 0",
-        "text-shadow": "0 6px 32px rgba(0,0,0,0.5)",
-      },
-      tagName: "h1",
-      type: "text",
-    },
-    label: "Title",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M5 4h14v3h-5.5v13h-3V7H5V4z"/></svg>`,
-  });
-
-  blockManager.add("ann-subtitle", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("subtitle"),
-      content: "Subtitle text",
-      name: "subtitle",
-      style: {
-        color: "#ffffff",
-        "font-family": "Georgia, 'Times New Roman', serif",
-        "font-size": "58px",
-        "font-weight": "400",
-        "line-height": "1.2",
-        margin: "0 0 32px 0",
-        opacity: "0.95",
-      },
-      type: "text",
-    },
-    label: "Subtitle",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4 6h16v2H4V6zm0 5h12v2H4v-2zm0 5h10v2H4v-2z"/></svg>`,
-  });
-
-  blockManager.add("ann-body", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("body"),
-      content: "Additional details go here.",
-      name: "tertiary",
-      style: {
-        color: "#ffffff",
-        "font-family": "system-ui, sans-serif",
-        "font-size": "40px",
-        "line-height": "1.35",
-        margin: "0",
-        "max-width": "1400px",
-        opacity: "0.9",
-      },
-      type: "text",
-    },
-    label: "Body text",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4 5h16v2H4V5zm0 4h16v2H4V9zm0 4h16v2H4v-2zm0 4h10v2H4v-2z"/></svg>`,
-  });
-
-  blockManager.add("ann-text-box", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("panel"),
-      components: [
-        {
-          attributes: roleAttrs("body"),
-          content: "Editable text block",
-          name: "tertiary",
-          style: {
-            color: "#ffffff",
-            "font-size": "40px",
-            margin: "0",
-          },
-          type: "text",
-        },
-      ],
-      name: "Panel",
-      style: {
-        background: PANEL_SCRIM_GRADIENT,
-        "background-color": "transparent",
-        "border-radius": "12px",
-        "box-sizing": "border-box",
-        padding: "32px 40px",
-        width: "800px",
-      },
-      tagName: "div",
-    },
-    label: "Text box",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 5h18v14H3V5zm2 2v10h14V7H5zm2 2h10v2H7V9zm0 4h7v2H7v-2z"/></svg>`,
-  });
-
-  blockManager.add("ann-scrim", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("scrim-bottom"),
-      name: "Bottom scrim",
-      style: {
-        background: BOTTOM_SCRIM_GRADIENT,
-        "background-color": "transparent",
-        bottom: "0",
-        height: "55%",
-        left: "0",
-        "pointer-events": "none",
-        position: "absolute",
-        right: "0",
-      },
-      tagName: "div",
-    },
-    label: "Bottom scrim",
-    // Frame + solid band on the edge (evenodd hole so the band reads clearly).
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M5 12h14v7H5z"/></svg>`,
-  });
-
-  blockManager.add("ann-scrim-top", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("scrim-top"),
-      name: "Top scrim",
-      style: {
-        background: TOP_SCRIM_GRADIENT,
-        "background-color": "transparent",
-        height: "55%",
-        left: "0",
-        "pointer-events": "none",
-        position: "absolute",
-        right: "0",
-        top: "0",
-      },
-      tagName: "div",
-    },
-    label: "Top scrim",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M5 5h14v7H5z"/></svg>`,
-  });
-
-  blockManager.add("ann-scrim-left", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("scrim-left"),
-      name: "Left scrim",
-      style: {
-        background: LEFT_SCRIM_GRADIENT,
-        "background-color": "transparent",
-        bottom: "0",
-        left: "0",
-        "pointer-events": "none",
-        position: "absolute",
-        top: "0",
-        width: "45%",
-      },
-      tagName: "div",
-    },
-    label: "Left scrim",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M5 5h7v14H5z"/></svg>`,
-  });
-
-  blockManager.add("ann-scrim-right", {
-    category: "Announcement",
-    content: {
-      attributes: roleAttrs("scrim-right"),
-      name: "Right scrim",
-      style: {
-        background: RIGHT_SCRIM_GRADIENT,
-        "background-color": "transparent",
-        bottom: "0",
-        "pointer-events": "none",
-        position: "absolute",
-        right: "0",
-        top: "0",
-        width: "45%",
-      },
-      tagName: "div",
-    },
-    label: "Right scrim",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path fill-rule="evenodd" d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/><path d="M12 5h7v14h-7z"/></svg>`,
-  });
-
-  blockManager.add("ann-spacer", {
-    category: "Announcement",
-    content: {
-      name: "Spacer",
-      style: {
-        height: "40px",
-        width: "100%",
-      },
-      tagName: "div",
-    },
-    label: "Spacer",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M11 4h2v16h-2V4z"/></svg>`,
-  });
-
-  blockManager.add("ann-div", {
-    category: "Basic",
-    content: {
-      style: {
-        "min-height": "80px",
-        padding: "16px",
-        width: "100%",
-      },
-      tagName: "div",
-    },
-    label: "Box",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 3h18v18H3V3zm2 2v14h14V5H5z"/></svg>`,
-  });
-
-  blockManager.add("ann-text", {
-    category: "Basic",
-    content: {
-      content: "Insert your text here",
-      style: {
-        color: "#ffffff",
-        "font-size": "40px",
-        padding: "8px",
-      },
-      type: "text",
-    },
-    label: "Text",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M5 4v3h5.5v12h3V7H19V4H5z"/></svg>`,
-  });
-
-  blockManager.add("ann-link", {
-    category: "Basic",
-    content: {
-      attributes: roleAttrs("link"),
-      content: "Link text",
-      style: {
-        color: "#fbbf24",
-        "font-size": "40px",
-      },
-      type: "link",
-    },
-    label: "Link",
-    media: `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>`,
-  });
+  for (const block of listAnnouncementBlockTemplates()) {
+    blockManager.add(block.id, {
+      category: block.category,
+      // Component defs are GrapesJS-compatible; cast keeps our pure JSON shape.
+      content: block.content as Parameters<
+        typeof blockManager.add
+      >[1]["content"],
+      label: block.label,
+      media: block.media,
+    });
+  }
 };
 
 const loadHtmlIntoEditor = (editor: Editor, html: string): void => {
@@ -553,7 +303,7 @@ const loadHtmlIntoEditor = (editor: Editor, html: string): void => {
 /**
  * Load canvas from GrapesJS project JSON when available; otherwise parse seed HTML.
  * Prefer project JSON — HTML round-trips drop component metadata.
- * Seed HTML is never persisted (legacy migrate / AI / default preset only).
+ * Seed HTML is never persisted (legacy migrate only).
  */
 export const loadDocumentIntoEditor = (
   editor: Editor,
@@ -656,8 +406,8 @@ const coerceComponentBackground = (component: {
  *
  * Persistence is project JSON only (`getProjectData` / `loadProjectData`).
  * HTML is never saved — only derived in memory for JPG export / code view.
- * Seed HTML is a one-shot load path for legacy migration, AI (until JSON
- * builders), and default presets.
+ * Seed HTML is a one-shot load path for legacy migration only.
+ * AI layouts apply CanvasPlan ops via `applyAiPlan` (Editor API).
  *
  * @see https://grapesjs.com/docs/modules/Storage.html
  */
@@ -694,6 +444,39 @@ export const GrapesjsAnnouncementEditor = ({
   useImperativeHandle(
     ref,
     () => ({
+      applyAiPlan: (plan: CanvasPlan, content: AnnouncementContent) => {
+        const editor = editorRef.current;
+
+        if (!editor) {
+          return null;
+        }
+
+        suppressEmitRef.current = true;
+
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+
+        try {
+          applyCanvasPlanToEditor(editor, plan, content);
+          syncBackgroundOnBody(editor, backgroundUrlRef.current);
+          makeCanvasChrome(editor);
+          editor.UndoManager.clear();
+          requestAnimationFrame(() => {
+            fitAnnouncementViewport(editor);
+          });
+
+          const snapshot = serializeProjectDocument(editor);
+          syncedProjectKeyRef.current = projectDataKey(snapshot.projectData);
+          lastSnapshotRef.current = snapshot;
+          suppressEmitRef.current = false;
+          return snapshot;
+        } catch (error) {
+          suppressEmitRef.current = false;
+          throw error;
+        }
+      },
       applyStylePack: (packId: string, content: AnnouncementContent) => {
         const editor = editorRef.current;
 
@@ -1048,7 +831,7 @@ export const GrapesjsAnnouncementEditor = ({
     // Mount once — external project/seed reloads are handled below.
   }, []);
 
-  // External project (undo) or seed HTML (AI / code view / migrate) → reload canvas.
+  // External project (undo) or seed HTML (legacy migrate) → reload canvas.
   useEffect(() => {
     const editor = editorRef.current;
     const nextProjectKey = projectDataKey(projectData);
@@ -1066,7 +849,7 @@ export const GrapesjsAnnouncementEditor = ({
     }
 
     // Prefer project JSON when present and seed did not just change.
-    // Seed revision bumps force HTML load (AI / code apply) even if project exists.
+    // Seed revision bumps force HTML load (legacy migrate) even if project exists.
     const useSeed = seedChanged && Boolean(seedHtml?.trim());
     const loadProject = !useSeed && isUsableProjectData(projectData);
 
