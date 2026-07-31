@@ -461,29 +461,100 @@ const putImageBytes = async (
   });
 };
 
-const downloadUrlAsBytes = async (url: string): Promise<ArrayBuffer> => {
+type ImageBody = ReadableStream | ArrayBuffer | ArrayBufferView | Blob;
+
+const putImageBody = async (
+  key: string,
+  body: ImageBody,
+  contentType = "image/jpeg"
+): Promise<void> => {
+  await getBucket().put(key, body, {
+    httpMetadata: { contentType },
+  });
+};
+
+const contentTypeFromHeaders = (headers: Headers): string => {
+  const raw = headers.get("content-type")?.split(";")[0]?.trim();
+  return raw && raw.length > 0 ? raw : "image/jpeg";
+};
+
+/**
+ * Stream a remote image into R2 without buffering the full body in the isolate.
+ * R2 accepts ReadableStream; this is the low-memory path for AI `url` responses.
+ */
+const streamImageUrlToR2 = async (
+  draftId: string,
+  variationId: string,
+  url: string
+): Promise<{ contentType: string; objectKey: string }> => {
   const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(`Failed to download generated image (${response.status}).`);
   }
 
-  return await response.arrayBuffer();
+  if (!response.body) {
+    throw new Error("Generated image response had no body to stream.");
+  }
+
+  const contentType = contentTypeFromHeaders(response.headers);
+  const objectKey = backgroundKey(
+    draftId,
+    variationId,
+    extensionForContentType(contentType)
+  );
+
+  await putImageBody(objectKey, response.body, contentType);
+  return { contentType, objectKey };
 };
 
-const resolveImagePayload = async (image: string): Promise<ArrayBuffer> => {
+/** Decode data-URI / raw base64 and put (fallback when AI does not return a URL). */
+const putBase64ImageToR2 = async (
+  draftId: string,
+  variationId: string,
+  image: string
+): Promise<{ contentType: string; objectKey: string }> => {
+  let contentType = "image/jpeg";
+  let base64 = image;
+
   if (image.startsWith("data:")) {
-    const comma = image.indexOf(",");
-    const base64 = comma === -1 ? image : image.slice(comma + 1);
-    return Buffer.from(base64, "base64").buffer;
+    const match =
+      /^data:(?<type>[^;,]+)?(?:;[^,]*)?;base64,(?<data>[\s\S]*)$/iu.exec(
+        image
+      );
+
+    if (match?.groups?.data) {
+      contentType = match.groups.type?.trim() || contentType;
+      base64 = match.groups.data;
+    } else {
+      const comma = image.indexOf(",");
+      base64 = comma === -1 ? image : image.slice(comma + 1);
+    }
   }
 
+  const objectKey = backgroundKey(
+    draftId,
+    variationId,
+    extensionForContentType(contentType)
+  );
+  await putImageBody(objectKey, Buffer.from(base64, "base64"), contentType);
+  return { contentType, objectKey };
+};
+
+/**
+ * Store an AI image payload in R2. Prefers streaming HTTPS URLs; falls back to
+ * base64 only when the provider returns encoded bytes.
+ */
+const storeImagePayloadToR2 = async (
+  draftId: string,
+  variationId: string,
+  image: string
+): Promise<{ contentType: string; objectKey: string }> => {
   if (image.startsWith("http://") || image.startsWith("https://")) {
-    return await downloadUrlAsBytes(image);
+    return await streamImageUrlToR2(draftId, variationId, image);
   }
 
-  // Assume raw base64
-  return Buffer.from(image, "base64").buffer;
+  return await putBase64ImageToR2(draftId, variationId, image);
 };
 
 const extractImageFromAiResponse = (response: unknown): string | null => {
@@ -531,16 +602,19 @@ const extractImageFromAiResponse = (response: unknown): string | null => {
 };
 
 /**
- * Generate a single background image.
- * Uses response_format "url" so the Worker never holds multi-MB base64 JSON.
+ * Generate one background and stream/store it to R2.
+ * Uses response_format "url" so the happy path never materializes multi-MB
+ * base64 JSON or a full ArrayBuffer of the image in the isolate.
  */
-const generateOneBackgroundImage = async (options: {
+const generateAndStoreBackgroundImage = async (options: {
+  draftId: string;
   index: number;
   prompt: string;
   referenceContentType?: string;
   referenceImageBase64?: string;
   total: number;
-}): Promise<ArrayBuffer> => {
+  variationId: string;
+}): Promise<{ contentType: string; objectKey: string }> => {
   const basePrompt = [
     options.prompt.trim(),
     "Subtle atmospheric background for an announcement graphic — understated, soft, and unobtrusive so overlaid text can read clearly.",
@@ -583,7 +657,11 @@ const generateOneBackgroundImage = async (options: {
     throw new Error("AI Gateway image generation returned no image payload.");
   }
 
-  return await resolveImagePayload(imagePayload);
+  return await storeImagePayloadToR2(
+    options.draftId,
+    options.variationId,
+    imagePayload
+  );
 };
 
 const layoutSystemPrompt = [
@@ -932,24 +1010,23 @@ const persistGeneratedVariation = async (options: {
   referenceImageBase64?: string;
 }): Promise<void> => {
   const { draft, index, message } = options;
-  const bytes = await generateOneBackgroundImage({
+  const variationId = uuidv4();
+  const stored = await generateAndStoreBackgroundImage({
+    draftId: draft.id,
     index,
     prompt: message.prompt,
     referenceContentType: options.referenceContentType,
     referenceImageBase64: options.referenceImageBase64,
     total: message.count,
+    variationId,
   });
-
-  const variationId = uuidv4();
-  const objectKey = backgroundKey(draft.id, variationId);
-  await putImageBytes(objectKey, bytes);
 
   const variation: AnnouncementVariation = {
     createdAt: nowIso(),
     id: variationId,
     libraryFilename: null,
     libraryImageId: null,
-    objectKey,
+    objectKey: stored.objectKey,
     parentVariationId: message.parentVariationId,
     prompt: message.prompt,
     source: "generated",
@@ -972,7 +1049,7 @@ const persistGeneratedVariation = async (options: {
 
 /**
  * Generate remaining variations one-by-one (recursive) so peak memory stays
- * at a single image buffer — never Promise.all.
+ * low — never Promise.all. URL responses stream into R2.
  */
 const generateVariationsSequentially = async (options: {
   draft: AnnouncementDraft;
