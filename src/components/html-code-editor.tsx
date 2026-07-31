@@ -1,4 +1,6 @@
 import { html } from "@codemirror/lang-html";
+import { json } from "@codemirror/lang-json";
+import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { githubDark, githubLight } from "@uiw/codemirror-theme-github";
 import CodeMirror from "@uiw/react-codemirror";
@@ -6,11 +8,17 @@ import { useEffect, useMemo, useState } from "react";
 
 import { cn } from "~/lib/utils";
 
+export type CodeEditorLanguage = "html" | "json";
+
 interface HtmlCodeEditorProps {
   className?: string;
   id?: string;
+  /** Syntax highlighting mode. @default "html" */
+  language?: CodeEditorLanguage;
   minHeight?: string;
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
+  /** When true, the document cannot be edited. @default false */
+  readOnly?: boolean;
   value: string;
 }
 
@@ -34,8 +42,7 @@ const editorChrome = EditorView.theme({
 });
 
 const htmlLanguage = html();
-
-const extensions = [htmlLanguage, editorChrome, EditorView.lineWrapping];
+const jsonLanguage = json();
 
 const isDocumentDark = () => {
   if (typeof document === "undefined") {
@@ -71,11 +78,17 @@ const useColorScheme = (): "dark" | "light" => {
   return scheme;
 };
 
+/**
+ * CodeMirror editor for announcement advanced views (project JSON or HTML).
+ * Supports read-only mode for export HTML previews.
+ */
 export const HtmlCodeEditor = ({
   className,
   id,
+  language = "html",
   minHeight = "18rem",
   onChange,
+  readOnly = false,
   value,
 }: HtmlCodeEditorProps) => {
   const scheme = useColorScheme();
@@ -84,10 +97,23 @@ export const HtmlCodeEditor = ({
     [scheme]
   );
 
+  const extensions = useMemo(() => {
+    const languageExtension = language === "json" ? jsonLanguage : htmlLanguage;
+    const next = [languageExtension, editorChrome, EditorView.lineWrapping];
+
+    if (readOnly) {
+      next.push(EditorState.readOnly.of(true));
+      next.push(EditorView.editable.of(false));
+    }
+
+    return next;
+  }, [language, readOnly]);
+
   return (
     <div
       className={cn(
         "overflow-hidden rounded-2xl border border-transparent bg-input/50 transition-[color,box-shadow] duration-200 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30",
+        readOnly && "opacity-90",
         className
       )}
       data-slot="html-code-editor"
@@ -96,19 +122,21 @@ export const HtmlCodeEditor = ({
     >
       <CodeMirror
         basicSetup={{
-          autocompletion: true,
+          autocompletion: !readOnly,
           bracketMatching: true,
-          closeBrackets: true,
+          closeBrackets: !readOnly,
           foldGutter: true,
-          highlightActiveLine: true,
-          highlightActiveLineGutter: true,
-          indentOnInput: true,
+          highlightActiveLine: !readOnly,
+          highlightActiveLineGutter: !readOnly,
+          indentOnInput: !readOnly,
           lineNumbers: true,
         }}
+        editable={!readOnly}
         extensions={extensions}
         height={minHeight}
         minHeight={minHeight}
-        onChange={onChange}
+        onChange={readOnly ? undefined : onChange}
+        readOnly={readOnly}
         theme={theme}
         value={value}
       />

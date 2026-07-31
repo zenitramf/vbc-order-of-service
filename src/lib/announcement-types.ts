@@ -33,11 +33,18 @@ export interface AnnouncementContent {
   title: string;
 }
 
-/** Canvas document snapshot: JSON project + derived HTML for export/code view. */
-export interface AnnouncementDocument {
-  html: string;
-  projectData: GrapesProjectData | null;
+/**
+ * Live canvas snapshot from GrapesJS.
+ * `projectData` is what we persist; `exportHtml` is ephemeral (export / code view only).
+ */
+export interface AnnouncementCanvasSnapshot {
+  /** Derived overlay HTML for JPG export and advanced code view — never persisted. */
+  exportHtml: string;
+  projectData: GrapesProjectData;
 }
+
+/** @deprecated Use AnnouncementCanvasSnapshot */
+export type AnnouncementDocument = AnnouncementCanvasSnapshot;
 
 /** Where a background variation originated. */
 export type AnnouncementVariationSource = "generated" | "library";
@@ -65,16 +72,17 @@ export interface AnnouncementDraft {
   createdAt: string;
   exportObjectKey: string | null;
   height: number;
-  /**
-   * Derived overlay HTML for JPG export, code view, and legacy drafts.
-   * Prefer `projectData` when loading into GrapesJS.
-   */
-  html: string;
   id: string;
+  /**
+   * One-shot seed from R2 drafts that still store a legacy `html` field.
+   * Populated on read only when `projectData` is missing; never written back.
+   * Client migrates: load HTML → getProjectData → save projectData (html dropped).
+   */
+  legacyHtml: string | null;
   name: string;
   /**
-   * GrapesJS project JSON — source of truth for the visual editor.
-   * Null for legacy drafts that only have HTML (migrated on first canvas save).
+   * GrapesJS project JSON — sole persistence format for the visual editor.
+   * Null until the first canvas save / client migration from legacyHtml.
    */
   projectData: GrapesProjectData | null;
   selectedVariationId: string | null;
@@ -130,12 +138,16 @@ export interface SaveAnnouncementInput {
   appliedStyleId?: string | null;
   backgroundPrompt?: string;
   content?: Partial<AnnouncementContent>;
-  /** Derived export/code-view HTML (kept in sync with projectData on canvas save). */
-  html?: string;
   id: string;
   name?: string;
-  /** GrapesJS project JSON. Pass null to clear (e.g. after AI HTML replaces layout). */
+  /** GrapesJS project JSON — sole canvas persistence field. */
   projectData?: GrapesProjectData | null;
+}
+
+/** AI still returns HTML (JSON builders are a separate PR); client converts to projectData. */
+export interface GenerateAnnouncementHtmlResult {
+  draft: AnnouncementDraft;
+  generatedHtml: string;
 }
 
 export interface GenerateBackgroundsInput {

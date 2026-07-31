@@ -4,7 +4,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { v4 as uuidv4 } from "uuid";
 
-import { buildDesignPresetHtml } from "~/lib/announcement-style-library";
 import type {
   AddLibraryImageAsVariationInput,
   AnnouncementAsset,
@@ -15,6 +14,7 @@ import type {
   ApproveAnnouncementInput,
   CreateAnnouncementInput,
   GenerateAnnouncementHtmlInput,
+  GenerateAnnouncementHtmlResult,
   GenerateBackgroundsInput,
   PresentationSlide,
   SaveAnnouncementInput,
@@ -171,22 +171,6 @@ const normalizeProjectData = (
   return value as AnnouncementDraft["projectData"];
 };
 
-const normalizeDraft = (draft: AnnouncementDraft): AnnouncementDraft => ({
-  ...draft,
-  appliedStyleId:
-    typeof draft.appliedStyleId === "string" && draft.appliedStyleId.trim()
-      ? draft.appliedStyleId.trim()
-      : null,
-  html: typeof draft.html === "string" ? draft.html : "",
-  projectData: normalizeProjectData(
-    (draft as AnnouncementDraft & { projectData?: unknown }).projectData
-  ),
-  showInPresentationDeck: Boolean(draft.showInPresentationDeck),
-  variations: draft.variations.map((variation) =>
-    normalizeVariation(variation)
-  ),
-});
-
 const emptyContent = (
   partial?: Partial<AnnouncementContent>
 ): AnnouncementContent => ({
@@ -196,10 +180,89 @@ const emptyContent = (
   title: partial?.title?.trim() ?? "",
 });
 
-/** Sensible default overlay — classic bottom band design preset. */
-const buildDefaultHtml = (content: AnnouncementContent): string =>
-  buildDesignPresetHtml("classic-bottom", content) ??
-  `<div class="announcement-overlay" style="box-sizing:border-box;width:1920px;height:1080px;position:relative;overflow:hidden;background:transparent;"></div>`;
+/**
+ * Shape stored on R2. Deliberately omits `html` / `legacyHtml` so old HTML is
+ * stripped on the next save after client migration.
+ */
+type AnnouncementDraftRecord = Omit<AnnouncementDraft, "legacyHtml">;
+
+/** Raw R2 payload may still include a legacy `html` string. */
+type AnnouncementDraftRaw = Partial<AnnouncementDraftRecord> & {
+  html?: unknown;
+  projectData?: unknown;
+  variations?: AnnouncementDraft["variations"];
+};
+
+const asNullableString = (value: unknown): string | null => {
+  if (typeof value === "string" || value === null) {
+    return value;
+  }
+
+  return null;
+};
+
+const asString = (value: unknown, fallback = ""): string =>
+  typeof value === "string" ? value : fallback;
+
+const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
+  const projectData = normalizeProjectData(raw.projectData);
+  const legacyHtmlFromFile =
+    typeof raw.html === "string" && raw.html.trim().length > 0
+      ? raw.html
+      : null;
+
+  // Only surface legacy HTML when we still need it to migrate into projectData.
+  const legacyHtml = projectData ? null : legacyHtmlFromFile;
+  const contentPartial =
+    raw.content && typeof raw.content === "object"
+      ? (raw.content as Partial<AnnouncementContent>)
+      : undefined;
+
+  return {
+    appliedStyleId:
+      typeof raw.appliedStyleId === "string" && raw.appliedStyleId.trim()
+        ? raw.appliedStyleId.trim()
+        : null,
+    approvedAt: asNullableString(raw.approvedAt),
+    backgroundPrompt: asString(raw.backgroundPrompt),
+    content: emptyContent(contentPartial),
+    createdAt: asString(raw.createdAt, nowIso()),
+    exportObjectKey: asNullableString(raw.exportObjectKey),
+    height: typeof raw.height === "number" ? raw.height : ANNOUNCEMENT_HEIGHT,
+    id: asString(raw.id),
+    legacyHtml,
+    name: asString(raw.name),
+    projectData,
+    selectedVariationId: asNullableString(raw.selectedVariationId),
+    showInPresentationDeck: Boolean(raw.showInPresentationDeck),
+    status: raw.status === "approved" ? "approved" : "draft",
+    updatedAt: asString(raw.updatedAt, nowIso()),
+    variations: Array.isArray(raw.variations)
+      ? raw.variations.map((variation) => normalizeVariation(variation))
+      : [],
+    width: typeof raw.width === "number" ? raw.width : ANNOUNCEMENT_WIDTH,
+  };
+};
+
+/** Persistable fields only — never write `html` or `legacyHtml` to R2. */
+const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
+  appliedStyleId: draft.appliedStyleId,
+  approvedAt: draft.approvedAt,
+  backgroundPrompt: draft.backgroundPrompt,
+  content: draft.content,
+  createdAt: draft.createdAt,
+  exportObjectKey: draft.exportObjectKey,
+  height: draft.height,
+  id: draft.id,
+  name: draft.name,
+  projectData: draft.projectData,
+  selectedVariationId: draft.selectedVariationId,
+  showInPresentationDeck: draft.showInPresentationDeck,
+  status: draft.status,
+  updatedAt: draft.updatedAt,
+  variations: draft.variations,
+  width: draft.width,
+});
 
 const putJson = async (key: string, value: unknown): Promise<void> => {
   await getBucket().put(key, JSON.stringify(value, null, 2), {
@@ -273,7 +336,7 @@ const removeIndexEntry = async (id: string): Promise<void> => {
 };
 
 const loadDraft = async (id: string): Promise<AnnouncementDraft> => {
-  const draft = await getJson<AnnouncementDraft>(draftKey(id));
+  const draft = await getJson<AnnouncementDraftRaw>(draftKey(id));
 
   if (!draft) {
     throw new Error("Announcement not found.");
@@ -287,10 +350,13 @@ const saveDraft = async (
 ): Promise<AnnouncementDraft> => {
   const next: AnnouncementDraft = {
     ...draft,
+    // After any write, legacy HTML is gone from disk — do not re-surface it.
+    legacyHtml: null,
     updatedAt: nowIso(),
   };
 
-  await putJson(draftKey(next.id), next);
+  // Drop legacy `html` permanently: only projectData is stored for the canvas.
+  await putJson(draftKey(next.id), toDraftRecord(next));
   await upsertIndexEntry(next);
   return next;
 };
@@ -585,7 +651,7 @@ export const getAnnouncement = createServerFn({ method: "GET" })
   .middleware([requireSessionMiddleware])
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<AnnouncementDraft | null> => {
-    const draft = await getJson<AnnouncementDraft>(draftKey(data));
+    const draft = await getJson<AnnouncementDraftRaw>(draftKey(data));
     return draft ? normalizeDraft(draft) : null;
   });
 
@@ -616,10 +682,10 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       createdAt: timestamp,
       exportObjectKey: null,
       height: ANNOUNCEMENT_HEIGHT,
-      html: buildDefaultHtml(content),
       id,
+      legacyHtml: null,
       name,
-      // GrapesJS project JSON is written on first canvas save / preset apply.
+      // Canvas is project JSON only — client applies default preset and saves.
       projectData: null,
       selectedVariationId: null,
       showInPresentationDeck: false,
@@ -650,10 +716,6 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
 
     if (data.content) {
       draft.content = emptyContent(data.content);
-    }
-
-    if (data.html !== undefined) {
-      draft.html = data.html;
     }
 
     if (data.projectData !== undefined) {
@@ -889,7 +951,7 @@ export const removeAllVariations = createServerFn({ method: "POST" })
 export const generateAnnouncementHtml = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
   .validator((data: GenerateAnnouncementHtmlInput) => data)
-  .handler(async ({ data }): Promise<AnnouncementDraft> => {
+  .handler(async ({ data }): Promise<GenerateAnnouncementHtmlResult> => {
     const draft = await loadDraft(data.id);
 
     if (
@@ -903,16 +965,17 @@ export const generateAnnouncementHtml = createServerFn({ method: "POST" })
       throw new Error("Add title, subtitle, heading, or tertiary text first.");
     }
 
-    draft.html = await generateHtmlWithAi({
+    // AI still emits HTML (JSON builders are a separate PR). Do not persist it —
+    // client loads seed HTML into GrapesJS, then saves projectData only.
+    const generatedHtml = await generateHtmlWithAi({
       content: draft.content,
       styleNotes: data.styleNotes,
     });
-    // AI returns HTML only — clear project JSON so the editor reloads from HTML
-    // and re-saves canonical GrapesJS project data on the next canvas interaction.
-    draft.projectData = null;
 
     markDirtyIfApproved(draft);
-    return await saveDraft(draft);
+    const saved = await saveDraft(draft);
+
+    return { draft: saved, generatedHtml };
   });
 
 export const getAnnouncementAsset = createServerFn({ method: "GET" })
@@ -1023,16 +1086,16 @@ export const deleteAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
   .validator((id: string) => id)
   .handler(async ({ data }): Promise<void> => {
-    const draft = await getJson<AnnouncementDraft>(draftKey(data));
+    const draft = await getJson<AnnouncementDraftRaw>(draftKey(data));
     const bucket = getBucket();
     const keys = new Set<string>([draftKey(data)]);
 
     if (draft) {
-      for (const variation of draft.variations) {
+      for (const variation of draft.variations ?? []) {
         keys.add(variation.objectKey);
       }
 
-      if (draft.exportObjectKey) {
+      if (typeof draft.exportObjectKey === "string") {
         keys.add(draft.exportObjectKey);
       }
     }
