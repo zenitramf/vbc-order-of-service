@@ -5,11 +5,38 @@ export const ANNOUNCEMENT_ASPECT_RATIO = "16:9" as const;
 
 export type AnnouncementStatus = "draft" | "approved";
 
+/** JSON-serializable object map (TanStack server-fn compatible). */
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+/** JSON-serializable values (TanStack server-fn compatible). */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | JsonObject;
+
+/**
+ * GrapesJS project JSON (`editor.getProjectData()` / `loadProjectData()`).
+ * Canonical editor persistence — do not reconstruct from HTML alone.
+ * @see https://grapesjs.com/docs/modules/Storage.html
+ */
+export type GrapesProjectData = JsonObject;
+
 export interface AnnouncementContent {
   heading: string;
   subtitle: string;
   tertiary: string;
   title: string;
+}
+
+/** Canvas document snapshot: JSON project + derived HTML for export/code view. */
+export interface AnnouncementDocument {
+  html: string;
+  projectData: GrapesProjectData | null;
 }
 
 /** Where a background variation originated. */
@@ -30,7 +57,7 @@ export interface AnnouncementVariation {
 }
 
 export interface AnnouncementDraft {
-  /** Last-applied style library pack id (informational; styles bake into html). */
+  /** Last-applied style library pack id (informational; styles bake into project). */
   appliedStyleId: string | null;
   approvedAt: string | null;
   backgroundPrompt: string;
@@ -38,9 +65,18 @@ export interface AnnouncementDraft {
   createdAt: string;
   exportObjectKey: string | null;
   height: number;
+  /**
+   * Derived overlay HTML for JPG export, code view, and legacy drafts.
+   * Prefer `projectData` when loading into GrapesJS.
+   */
   html: string;
   id: string;
   name: string;
+  /**
+   * GrapesJS project JSON — source of truth for the visual editor.
+   * Null for legacy drafts that only have HTML (migrated on first canvas save).
+   */
+  projectData: GrapesProjectData | null;
   selectedVariationId: string | null;
   /**
    * When true and status is `approved`, include this announcement in the
@@ -94,9 +130,12 @@ export interface SaveAnnouncementInput {
   appliedStyleId?: string | null;
   backgroundPrompt?: string;
   content?: Partial<AnnouncementContent>;
+  /** Derived export/code-view HTML (kept in sync with projectData on canvas save). */
   html?: string;
   id: string;
   name?: string;
+  /** GrapesJS project JSON. Pass null to clear (e.g. after AI HTML replaces layout). */
+  projectData?: GrapesProjectData | null;
 }
 
 export interface GenerateBackgroundsInput {

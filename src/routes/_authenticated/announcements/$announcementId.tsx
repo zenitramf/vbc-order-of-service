@@ -124,10 +124,14 @@ import {
   selectVariation,
   setShowInPresentationDeck,
 } from "~/lib/announcement-data";
-import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
+import {
+  prepareOverlayHtmlForRender,
+  projectDataKey,
+} from "~/lib/announcement-overlay-html";
 import { getStylePack, listStylePacks } from "~/lib/announcement-style-library";
 import type {
   AnnouncementContent,
+  AnnouncementDocument,
   AnnouncementDraft,
   AnnouncementVariation,
 } from "~/lib/announcement-types";
@@ -364,7 +368,8 @@ const LiveCanvasEditor = ({
   editorRef,
   html,
   onApplyStylePack,
-  onHtmlChange,
+  onDocumentChange,
+  projectData,
 }: {
   appliedStyleId: string | null;
   applyingPackId: string | null;
@@ -372,7 +377,8 @@ const LiveCanvasEditor = ({
   editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
   html: string;
   onApplyStylePack: (packId: string) => void;
-  onHtmlChange: (html: string) => void;
+  onDocumentChange: (document: AnnouncementDocument) => void;
+  projectData: AnnouncementDocument["projectData"];
 }) => {
   const selectedPackId = applyingPackId ?? appliedStyleId;
   const selectedPack =
@@ -448,7 +454,8 @@ const LiveCanvasEditor = ({
           backgroundUrl={backgroundUrl}
           className="min-h-0 flex-1"
           html={html}
-          onHtmlChange={onHtmlChange}
+          onDocumentChange={onDocumentChange}
+          projectData={projectData}
         />
       </CardContent>
     </Card>
@@ -1138,13 +1145,19 @@ const AnnouncementEditor = ({
   const {
     canRedo,
     canUndo,
-    commit: commitHtmlHistory,
+    commit: commitDocumentHistory,
+    document: canvasDocument,
     html,
-    redo: redoHtmlHistory,
-    reset: resetHtmlHistory,
+    projectData,
+    redo: redoDocumentHistory,
+    reset: resetDocumentHistory,
+    setDocument,
     setHtml,
-    undo: undoHtmlHistory,
-  } = useHtmlHistory(initial.html);
+    undo: undoDocumentHistory,
+  } = useHtmlHistory({
+    html: initial.html,
+    projectData: initial.projectData,
+  });
   const [styleNotes, setStyleNotes] = useState("");
   const [markupOpen, setMarkupOpen] = useState(false);
   const [variationCount, setVariationCount] = useState(2);
@@ -1166,15 +1179,15 @@ const AnnouncementEditor = ({
   const [isRemovingAll, setIsRemovingAll] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const grapesEditorRef = useRef<GrapesjsAnnouncementEditorHandle>(null);
-  const htmlRef = useRef(html);
+  const documentRef = useRef(canvasDocument);
   const nameRef = useRef(name);
   const contentRef = useRef(content);
   const backgroundPromptRef = useRef(backgroundPrompt);
   const draftIdRef = useRef(draft.id);
   const autoSaveInFlightRef = useRef(false);
-  const autoSaveLatestRef = useRef<string | null>(null);
+  const autoSaveLatestRef = useRef<AnnouncementDocument | null>(null);
 
-  htmlRef.current = html;
+  documentRef.current = canvasDocument;
   nameRef.current = name;
   contentRef.current = content;
   backgroundPromptRef.current = backgroundPrompt;
@@ -1225,9 +1238,12 @@ const AnnouncementEditor = ({
     // Reset undo stack only when opening a different announcement.
     if (lastHydratedIdRef.current !== initial.id) {
       lastHydratedIdRef.current = initial.id;
-      resetHtmlHistory(initial.html);
+      resetDocumentHistory({
+        html: initial.html,
+        projectData: initial.projectData,
+      });
     }
-  }, [initial, resetHtmlHistory]);
+  }, [initial, resetDocumentHistory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1288,24 +1304,29 @@ const AnnouncementEditor = ({
 
   const applyDraft = (
     next: AnnouncementDraft,
-    options?: { resetHtmlHistory?: boolean }
+    options?: { resetDocumentHistory?: boolean }
   ) => {
     setDraft(next);
     setName(next.name);
     setContent(next.content);
     setBackgroundPrompt(next.backgroundPrompt);
 
-    if (options?.resetHtmlHistory) {
-      resetHtmlHistory(next.html);
+    const document: AnnouncementDocument = {
+      html: next.html,
+      projectData: next.projectData,
+    };
+
+    if (options?.resetDocumentHistory) {
+      resetDocumentHistory(document);
     } else {
-      setHtml(next.html);
+      setDocument(document);
     }
   };
 
-  /** Persist HTML from canvas/undo without toast spam; coalesces concurrent saves. */
-  const autoSaveHtml = useCallback(
-    (htmlValue: string) => {
-      autoSaveLatestRef.current = htmlValue;
+  /** Persist project JSON + derived HTML without toast spam; coalesces concurrent saves. */
+  const autoSaveDocument = useCallback(
+    (document: AnnouncementDocument) => {
+      autoSaveLatestRef.current = document;
 
       if (autoSaveInFlightRef.current) {
         return;
@@ -1328,9 +1349,10 @@ const AnnouncementEditor = ({
             data: {
               backgroundPrompt: backgroundPromptRef.current,
               content: contentRef.current,
-              html: toSave,
+              html: toSave.html,
               id: draftIdRef.current,
               name: nameRef.current,
+              projectData: toSave.projectData,
             },
           });
           setDraft(next);
@@ -1355,37 +1377,43 @@ const AnnouncementEditor = ({
     [saveFn]
   );
 
-  const onCanvasHtmlChange = useCallback(
-    (nextHtml: string) => {
-      if (nextHtml === htmlRef.current) {
+  const onCanvasDocumentChange = useCallback(
+    (nextDocument: AnnouncementDocument) => {
+      const { current } = documentRef;
+
+      if (
+        nextDocument.html === current.html &&
+        projectDataKey(nextDocument.projectData) ===
+          projectDataKey(current.projectData)
+      ) {
         return;
       }
 
-      commitHtmlHistory(nextHtml);
-      autoSaveHtml(nextHtml);
+      commitDocumentHistory(nextDocument);
+      autoSaveDocument(nextDocument);
     },
-    [autoSaveHtml, commitHtmlHistory]
+    [autoSaveDocument, commitDocumentHistory]
   );
 
   const onUndoCanvas = useCallback(() => {
-    const restored = undoHtmlHistory();
+    const restored = undoDocumentHistory();
 
     if (restored === null) {
       return;
     }
 
-    autoSaveHtml(restored);
-  }, [autoSaveHtml, undoHtmlHistory]);
+    autoSaveDocument(restored);
+  }, [autoSaveDocument, undoDocumentHistory]);
 
   const onRedoCanvas = useCallback(() => {
-    const restored = redoHtmlHistory();
+    const restored = redoDocumentHistory();
 
     if (restored === null) {
       return;
     }
 
-    autoSaveHtml(restored);
-  }, [autoSaveHtml, redoHtmlHistory]);
+    autoSaveDocument(restored);
+  }, [autoSaveDocument, redoDocumentHistory]);
 
   useHotkey(
     "Mod+Z",
@@ -1414,20 +1442,22 @@ const AnnouncementEditor = ({
 
   const persist = async (overrides?: {
     contentOverride?: AnnouncementContent;
-    htmlOverride?: string;
+    documentOverride?: AnnouncementDocument;
     nameOverride?: string;
     promptOverride?: string;
   }): Promise<AnnouncementDraft> => {
     setIsSaving(true);
 
     try {
+      const document = overrides?.documentOverride ?? canvasDocument;
       const next = await saveFn({
         data: {
           backgroundPrompt: overrides?.promptOverride ?? backgroundPrompt,
           content: overrides?.contentOverride ?? content,
-          html: overrides?.htmlOverride ?? html,
+          html: document.html,
           id: draft.id,
           name: overrides?.nameOverride ?? name,
+          projectData: document.projectData,
         },
       });
       applyDraft(next);
@@ -1587,7 +1617,7 @@ const AnnouncementEditor = ({
       const next = await generateHtmlFn({
         data: { id: draft.id, styleNotes },
       });
-      applyDraft(next, { resetHtmlHistory: true });
+      applyDraft(next, { resetDocumentHistory: true });
       await router.invalidate();
       toast.success(
         "HTML overlay generated (text only — not baked into the image)."
@@ -1622,17 +1652,22 @@ const AnnouncementEditor = ({
         return;
       }
 
-      // Update canvas history + local html without double-firing auto-save.
-      commitHtmlHistory(result.html);
+      // Update canvas history + local document without double-firing auto-save.
+      const document: AnnouncementDocument = {
+        html: result.html,
+        projectData: result.projectData,
+      };
+      commitDocumentHistory(document);
 
       const next = await saveFn({
         data: {
           appliedStyleId: packId,
           backgroundPrompt: backgroundPromptRef.current,
           content: contentRef.current,
-          html: result.html,
+          html: document.html,
           id: draftIdRef.current,
           name: nameRef.current,
+          projectData: document.projectData,
         },
       });
       setDraft(next);
@@ -1676,22 +1711,21 @@ const AnnouncementEditor = ({
     setIsApproving(true);
 
     try {
-      // Flush debounced GrapesJS serialization so IDs + CSS match the canvas.
-      let exportHtml = html;
+      // Flush debounced GrapesJS serialization so project JSON + export HTML
+      // match the live canvas (IDs + CSS rules).
+      let exportDocument = canvasDocument;
       flushSync(() => {
         const flushed = grapesEditorRef.current?.flush();
         if (flushed) {
-          exportHtml = flushed;
+          exportDocument = flushed;
         }
       });
 
-      await persist({ htmlOverride: exportHtml });
+      await persist({ documentOverride: exportDocument });
 
       // Ensure the off-screen surface has committed the flushed markup.
       flushSync(() => {
-        if (exportHtml !== htmlRef.current) {
-          setHtml(exportHtml);
-        }
+        setDocument(exportDocument);
       });
       // Let the browser apply nested <style> rules before html-to-image clones.
       await Promise.resolve();
@@ -1898,7 +1932,8 @@ const AnnouncementEditor = ({
           onApplyStylePack={(packId) => {
             void onApplyStylePack(packId);
           }}
-          onHtmlChange={onCanvasHtmlChange}
+          onDocumentChange={onCanvasDocumentChange}
+          projectData={projectData}
         />
       </div>
 
@@ -2054,8 +2089,8 @@ const AnnouncementEditor = ({
               <span className="flex flex-col items-start gap-1">
                 <span className="text-base">HTML markup (advanced)</span>
                 <span className="text-muted-foreground text-sm font-normal">
-                  Source view of the same draft HTML as the canvas above. Expand
-                  only when you need to inspect or hand-edit markup.
+                  Derived export HTML from the GrapesJS project. The canvas
+                  persists as project JSON; edit markup here only when needed.
                 </span>
               </span>
             </AccordionTrigger>

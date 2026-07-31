@@ -9,14 +9,18 @@ import {
   buildOverlayHtml,
   coerceBackgroundToAlphaGradient,
   flattenStageMediaQueries,
+  isUsableProjectData,
   normalizeBackgroundDeclarations,
   normalizeOverlayComponentsHtml,
   parseOverlayHtml,
   prepareOverlayHtmlForRender,
+  projectDataKey,
+  sanitizeProjectData,
   solidColorToAlphaGradient,
   stripAnnouncementBackgroundHtml,
   stripRuntimePhotoBackgroundCss,
 } from "~/lib/announcement-overlay-html";
+import type { GrapesProjectData } from "~/lib/announcement-types";
 
 describe("parseOverlayHtml", () => {
   it("returns empty parts for blank input", () => {
@@ -239,5 +243,85 @@ describe("background coercion", () => {
     expect(normalized).toContain("background-color:transparent");
     expect(normalized).toContain("color:#fff");
     expect(normalized).not.toContain("background-color:black");
+  });
+});
+
+describe("GrapesJS project JSON helpers", () => {
+  it("detects usable project payloads", () => {
+    expect(isUsableProjectData(null)).toBe(false);
+    expect(isUsableProjectData({})).toBe(false);
+    expect(
+      isUsableProjectData({
+        pages: [{ component: { components: [], type: "wrapper" } }],
+        styles: [],
+      })
+    ).toBe(true);
+    expect(isUsableProjectData({ pages: [], styles: [] })).toBe(true);
+  });
+
+  it("strips runtime photo background-image from styles and components", () => {
+    const project = {
+      pages: [
+        {
+          frames: [
+            {
+              component: {
+                components: [
+                  {
+                    attributes: { "data-announcement-bg": "1" },
+                    type: "image",
+                  },
+                  {
+                    content: "Title",
+                    style: {
+                      color: "#fff",
+                    },
+                    type: "text",
+                  },
+                ],
+                style: {
+                  "background-image":
+                    'url("https://example.com/variation.jpg")',
+                  height: "1080px",
+                  width: "1920px",
+                },
+                type: "wrapper",
+              },
+            },
+          ],
+        },
+      ],
+      styles: [
+        {
+          selectors: ["#iabc"],
+          style: {
+            "background-image": "url(data:image/png;base64,abc)",
+            color: "red",
+          },
+        },
+        {
+          selectors: ["#ixy"],
+          style: {
+            background: PANEL_SCRIM_GRADIENT,
+          },
+        },
+      ],
+    } as GrapesProjectData;
+
+    const sanitized = sanitizeProjectData(project);
+    expect(sanitized).not.toBeNull();
+    expect(JSON.stringify(sanitized)).not.toContain("example.com");
+    expect(JSON.stringify(sanitized)).not.toContain("data:image");
+    expect(JSON.stringify(sanitized)).not.toContain("data-announcement-bg");
+    expect(JSON.stringify(sanitized)).toContain(PANEL_SCRIM_GRADIENT);
+    expect(JSON.stringify(sanitized)).toContain("Title");
+    expect(JSON.stringify(sanitized)).toContain("height");
+  });
+
+  it("returns stable keys for equal project snapshots", () => {
+    const a = { pages: [{ id: "1" }], styles: [] } as GrapesProjectData;
+    const b = { pages: [{ id: "1" }], styles: [] } as GrapesProjectData;
+    expect(projectDataKey(a)).toBe(projectDataKey(b));
+    expect(projectDataKey(null)).toBe("");
   });
 });

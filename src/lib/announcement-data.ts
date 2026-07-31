@@ -161,12 +161,26 @@ const normalizeVariation = (
   source: variation.source === "library" ? "library" : "generated",
 });
 
+const normalizeProjectData = (
+  value: unknown
+): AnnouncementDraft["projectData"] => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as AnnouncementDraft["projectData"];
+};
+
 const normalizeDraft = (draft: AnnouncementDraft): AnnouncementDraft => ({
   ...draft,
   appliedStyleId:
     typeof draft.appliedStyleId === "string" && draft.appliedStyleId.trim()
       ? draft.appliedStyleId.trim()
       : null,
+  html: typeof draft.html === "string" ? draft.html : "",
+  projectData: normalizeProjectData(
+    (draft as AnnouncementDraft & { projectData?: unknown }).projectData
+  ),
   showInPresentationDeck: Boolean(draft.showInPresentationDeck),
   variations: draft.variations.map((variation) =>
     normalizeVariation(variation)
@@ -605,6 +619,8 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       html: buildDefaultHtml(content),
       id,
       name,
+      // GrapesJS project JSON is written on first canvas save / preset apply.
+      projectData: null,
       selectedVariationId: null,
       showInPresentationDeck: false,
       status: "draft",
@@ -638,6 +654,10 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
 
     if (data.html !== undefined) {
       draft.html = data.html;
+    }
+
+    if (data.projectData !== undefined) {
+      draft.projectData = normalizeProjectData(data.projectData);
     }
 
     if (data.backgroundPrompt !== undefined) {
@@ -887,6 +907,9 @@ export const generateAnnouncementHtml = createServerFn({ method: "POST" })
       content: draft.content,
       styleNotes: data.styleNotes,
     });
+    // AI returns HTML only — clear project JSON so the editor reloads from HTML
+    // and re-saves canonical GrapesJS project data on the next canvas interaction.
+    draft.projectData = null;
 
     markDirtyIfApproved(draft);
     return await saveDraft(draft);

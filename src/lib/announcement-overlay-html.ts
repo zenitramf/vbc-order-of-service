@@ -2,6 +2,7 @@ import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
+import type { GrapesProjectData, JsonValue } from "~/lib/announcement-types";
 
 const OVERLAY_ROOT_STYLE = [
   "box-sizing:border-box",
@@ -501,4 +502,225 @@ export const prepareOverlayHtmlForRender = (raw: string): string => {
   }
 
   return buildOverlayHtml(components, css);
+};
+
+// ── GrapesJS project JSON helpers ────────────────────────────────────────────
+
+const RUNTIME_PHOTO_URL_RE = /url\(\s*(?<quote>["']?)(?:https?:|data:|blob:)/iu;
+
+const isRecord = (value: unknown): value is Record<string, JsonValue> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Stable string key for comparing project JSON snapshots. */
+export const projectDataKey = (
+  projectData: GrapesProjectData | null | undefined
+): string => {
+  if (!projectData) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(projectData);
+  } catch {
+    return "";
+  }
+};
+
+const stripPhotoFromStyleObject = (
+  style: Record<string, JsonValue>
+): Record<string, JsonValue> => {
+  const next: Record<string, JsonValue> = {};
+  let changed = false;
+
+  for (const [key, value] of Object.entries(style)) {
+    const lower = key.toLowerCase();
+
+    if (
+      typeof value === "string" &&
+      (lower === "background-image" || lower === "background") &&
+      RUNTIME_PHOTO_URL_RE.test(value)
+    ) {
+      changed = true;
+      continue;
+    }
+
+    next[key] = value;
+  }
+
+  return changed ? next : style;
+};
+
+const stripPhotoFromCssRule = (rule: JsonValue): JsonValue => {
+  if (!isRecord(rule)) {
+    return rule;
+  }
+
+  const next: Record<string, JsonValue> = { ...rule };
+  let changed = false;
+
+  if (isRecord(next.style)) {
+    const cleaned = stripPhotoFromStyleObject(next.style);
+
+    if (cleaned !== next.style) {
+      next.style = cleaned;
+      changed = true;
+    }
+  }
+
+  if (Array.isArray(next.rules)) {
+    next.rules = next.rules.map((nested) => stripPhotoFromCssRule(nested));
+    changed = true;
+  }
+
+  return changed ? next : rule;
+};
+
+/**
+ * Recursively strip runtime photo paint + legacy bg nodes from a GrapesJS
+ * component definition tree (as stored in project JSON pages).
+ */
+const stripPhotoFromComponent = (component: JsonValue): JsonValue | null => {
+  if (typeof component === "string") {
+    return stripAnnouncementBackgroundHtml(component);
+  }
+
+  if (!isRecord(component)) {
+    return component;
+  }
+
+  const next: Record<string, JsonValue> = { ...component };
+  let changed = false;
+
+  // Drop locked background image components from older drafts.
+  if (isRecord(next.attributes)) {
+    const attrs = next.attributes;
+    if (
+      attrs[ANNOUNCEMENT_BG_ATTR] === "1" ||
+      attrs[ANNOUNCEMENT_BG_ATTR] === 1 ||
+      attrs[ANNOUNCEMENT_BG_ATTR] === true
+    ) {
+      return null;
+    }
+  }
+
+  if (next.type === ANNOUNCEMENT_BG_TYPE) {
+    return null;
+  }
+
+  if (isRecord(next.style)) {
+    const cleaned = stripPhotoFromStyleObject(next.style);
+
+    if (cleaned !== next.style) {
+      next.style = cleaned;
+      changed = true;
+    }
+  }
+
+  if (Array.isArray(next.components)) {
+    const children = next.components
+      .map((child) => stripPhotoFromComponent(child))
+      .filter((child): child is JsonValue => child !== null);
+    next.components = children;
+    changed = true;
+  }
+
+  if (typeof next.content === "string" && next.content.includes("<")) {
+    const cleaned = stripAnnouncementBackgroundHtml(next.content);
+
+    if (cleaned !== next.content) {
+      next.content = cleaned;
+      changed = true;
+    }
+  }
+
+  return changed ? next : component;
+};
+
+const stripPhotoFromPage = (page: JsonValue): JsonValue => {
+  if (!isRecord(page)) {
+    return page;
+  }
+
+  const next: Record<string, JsonValue> = { ...page };
+  let changed = false;
+
+  if (next.component !== undefined) {
+    const cleaned = stripPhotoFromComponent(next.component);
+
+    if (cleaned !== next.component) {
+      next.component = cleaned;
+      changed = true;
+    }
+  }
+
+  if (Array.isArray(next.frames)) {
+    next.frames = next.frames.map((frame) => {
+      if (!isRecord(frame)) {
+        return frame;
+      }
+
+      const frameNext: Record<string, JsonValue> = { ...frame };
+
+      if (frameNext.component !== undefined) {
+        frameNext.component = stripPhotoFromComponent(frameNext.component);
+      }
+
+      return frameNext;
+    });
+    changed = true;
+  }
+
+  return changed ? next : page;
+};
+
+/**
+ * Clone GrapesJS project JSON and strip runtime variation photo paint so
+ * drafts never embed selected-background URLs (R2 variations remain source of truth).
+ */
+export const sanitizeProjectData = (
+  projectData: GrapesProjectData | null | undefined
+): GrapesProjectData | null => {
+  if (!projectData || !isRecord(projectData)) {
+    return null;
+  }
+
+  // Deep clone so we never mutate the live editor snapshot.
+  let clone: GrapesProjectData;
+
+  try {
+    clone = structuredClone(projectData);
+  } catch {
+    return null;
+  }
+
+  if (Array.isArray(clone.styles)) {
+    clone.styles = (clone.styles as JsonValue[]).map((rule) =>
+      stripPhotoFromCssRule(rule)
+    );
+  }
+
+  if (Array.isArray(clone.pages)) {
+    clone.pages = (clone.pages as JsonValue[]).map((page) =>
+      stripPhotoFromPage(page)
+    );
+  }
+
+  return clone;
+};
+
+/** True when value looks like a non-empty GrapesJS project payload. */
+export const isUsableProjectData = (
+  value: unknown
+): value is GrapesProjectData => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (Array.isArray(value.pages) && value.pages.length > 0) {
+    return true;
+  }
+
+  // Some exports may only have styles + empty pages; still prefer over bare HTML
+  // when pages array exists (even empty means intentional project shape).
+  return Array.isArray(value.pages) || Array.isArray(value.styles);
 };

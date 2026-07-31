@@ -1,71 +1,127 @@
 import { useCallback, useRef, useState } from "react";
 
+import { projectDataKey } from "~/lib/announcement-overlay-html";
+import type {
+  AnnouncementDocument,
+  GrapesProjectData,
+} from "~/lib/announcement-types";
+
 /** Max past snapshots retained for undo (present is separate). */
 export const HTML_HISTORY_MAX_SNAPSHOTS = 10;
 
+/** @deprecated Use DOCUMENT_HISTORY_MAX_SNAPSHOTS — alias kept for call sites. */
+export const DOCUMENT_HISTORY_MAX_SNAPSHOTS = HTML_HISTORY_MAX_SNAPSHOTS;
+
 interface HistoryState {
-  future: string[];
-  past: string[];
-  present: string;
+  future: AnnouncementDocument[];
+  past: AnnouncementDocument[];
+  present: AnnouncementDocument;
 }
 
 export interface HtmlHistoryApi {
   canRedo: boolean;
   canUndo: boolean;
   /** Commit a new present state (records a snapshot for undo). */
-  commit: (nextHtml: string) => void;
+  commit: (next: AnnouncementDocument | string) => void;
+  /** Present document (GrapesJS project JSON + derived HTML). */
+  document: AnnouncementDocument;
+  /** Derived overlay HTML (export / code view). */
   html: string;
-  /** Apply redo; returns the restored HTML, or null if none. */
-  redo: () => string | null;
+  /** GrapesJS project JSON, or null for HTML-only legacy snapshots. */
+  projectData: GrapesProjectData | null;
+  /** Apply redo; returns the restored document, or null if none. */
+  redo: () => AnnouncementDocument | null;
   /** Replace present without recording history (load / external server draft). */
-  reset: (nextHtml: string) => void;
-  /** Set present without a snapshot (code editor keystrokes). */
+  reset: (next: AnnouncementDocument | string) => void;
+  /**
+   * Set present without a snapshot (code-editor keystrokes).
+   * Passing a string updates HTML and clears projectData (HTML path).
+   */
+  setDocument: (next: AnnouncementDocument | string) => void;
+  /** @deprecated Prefer setDocument — string form clears projectData. */
   setHtml: (nextHtml: string) => void;
-  /** Apply undo; returns the restored HTML, or null if none. */
-  undo: () => string | null;
+  /** Apply undo; returns the restored document, or null if none. */
+  undo: () => AnnouncementDocument | null;
 }
 
+const toDocument = (
+  value: AnnouncementDocument | string
+): AnnouncementDocument => {
+  if (typeof value === "string") {
+    return { html: value, projectData: null };
+  }
+
+  return {
+    html: value.html,
+    projectData: value.projectData ?? null,
+  };
+};
+
+const sameDocument = (
+  a: AnnouncementDocument,
+  b: AnnouncementDocument
+): boolean =>
+  a.html === b.html &&
+  projectDataKey(a.projectData) === projectDataKey(b.projectData);
+
 /**
- * Bounded undo/redo stack for announcement HTML overlays.
+ * Bounded undo/redo stack for announcement canvas documents.
+ * Stores GrapesJS project JSON (canonical) plus derived HTML for export/code view.
  * Keeps up to {@link HTML_HISTORY_MAX_SNAPSHOTS} past entries plus present.
  */
-export const useHtmlHistory = (initialHtml: string): HtmlHistoryApi => {
-  const [state, setState] = useState<HistoryState>({
+export const useHtmlHistory = (
+  initial: AnnouncementDocument | string
+): HtmlHistoryApi => {
+  const [state, setState] = useState<HistoryState>(() => ({
     future: [],
     past: [],
-    present: initialHtml,
-  });
+    present: toDocument(initial),
+  }));
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const reset = useCallback((nextHtml: string) => {
+  const reset = useCallback((nextValue: AnnouncementDocument | string) => {
     const next: HistoryState = {
       future: [],
       past: [],
-      present: nextHtml,
+      present: toDocument(nextValue),
     };
     stateRef.current = next;
     setState(next);
   }, []);
 
-  const setHtml = useCallback((nextHtml: string) => {
-    setState((previous) => {
-      if (previous.present === nextHtml) {
-        return previous;
-      }
+  const setDocument = useCallback(
+    (nextValue: AnnouncementDocument | string) => {
+      setState((previous) => {
+        const present = toDocument(nextValue);
 
-      const next: HistoryState = {
-        ...previous,
-        present: nextHtml,
-      };
-      stateRef.current = next;
-      return next;
-    });
-  }, []);
+        if (sameDocument(previous.present, present)) {
+          return previous;
+        }
 
-  const commit = useCallback((nextHtml: string) => {
+        const next: HistoryState = {
+          ...previous,
+          present,
+        };
+        stateRef.current = next;
+        return next;
+      });
+    },
+    []
+  );
+
+  const setHtml = useCallback(
+    (nextHtml: string) => {
+      setDocument(nextHtml);
+    },
+    [setDocument]
+  );
+
+  const commit = useCallback((nextValue: AnnouncementDocument | string) => {
     setState((previous) => {
-      if (previous.present === nextHtml) {
+      const present = toDocument(nextValue);
+
+      if (sameDocument(previous.present, present)) {
         return previous;
       }
 
@@ -74,14 +130,14 @@ export const useHtmlHistory = (initialHtml: string): HtmlHistoryApi => {
         past: [...previous.past, previous.present].slice(
           -HTML_HISTORY_MAX_SNAPSHOTS
         ),
-        present: nextHtml,
+        present,
       };
       stateRef.current = next;
       return next;
     });
   }, []);
 
-  const undo = useCallback((): string | null => {
+  const undo = useCallback((): AnnouncementDocument | null => {
     const previous = stateRef.current;
 
     if (previous.past.length === 0) {
@@ -107,7 +163,7 @@ export const useHtmlHistory = (initialHtml: string): HtmlHistoryApi => {
     return target;
   }, []);
 
-  const redo = useCallback((): string | null => {
+  const redo = useCallback((): AnnouncementDocument | null => {
     const previous = stateRef.current;
 
     if (previous.future.length === 0) {
@@ -136,9 +192,12 @@ export const useHtmlHistory = (initialHtml: string): HtmlHistoryApi => {
     canRedo: state.future.length > 0,
     canUndo: state.past.length > 0,
     commit,
-    html: state.present,
+    document: state.present,
+    html: state.present.html,
+    projectData: state.present.projectData,
     redo,
     reset,
+    setDocument,
     setHtml,
     undo,
   };
