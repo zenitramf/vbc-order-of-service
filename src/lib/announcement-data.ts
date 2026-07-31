@@ -4,25 +4,21 @@ import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
 import { v4 as uuidv4 } from "uuid";
 
-import {
-  canvasPlanJsonSchema,
-  extractStructuredJson,
-  parseCanvasPlan,
-} from "~/lib/announcement-ai-plan";
 import type { CanvasPlan } from "~/lib/announcement-ai-plan";
-import { ANNOUNCEMENT_BLOCK_IDS } from "~/lib/announcement-block-templates";
-import { listStylePacks } from "~/lib/announcement-style-library";
+import { isMaterialSave } from "~/lib/announcement-material";
 import type {
   AddLibraryImageAsVariationInput,
+  AnnouncementAiQueueMessage,
   AnnouncementAsset,
   AnnouncementContent,
   AnnouncementDraft,
   AnnouncementGenerationJob,
-  AnnouncementImageGenQueueMessage,
+  AnnouncementLayoutJob,
   AnnouncementSummary,
   AnnouncementVariation,
   ApproveAnnouncementInput,
   CreateAnnouncementInput,
+  ExportAnnouncementInput,
   GenerateAnnouncementLayoutInput,
   GenerateAnnouncementLayoutResult,
   GenerateBackgroundsInput,
@@ -41,14 +37,9 @@ import {
 import { requireSessionMiddleware } from "~/lib/auth.functions";
 import { LIBRARY_R2_PREFIX } from "~/lib/image-library-types";
 
+export { isMaterialSave } from "~/lib/announcement-material";
+
 const INDEX_KEY = "announcements/index.json";
-/**
- * Layout ops (CanvasPlan) via structured JSON schema output.
- * @see https://docs.x.ai/developers/model-capabilities/text/structured-outputs
- */
-const LAYOUT_MODEL = "xai/grok-4.5";
-/** Fallback if 4.5 rejects schema path provider-side. */
-const LAYOUT_MODEL_FALLBACK = "xai/grok-4.3";
 /** Always generate a single background per request (UI no longer exposes count). */
 const VARIATIONS_PER_REQUEST = 1;
 
@@ -60,20 +51,10 @@ const getBucket = (): R2Bucket => {
   return env.SERVICE_PDFS;
 };
 
-const getAi = (): Ai => {
-  if (!env.AI) {
-    throw new Error(
-      "Workers AI binding AI is missing. Check wrangler.jsonc ai.binding."
-    );
-  }
-
-  return env.AI;
-};
-
-const getImageGenQueue = (): Queue<AnnouncementImageGenQueueMessage> => {
+const getAnnouncementAiQueue = (): Queue<AnnouncementAiQueueMessage> => {
   const queue = (
     env as unknown as {
-      OOS_ANNOUNCEMENT_IMAGE_GEN?: Queue<AnnouncementImageGenQueueMessage>;
+      OOS_ANNOUNCEMENT_IMAGE_GEN?: Queue<AnnouncementAiQueueMessage>;
     }
   ).OOS_ANNOUNCEMENT_IMAGE_GEN;
 
@@ -90,92 +71,24 @@ const isGenerationJobActive = (
   job: AnnouncementGenerationJob | null | undefined
 ): boolean => job?.status === "queued" || job?.status === "running";
 
-/** Gateway id from wrangler vars / .env (default auto-created gateway). */
-const getAiGatewayId = (): string => {
-  const fromEnv = (
-    env as unknown as { AI_GATEWAY_ID?: string }
-  ).AI_GATEWAY_ID?.trim();
-  return fromEnv || "default";
-};
+const isLayoutJobActive = (
+  job: AnnouncementLayoutJob | null | undefined
+): boolean => job?.status === "queued" || job?.status === "running";
 
-/**
- * Inference via Workers AI binding, routed through AI Gateway
- * (same pattern as product-gen-portal: env.AI.run + gateway.id).
- */
-const safeJsonStringify = (value: unknown): string => {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-};
-
-/**
- * Pull nested detail from AI Gateway / Workers AI error shapes so UI toasts
- * show more than `7003: User Input Error — {"name":"AiGatewayError"}`.
- */
-const formatAiError = (error: unknown): string => {
+const formatQueueError = (error: unknown): string => {
   if (error instanceof Error) {
-    const withExtras = error as Error & {
-      cause?: unknown;
-      code?: number | string;
-      error?: unknown;
-      errors?: unknown;
-      details?: unknown;
-    };
-    const parts = [withExtras.message];
-
-    if (withExtras.code !== undefined && withExtras.code !== null) {
-      parts.push(`code=${withExtras.code}`);
-    }
-
-    for (const key of ["error", "errors", "details"] as const) {
-      const value = withExtras[key];
-      if (value !== undefined && value !== null) {
-        parts.push(
-          typeof value === "string" ? value : safeJsonStringify(value)
-        );
-      }
-    }
-
-    if (withExtras.cause !== undefined && withExtras.cause !== null) {
-      if (withExtras.cause instanceof Error) {
-        parts.push(formatAiError(withExtras.cause));
-      } else {
-        parts.push(
-          typeof withExtras.cause === "string"
-            ? withExtras.cause
-            : safeJsonStringify(withExtras.cause)
-        );
-      }
-    }
-
-    return parts.filter(Boolean).join(" — ");
+    return error.message;
   }
 
   if (error && typeof error === "object") {
-    return safeJsonStringify(error);
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
   }
 
   return String(error);
-};
-
-const runAiGateway = async (
-  model: string,
-  input: Record<string, unknown>
-): Promise<unknown> => {
-  const ai = getAi();
-  const gatewayId = getAiGatewayId();
-
-  try {
-    return await ai.run(model as Parameters<Ai["run"]>[0], input, {
-      gateway: { id: gatewayId },
-    });
-  } catch (error) {
-    throw new Error(`[AI Gateway:${gatewayId}] ${formatAiError(error)}`, {
-      cause: error,
-    });
-  }
 };
 
 const nowIso = () => new Date().toISOString();
@@ -245,6 +158,7 @@ type AnnouncementDraftRecord = Omit<AnnouncementDraft, "legacyHtml">;
 /** Raw R2 payload may still include a legacy `html` string. */
 type AnnouncementDraftRaw = Partial<AnnouncementDraftRecord> & {
   html?: unknown;
+  layoutJob?: unknown;
   projectData?: unknown;
   variations?: AnnouncementDraft["variations"];
 };
@@ -306,6 +220,44 @@ const normalizeGenerationJob = (
   };
 };
 
+const isLayoutPlan = (value: unknown): value is CanvasPlan => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const raw = value as Record<string, unknown>;
+  return (
+    raw.version === 1 &&
+    raw.mode === "rebuild" &&
+    Array.isArray(raw.ops)
+  );
+};
+
+/** Backfill for drafts saved before async layout jobs existed. */
+const normalizeLayoutJob = (value: unknown): AnnouncementLayoutJob | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Partial<AnnouncementLayoutJob> & { plan?: unknown };
+  const status = isGenerationStatus(raw.status) ? raw.status : "idle";
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    error: asNullableString(raw.error),
+    id,
+    plan: isLayoutPlan(raw.plan) ? raw.plan : null,
+    startedAt: asNullableString(raw.startedAt),
+    status,
+    styleNotes: asString(raw.styleNotes),
+    updatedAt: asString(raw.updatedAt, nowIso()),
+  };
+};
+
 const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
   const projectData = normalizeProjectData(raw.projectData);
   const legacyHtmlFromFile =
@@ -333,6 +285,7 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
     generationJob: normalizeGenerationJob(raw.generationJob),
     height: typeof raw.height === "number" ? raw.height : ANNOUNCEMENT_HEIGHT,
     id: asString(raw.id),
+    layoutJob: normalizeLayoutJob(raw.layoutJob),
     legacyHtml,
     name: asString(raw.name),
     projectData,
@@ -358,6 +311,7 @@ const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
   generationJob: draft.generationJob,
   height: draft.height,
   id: draft.id,
+  layoutJob: draft.layoutJob,
   name: draft.name,
   projectData: draft.projectData,
   selectedVariationId: draft.selectedVariationId,
@@ -482,115 +436,6 @@ const putImageBytes = async (
   });
 };
 
-const layoutSystemPrompt = [
-  "You design church announcement overlays for a 1920×1080 GrapesJS canvas.",
-  "Your output is constrained to the canvas_plan JSON schema.",
-  "Prefer: applyPreset with a known packId from the provided list, then optional updateRole style tweaks.",
-  "Never paint photographic backgrounds (the variation photo is applied separately on the Body).",
-  "Scrims/panels must use alpha linear-gradients fading to transparent (never solid opaque fills).",
-  "Use content fields exactly as provided for text (no copy rewrite unless style notes request polish).",
-  "Do not emit HTML. Do not emit GrapesJS project JSON. Only CanvasPlan ops.",
-].join(" ");
-
-const buildLayoutUserPayload = (options: {
-  content: AnnouncementContent;
-  styleNotes?: string;
-}): string =>
-  JSON.stringify(
-    {
-      availableBlocks: ANNOUNCEMENT_BLOCK_IDS,
-      availablePresets: listStylePacks().map((pack) => ({
-        composition: pack.composition,
-        description: pack.description,
-        id: pack.id,
-        name: pack.name,
-      })),
-      canvas: {
-        height: ANNOUNCEMENT_HEIGHT,
-        width: ANNOUNCEMENT_WIDTH,
-      },
-      content: options.content,
-      styleNotes:
-        options.styleNotes?.trim() ||
-        "Warm, reverent, modern church graphic. Bottom-weighted text with elegant serif title.",
-    },
-    null,
-    2
-  );
-
-const layoutRequestInput = (userPayload: string): Record<string, unknown> => ({
-  messages: [
-    { content: layoutSystemPrompt, role: "system" },
-    { content: userPayload, role: "user" },
-  ],
-  response_format: {
-    json_schema: {
-      name: "canvas_plan",
-      schema: canvasPlanJsonSchema,
-      strict: true,
-    },
-    type: "json_schema",
-  },
-  temperature: 0.4,
-});
-
-const generateLayoutPlanWithAi = async (options: {
-  content: AnnouncementContent;
-  styleNotes?: string;
-}): Promise<CanvasPlan> => {
-  const userPayload = buildLayoutUserPayload(options);
-  const input = layoutRequestInput(userPayload);
-
-  let response: unknown;
-  try {
-    response = await runAiGateway(LAYOUT_MODEL, input);
-  } catch (primaryError) {
-    try {
-      response = await runAiGateway(LAYOUT_MODEL_FALLBACK, input);
-    } catch {
-      throw primaryError instanceof Error
-        ? primaryError
-        : new Error(String(primaryError));
-    }
-  }
-
-  const structured = extractStructuredJson(response);
-
-  if (structured === null) {
-    throw new Error("AI Gateway returned empty layout plan.");
-  }
-
-  try {
-    return parseCanvasPlan(structured);
-  } catch (firstError) {
-    // One repair attempt: ask the same model to fix schema issues.
-    const repairPayload = JSON.stringify(
-      {
-        error:
-          firstError instanceof Error
-            ? firstError.message
-            : "Invalid canvas plan",
-        previous: structured,
-        task: "Return a corrected canvas_plan that satisfies the schema.",
-      },
-      null,
-      2
-    );
-
-    try {
-      const repaired = await runAiGateway(LAYOUT_MODEL, {
-        ...layoutRequestInput(repairPayload),
-        temperature: 0.2,
-      });
-      return parseCanvasPlan(extractStructuredJson(repaired));
-    } catch {
-      throw firstError instanceof Error
-        ? firstError
-        : new Error(String(firstError));
-    }
-  }
-};
-
 const readAssetBase64 = async (
   objectKey: string
 ): Promise<AnnouncementAsset> => {
@@ -649,6 +494,7 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       generationJob: null,
       height: ANNOUNCEMENT_HEIGHT,
       id,
+      layoutJob: null,
       legacyHtml: null,
       name,
       // Canvas is project JSON only — client applies default preset and saves.
@@ -669,6 +515,8 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
   .validator((data: SaveAnnouncementInput) => data)
   .handler(async ({ data }): Promise<AnnouncementDraft> => {
     const draft = await loadDraft(data.id);
+    // Compare against stored draft *before* applying mutations.
+    const material = isMaterialSave(draft, data);
 
     if (data.name !== undefined) {
       const name = data.name.trim();
@@ -699,7 +547,10 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
           : null;
     }
 
-    markDirtyIfApproved(draft);
+    if (material) {
+      markDirtyIfApproved(draft);
+    }
+
     return await saveDraft(draft);
   });
 
@@ -759,21 +610,22 @@ export const generateBackgrounds = createServerFn({ method: "POST" })
     markDirtyIfApproved(draft);
     const saved = await saveDraft(draft);
 
-    const message: AnnouncementImageGenQueueMessage = {
+    const message: AnnouncementAiQueueMessage = {
       announcementId: draft.id,
       count,
       jobId,
       parentVariationId,
       prompt,
       referenceObjectKey,
+      type: "background",
     };
 
     try {
-      await getImageGenQueue().send(message, { contentType: "json" });
+      await getAnnouncementAiQueue().send(message, { contentType: "json" });
     } catch (error) {
       saved.generationJob = {
         completedCount: 0,
-        error: formatAiError(error),
+        error: formatQueueError(error),
         id: jobId,
         prompt,
         requestedCount: count,
@@ -784,7 +636,7 @@ export const generateBackgrounds = createServerFn({ method: "POST" })
       };
       await saveDraft(saved);
       throw new Error(
-        `Could not enqueue background generation: ${formatAiError(error)}`,
+        `Could not enqueue background generation: ${formatQueueError(error)}`,
         { cause: error }
       );
     }
@@ -947,8 +799,8 @@ export const removeAllVariations = createServerFn({ method: "POST" })
   });
 
 /**
- * Generate a CanvasPlan via AI (structured JSON schema).
- * Client applies the plan with GrapesJS Editor APIs — never HTML seed.
+ * Enqueue async AI layout generation (CanvasPlan) on the slim worker.
+ * Client polls `layoutJob` and applies the plan with GrapesJS — never HTML seed.
  */
 export const generateAnnouncementLayout = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
@@ -967,16 +819,55 @@ export const generateAnnouncementLayout = createServerFn({ method: "POST" })
       throw new Error("Add title, subtitle, heading, or tertiary text first.");
     }
 
-    const plan = await generateLayoutPlanWithAi({
-      content: draft.content,
-      styleNotes: data.styleNotes,
-    });
+    if (isLayoutJobActive(draft.layoutJob)) {
+      throw new Error(
+        "Layout generation is already in progress for this announcement."
+      );
+    }
 
-    markDirtyIfApproved(draft);
+    const jobId = uuidv4();
+    const timestamp = nowIso();
+    const styleNotes = data.styleNotes?.trim() || "";
+
+    draft.layoutJob = {
+      error: null,
+      id: jobId,
+      plan: null,
+      startedAt: null,
+      status: "queued",
+      styleNotes,
+      updatedAt: timestamp,
+    };
+    // Enqueue alone does not change the canvas — demote only when plan is applied.
     const saved = await saveDraft(draft);
 
-    // Plan is ephemeral — not stored on the draft.
-    return { draft: saved, plan };
+    const message: AnnouncementAiQueueMessage = {
+      announcementId: draft.id,
+      jobId,
+      styleNotes,
+      type: "layout",
+    };
+
+    try {
+      await getAnnouncementAiQueue().send(message, { contentType: "json" });
+    } catch (error) {
+      saved.layoutJob = {
+        error: formatQueueError(error),
+        id: jobId,
+        plan: null,
+        startedAt: null,
+        status: "failed",
+        styleNotes,
+        updatedAt: nowIso(),
+      };
+      await saveDraft(saved);
+      throw new Error(
+        `Could not enqueue layout generation: ${formatQueueError(error)}`,
+        { cause: error }
+      );
+    }
+
+    return { draft: saved };
   });
 
 export const getAnnouncementAsset = createServerFn({ method: "GET" })
@@ -990,14 +881,17 @@ export const getAnnouncementAsset = createServerFn({ method: "GET" })
     return await readAssetBase64(data);
   });
 
-export const approveAnnouncement = createServerFn({ method: "POST" })
+/**
+ * Store a client-captured JPG export. Does not change approval status.
+ */
+export const exportAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
-  .validator((data: ApproveAnnouncementInput) => data)
+  .validator((data: ExportAnnouncementInput) => data)
   .handler(async ({ data }): Promise<AnnouncementDraft> => {
     const draft = await loadDraft(data.id);
 
     if (!draft.selectedVariationId) {
-      throw new Error("Select a background variation before approving.");
+      throw new Error("Select a background variation before exporting.");
     }
 
     if (!data.base64.trim()) {
@@ -1012,6 +906,22 @@ export const approveAnnouncement = createServerFn({ method: "POST" })
     );
 
     draft.exportObjectKey = objectKey;
+    return await saveDraft(draft);
+  });
+
+/**
+ * Mark announcement approved. Does not capture or store a JPG — use export.
+ */
+export const approveAnnouncement = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: ApproveAnnouncementInput) => data)
+  .handler(async ({ data }): Promise<AnnouncementDraft> => {
+    const draft = await loadDraft(data.id);
+
+    if (!draft.selectedVariationId) {
+      throw new Error("Select a background variation before approving.");
+    }
+
     draft.status = "approved";
     draft.approvedAt = nowIso();
     return await saveDraft(draft);

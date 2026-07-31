@@ -26,8 +26,8 @@ share the TanStack Start isolate (128 MB limit).
 
 | Worker | Role |
 | ------ | ---- |
-| `vbc-order-of-service` | App HTTP + email queue; **produces** image-gen jobs |
-| `vbc-oos-announcement-image-gen` | **Consumes** image-gen queue → Workers AI → R2 |
+| `vbc-order-of-service` | App HTTP + email queue; **produces** announcement AI jobs (no `env.AI`) |
+| `vbc-oos-announcement-image-gen` | **Consumes** queue → background images + layout plans → R2 |
 
 ```bash
 pnpm deploy:image-gen   # deploy consumer first (claims the queue)

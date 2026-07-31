@@ -1,5 +1,5 @@
 /**
- * Queue consumer for announcement AI background generation.
+ * Queue consumer for announcement AI (background images + layout plans).
  *
  * Runs only in the slim `vbc-oos-announcement-image-gen` Worker so AI payloads
  * never share an isolate with TanStack Start / GrapesJS.
@@ -8,13 +8,17 @@ import { Buffer } from "node:buffer";
 
 import { env } from "cloudflare:workers";
 
+import { generateLayoutPlanWithAi } from "./layout-ai";
 import type {
   AnnouncementAsset,
+  AnnouncementBackgroundGenQueueMessage,
   AnnouncementDraft,
   AnnouncementGenerationJob,
-  AnnouncementImageGenQueueMessage,
+  AnnouncementLayoutGenQueueMessage,
+  AnnouncementLayoutJob,
   AnnouncementSummary,
   AnnouncementVariation,
+  CanvasPlanJson,
 } from "./types";
 import {
   ANNOUNCEMENT_ASPECT_RATIO,
@@ -188,6 +192,7 @@ type AnnouncementDraftRecord = Omit<AnnouncementDraft, "legacyHtml">;
 
 type AnnouncementDraftRaw = Partial<AnnouncementDraftRecord> & {
   html?: unknown;
+  layoutJob?: unknown;
   projectData?: unknown;
   variations?: AnnouncementDraft["variations"];
 };
@@ -248,6 +253,41 @@ const normalizeGenerationJob = (
   };
 };
 
+const isLayoutPlan = (value: unknown): value is CanvasPlanJson => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const raw = value as Record<string, unknown>;
+  return (
+    raw.version === 1 && raw.mode === "rebuild" && Array.isArray(raw.ops)
+  );
+};
+
+const normalizeLayoutJob = (value: unknown): AnnouncementLayoutJob | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Partial<AnnouncementLayoutJob> & { plan?: unknown };
+  const status = isGenerationStatus(raw.status) ? raw.status : "idle";
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    error: asNullableString(raw.error),
+    id,
+    plan: isLayoutPlan(raw.plan) ? raw.plan : null,
+    startedAt: asNullableString(raw.startedAt),
+    status,
+    styleNotes: asString(raw.styleNotes),
+    updatedAt: asString(raw.updatedAt, nowIso()),
+  };
+};
+
 const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
   const projectData = normalizeProjectData(raw.projectData);
   const legacyHtmlFromFile =
@@ -273,6 +313,7 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
     generationJob: normalizeGenerationJob(raw.generationJob),
     height: typeof raw.height === "number" ? raw.height : ANNOUNCEMENT_HEIGHT,
     id: asString(raw.id),
+    layoutJob: normalizeLayoutJob(raw.layoutJob),
     legacyHtml,
     name: asString(raw.name),
     projectData,
@@ -297,6 +338,7 @@ const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
   generationJob: draft.generationJob,
   height: draft.height,
   id: draft.id,
+  layoutJob: draft.layoutJob,
   name: draft.name,
   projectData: draft.projectData,
   selectedVariationId: draft.selectedVariationId,
@@ -654,7 +696,7 @@ const readReferenceAssetBase64 = async (
 
 const markJob = (
   draft: AnnouncementDraft,
-  message: AnnouncementImageGenQueueMessage,
+  message: AnnouncementBackgroundGenQueueMessage,
   patch: Partial<AnnouncementGenerationJob> &
     Pick<AnnouncementGenerationJob, "status">
 ): void => {
@@ -678,13 +720,36 @@ const markJob = (
   };
 };
 
+const markLayoutJob = (
+  draft: AnnouncementDraft,
+  message: AnnouncementLayoutGenQueueMessage,
+  patch: Partial<AnnouncementLayoutJob> &
+    Pick<AnnouncementLayoutJob, "status">
+): void => {
+  draft.layoutJob = {
+    error:
+      patch.error === undefined
+        ? (draft.layoutJob?.error ?? null)
+        : patch.error,
+    id: message.jobId,
+    plan: patch.plan === undefined ? (draft.layoutJob?.plan ?? null) : patch.plan,
+    startedAt:
+      patch.startedAt === undefined
+        ? (draft.layoutJob?.startedAt ?? nowIso())
+        : patch.startedAt,
+    status: patch.status,
+    styleNotes: message.styleNotes,
+    updatedAt: nowIso(),
+  };
+};
+
 /**
  * Generate one variation, then reload draft before persist so we do not hold
  * the full draft graph in memory alongside AI request/response buffers.
  */
 const persistGeneratedVariation = async (options: {
   index: number;
-  message: AnnouncementImageGenQueueMessage;
+  message: AnnouncementBackgroundGenQueueMessage;
   referenceContentType?: string;
   referenceImageBase64?: string;
 }): Promise<void> => {
@@ -729,7 +794,7 @@ const persistGeneratedVariation = async (options: {
 
 const generateVariationsSequentially = async (options: {
   index: number;
-  message: AnnouncementImageGenQueueMessage;
+  message: AnnouncementBackgroundGenQueueMessage;
   referenceContentType?: string;
   referenceImageBase64?: string;
 }): Promise<void> => {
@@ -745,7 +810,7 @@ const generateVariationsSequentially = async (options: {
 };
 
 const markJobFailed = async (
-  message: AnnouncementImageGenQueueMessage,
+  message: AnnouncementBackgroundGenQueueMessage,
   fallback: AnnouncementDraft,
   error: unknown
 ): Promise<void> => {
@@ -765,12 +830,101 @@ const markJobFailed = async (
   await saveDraft(latest);
 };
 
+const markLayoutJobFailed = async (
+  message: AnnouncementLayoutGenQueueMessage,
+  fallback: AnnouncementDraft,
+  error: unknown
+): Promise<void> => {
+  const latest = await loadDraft(message.announcementId).catch(() => fallback);
+  const currentJob = latest.layoutJob;
+
+  if (currentJob?.id !== message.jobId) {
+    return;
+  }
+
+  markLayoutJob(latest, message, {
+    error: formatAiError(error),
+    plan: null,
+    startedAt: currentJob.startedAt,
+    status: "failed",
+  });
+  await saveDraft(latest);
+};
+
+/**
+ * Queue consumer: generate a CanvasPlan via Grok and store it on layoutJob.
+ * User errors are written as failed + return (acked by index); gateway errors rethrow for retry.
+ */
+export const processAnnouncementLayoutGen = async (
+  message: AnnouncementLayoutGenQueueMessage
+): Promise<void> => {
+  const draft = await loadDraft(message.announcementId);
+  const job = draft.layoutJob;
+
+  if (!job || job.id !== message.jobId || job.status === "completed") {
+    return;
+  }
+
+  if (
+    !(
+      draft.content.title ||
+      draft.content.subtitle ||
+      draft.content.heading ||
+      draft.content.tertiary
+    )
+  ) {
+    markLayoutJob(draft, message, {
+      error: "Add title, subtitle, heading, or tertiary text first.",
+      plan: null,
+      startedAt: job.startedAt ?? nowIso(),
+      status: "failed",
+    });
+    await saveDraft(draft);
+    return;
+  }
+
+  markLayoutJob(draft, message, {
+    error: null,
+    plan: null,
+    startedAt: job.startedAt ?? nowIso(),
+    status: "running",
+  });
+  await saveDraft(draft);
+
+  const { id: announcementId, content } = draft;
+  const { styleNotes } = message;
+
+  try {
+    const plan = await generateLayoutPlanWithAi(
+      { content, styleNotes },
+      runAiGateway
+    );
+
+    const completed = await loadDraft(announcementId);
+    if (completed.layoutJob?.id !== message.jobId) {
+      return;
+    }
+
+    markLayoutJob(completed, message, {
+      error: null,
+      plan,
+      startedAt: completed.layoutJob.startedAt,
+      status: "completed",
+    });
+    await saveDraft(completed);
+  } catch (error) {
+    const fallback = await loadDraft(announcementId).catch(() => draft);
+    await markLayoutJobFailed(message, fallback, error);
+    throw error;
+  }
+};
+
 /**
  * Queue consumer: generate variations sequentially, one image at a time.
  * Resumes from generationJob.completedCount for safe retries.
  */
 export const processAnnouncementImageGen = async (
-  message: AnnouncementImageGenQueueMessage
+  message: AnnouncementBackgroundGenQueueMessage
 ): Promise<void> => {
   const draft = await loadDraft(message.announcementId);
   const job = draft.generationJob;

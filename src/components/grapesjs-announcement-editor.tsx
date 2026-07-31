@@ -74,6 +74,11 @@ export interface GrapesjsAnnouncementEditorProps {
    * @see https://grapesjs.com/docs/modules/Storage.html
    */
   projectData: GrapesProjectData | null;
+  /**
+   * When true, suppress change emissions and block pointer interaction so
+   * approved announcements can be viewed without accidental demotion.
+   */
+  readOnly?: boolean;
   ref?: Ref<GrapesjsAnnouncementEditorHandle>;
   /**
    * One-shot HTML seed for legacy draft migration only.
@@ -416,6 +421,7 @@ export const GrapesjsAnnouncementEditor = ({
   className,
   onProjectChange,
   projectData,
+  readOnly = false,
   ref,
   seedHtml = null,
   seedRevision = 0,
@@ -426,6 +432,7 @@ export const GrapesjsAnnouncementEditor = ({
   const backgroundUrlRef = useRef(backgroundUrl);
   const seedHtmlRef = useRef(seedHtml);
   const projectDataRef = useRef(projectData);
+  const readOnlyRef = useRef(readOnly);
   const syncedProjectKeyRef = useRef(projectDataKey(projectData));
   const syncedSeedRevisionRef = useRef(seedRevision);
   const suppressEmitRef = useRef(false);
@@ -440,6 +447,7 @@ export const GrapesjsAnnouncementEditor = ({
   backgroundUrlRef.current = backgroundUrl;
   seedHtmlRef.current = seedHtml;
   projectDataRef.current = projectData;
+  readOnlyRef.current = readOnly;
 
   useImperativeHandle(
     ref,
@@ -644,7 +652,7 @@ export const GrapesjsAnnouncementEditor = ({
     registerAnnouncementBlocks(editor);
 
     const flushSave = (): void => {
-      if (suppressEmitRef.current) {
+      if (suppressEmitRef.current || readOnlyRef.current) {
         return;
       }
 
@@ -916,6 +924,7 @@ export const GrapesjsAnnouncementEditor = ({
     <div
       className={cn(
         "grapesjs-announcement-editor flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-lg border",
+        readOnly && "pointer-events-none opacity-95",
         className
       )}
     >

@@ -115,6 +115,7 @@ import {
   addLibraryImageAsVariation,
   approveAnnouncement,
   clearVariationContext,
+  exportAnnouncement,
   generateAnnouncementLayout,
   generateBackgrounds,
   getAnnouncement,
@@ -125,6 +126,7 @@ import {
   selectVariation,
   setShowInPresentationDeck,
 } from "~/lib/announcement-data";
+import { parseCanvasPlan } from "~/lib/announcement-ai-plan";
 import {
   isUsableProjectData,
   prepareOverlayHtmlForRender,
@@ -141,6 +143,7 @@ import type {
   AnnouncementContent,
   AnnouncementDraft,
   AnnouncementGenerationJob,
+  AnnouncementLayoutJob,
   AnnouncementVariation,
   GrapesProjectData,
 } from "~/lib/announcement-types";
@@ -413,6 +416,7 @@ const LiveCanvasEditor = ({
   onApplyStylePack,
   onProjectChange,
   projectData,
+  readOnly = false,
   seedHtml,
   seedRevision,
 }: {
@@ -423,6 +427,7 @@ const LiveCanvasEditor = ({
   onApplyStylePack: (packId: string) => void;
   onProjectChange: (snapshot: AnnouncementCanvasSnapshot) => void;
   projectData: GrapesProjectData | null;
+  readOnly?: boolean;
   seedHtml: string | null;
   seedRevision: number;
 }) => {
@@ -430,6 +435,7 @@ const LiveCanvasEditor = ({
   const selectedPack =
     STYLE_PACK_OPTIONS.find((pack) => pack.value === selectedPackId) ?? null;
   const isApplying = applyingPackId !== null;
+  const presetsDisabled = isApplying || readOnly;
 
   return (
     <Card
@@ -441,9 +447,9 @@ const LiveCanvasEditor = ({
           <div className="flex min-w-0 flex-col gap-0.5">
             <CardTitle className="text-base">Announcements editor</CardTitle>
             <CardDescription className="text-xs">
-              Blocks, styles, layers, and traits. Background photo swaps with
-              the selected variation. Auto-saves · up to{" "}
-              {HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).
+              {readOnly
+                ? "Approved — unlock editing to change the canvas. Export still works."
+                : `Blocks, styles, layers, and traits. Background photo swaps with the selected variation. Auto-saves · up to ${HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).`}
             </CardDescription>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -455,7 +461,7 @@ const LiveCanvasEditor = ({
                 Presets
               </Label>
               <Combobox
-                disabled={isApplying}
+                disabled={presetsDisabled}
                 isItemEqualToValue={(item, value) => item.value === value.value}
                 items={STYLE_PACK_OPTIONS}
                 onValueChange={(pack) => {
@@ -467,7 +473,7 @@ const LiveCanvasEditor = ({
               >
                 <ComboboxInput
                   className="w-52"
-                  disabled={isApplying}
+                  disabled={presetsDisabled}
                   id="announcement-presets"
                   placeholder={isApplying ? "Applying…" : "Choose a preset"}
                 />
@@ -501,6 +507,7 @@ const LiveCanvasEditor = ({
           className="min-h-0 flex-1"
           onProjectChange={onProjectChange}
           projectData={projectData}
+          readOnly={readOnly}
           seedHtml={seedHtml}
           seedRevision={seedRevision}
         />
@@ -511,6 +518,7 @@ const LiveCanvasEditor = ({
 
 const VariationLibraryCard = ({
   assetUrls,
+  editDisabled = false,
   isClearingContext,
   isRemovingAll,
   onClearContext,
@@ -523,6 +531,7 @@ const VariationLibraryCard = ({
   variations,
 }: {
   assetUrls: Record<string, string>;
+  editDisabled?: boolean;
   isClearingContext: boolean;
   isRemovingAll: boolean;
   onClearContext: () => void;
@@ -569,7 +578,9 @@ const VariationLibraryCard = ({
         {variations.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={isClearingContext || !selectedVariationId}
+              disabled={
+                editDisabled || isClearingContext || !selectedVariationId
+              }
               onClick={onClearContext}
               size="sm"
               type="button"
@@ -588,7 +599,7 @@ const VariationLibraryCard = ({
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
-                  disabled={isRemovingAll}
+                  disabled={editDisabled || isRemovingAll}
                   size="sm"
                   type="button"
                   variant="outline"
@@ -689,12 +700,12 @@ const VariationLibraryCard = ({
                     <ContextMenuTrigger asChild>
                       <TableRow
                         className={cn(
-                          "cursor-pointer",
+                          !editDisabled && "cursor-pointer",
                           isSelected && "bg-muted/60"
                         )}
                         data-state={isSelected ? "selected" : undefined}
                         onClick={() => {
-                          if (!isBusy) {
+                          if (!isBusy && !editDisabled) {
                             onSelectVariation(row.original.id);
                           }
                         }}
@@ -711,7 +722,9 @@ const VariationLibraryCard = ({
                     </ContextMenuTrigger>
                     <ContextMenuContent>
                       <ContextMenuItem
-                        disabled={removingId === row.original.id}
+                        disabled={
+                          editDisabled || removingId === row.original.id
+                        }
                         onClick={() => onRemoveVariation(row.original.id)}
                         variant="destructive"
                       >
@@ -974,6 +987,10 @@ const LibraryImagePickerDialog = ({
 
 const isActiveGenerationJob = (
   job: AnnouncementGenerationJob | null | undefined
+): boolean => job?.status === "queued" || job?.status === "running";
+
+const isActiveLayoutJob = (
+  job: AnnouncementLayoutJob | null | undefined
 ): boolean => job?.status === "queued" || job?.status === "running";
 
 const GENERATION_QUEUE_STEPS = [
@@ -1244,6 +1261,104 @@ const useGenerationJobPoll = (options: {
   ]);
 };
 
+/**
+ * Poll draft while a layout job is queued/running.
+ * On completed, caller applies the plan via GrapesJS (onLayoutComplete).
+ */
+const useLayoutJobPoll = (options: {
+  announcementId: string;
+  getAnnouncementFn: (args: {
+    data: string;
+  }) => Promise<AnnouncementDraft | null>;
+  layoutJob: AnnouncementLayoutJob | null;
+  onDraft: (draft: AnnouncementDraft) => void;
+  onLayoutComplete: (draft: AnnouncementDraft) => void | Promise<void>;
+  onInvalidate: () => Promise<unknown>;
+}) => {
+  const {
+    announcementId,
+    getAnnouncementFn,
+    layoutJob,
+    onDraft,
+    onLayoutComplete,
+    onInvalidate,
+  } = options;
+
+  const jobActive = isActiveLayoutJob(layoutJob);
+  const jobId = layoutJob?.id ?? null;
+  const jobStatus = layoutJob?.status ?? null;
+  const appliedJobIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!jobActive) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    const poll = async () => {
+      try {
+        const next = await getAnnouncementFn({ data: announcementId });
+
+        if (cancelled || !next) {
+          return;
+        }
+
+        onDraft(next);
+
+        const job = next.layoutJob;
+
+        if (job?.status === "completed" && job.plan) {
+          if (appliedJobIdRef.current === job.id) {
+            return;
+          }
+
+          appliedJobIdRef.current = job.id;
+          await onLayoutComplete(next);
+          await onInvalidate();
+          return;
+        }
+
+        if (job?.status === "failed") {
+          toast.error(job.error || "Layout generation failed.");
+          await onInvalidate();
+          return;
+        }
+      } catch {
+        // Keep polling; transient errors are expected under load.
+      }
+
+      if (!cancelled) {
+        timeoutId = setTimeout(() => {
+          void poll();
+        }, 2500);
+      }
+    };
+
+    timeoutId = setTimeout(() => {
+      void poll();
+    }, 1500);
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [
+    announcementId,
+    getAnnouncementFn,
+    jobActive,
+    jobId,
+    jobStatus,
+    onDraft,
+    onInvalidate,
+    onLayoutComplete,
+  ]);
+};
+
 const localEnqueueProgressJob = (options: {
   prompt: string;
   useSelectedAsContext: boolean;
@@ -1335,6 +1450,7 @@ const ActiveContextBanner = ({
 
 const BackgroundImageCard = ({
   backgroundPrompt,
+  editDisabled = false,
   generationJob,
   isClearingContext,
   isGeneratingBg,
@@ -1346,6 +1462,7 @@ const BackgroundImageCard = ({
   usedLibraryImageIds,
 }: {
   backgroundPrompt: string;
+  editDisabled?: boolean;
   generationJob: AnnouncementGenerationJob | null;
   isClearingContext: boolean;
   isGeneratingBg: boolean;
@@ -1358,7 +1475,8 @@ const BackgroundImageCard = ({
 }) => {
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [isAddingLibraryImage, setIsAddingLibraryImage] = useState(false);
-  const jobBusy = isGeneratingBg || isActiveGenerationJob(generationJob);
+  const jobBusy =
+    editDisabled || isGeneratingBg || isActiveGenerationJob(generationJob);
   const progressJob = resolveProgressJob({
     backgroundPrompt,
     generationJob,
@@ -1423,7 +1541,7 @@ const BackgroundImageCard = ({
           <div className="flex flex-col gap-2">
             <Label htmlFor="bg-prompt">Background prompt</Label>
             <Textarea
-              disabled={jobBusy}
+              disabled={jobBusy || editDisabled}
               id="bg-prompt"
               onChange={(event) => setBackgroundPrompt(event.target.value)}
               rows={4}
@@ -1552,6 +1670,8 @@ const PresentationDeckControls = ({
   );
 };
 
+// Large page component: canvas, jobs, export, and edit-gate state live here.
+// oxlint-disable-next-line eslint/complexity -- announcement editor is intentionally one surface
 const AnnouncementEditor = ({
   announcement: initial,
 }: {
@@ -1569,12 +1689,17 @@ const AnnouncementEditor = ({
   const getAnnouncementFn = useServerFn(getAnnouncement);
   const getAssetFn = useServerFn(getAnnouncementAsset);
   const approveFn = useServerFn(approveAnnouncement);
+  const exportFn = useServerFn(exportAnnouncement);
 
   const [draft, setDraft] = useState(initial);
   const [name, setName] = useState(initial.name);
   const [content, setContent] = useState<AnnouncementContent>(initial.content);
   const [backgroundPrompt, setBackgroundPrompt] = useState(
     initial.backgroundPrompt
+  );
+  /** Approved announcements start locked; unlock requires explicit confirm. */
+  const [editUnlocked, setEditUnlocked] = useState(
+    () => initial.status !== "approved"
   );
   const initialCanvasProject = resolveCanvasProject(initial);
 
@@ -1617,6 +1742,7 @@ const AnnouncementEditor = ({
     null
   );
   const [isApproving, setIsApproving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [isClearingContext, setIsClearingContext] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -1646,10 +1772,11 @@ const AnnouncementEditor = ({
     setProjectJsonDraft(formatProjectJson(projectData));
   }, [projectData, projectJsonDirty]);
 
-  const hasApprovedExport =
-    draft.status === "approved" && Boolean(exportPreview);
+  const hasStoredExport = Boolean(exportPreview || draft.exportObjectKey);
   const presentationDeckEnabled =
     draft.status === "approved" && Boolean(draft.exportObjectKey);
+  const isEditLocked = draft.status === "approved" && !editUnlocked;
+  const canEdit = !isEditLocked;
 
   const selectedVariation = useMemo(
     () =>
@@ -1703,6 +1830,7 @@ const AnnouncementEditor = ({
     // Reset undo stack / seed only when opening a different announcement.
     if (lastHydratedIdRef.current !== initial.id) {
       lastHydratedIdRef.current = initial.id;
+      setEditUnlocked(initial.status !== "approved");
       const nextProject = resolveCanvasProject(initial);
 
       resetProjectHistory(nextProject);
@@ -1713,6 +1841,9 @@ const AnnouncementEditor = ({
         initial.projectData ? null : (initial.legacyHtml?.trim() ?? null)
       );
       setSeedRevision((revision) => revision + 1);
+    } else if (initial.status === "draft") {
+      // Server demoted after material save — allow editing without re-gate.
+      setEditUnlocked(true);
     }
   }, [initial, resetProjectHistory]);
 
@@ -1782,6 +1913,11 @@ const AnnouncementEditor = ({
     setContent(next.content);
     setBackgroundPrompt(next.backgroundPrompt);
 
+    // Material demotion unlocks editing; do not re-lock on every approved poll.
+    if (next.status === "draft") {
+      setEditUnlocked(true);
+    }
+
     if (options?.resetProjectHistory) {
       resetProjectHistory(next.projectData);
     } else {
@@ -1847,6 +1983,11 @@ const AnnouncementEditor = ({
       // Export HTML is in-memory only (JPG stage + view-only advanced panel).
       setExportHtml(snapshot.exportHtml);
 
+      // Never autosave while an approved announcement is still locked.
+      if (draft.status === "approved" && !editUnlocked) {
+        return;
+      }
+
       if (
         projectDataKey(snapshot.projectData) ===
         projectDataKey(projectDataRef.current)
@@ -1857,7 +1998,7 @@ const AnnouncementEditor = ({
       commitProjectHistory(snapshot.projectData);
       autoSaveProject(snapshot.projectData);
     },
-    [autoSaveProject, commitProjectHistory]
+    [autoSaveProject, commitProjectHistory, draft.status, editUnlocked]
   );
 
   /** Apply advanced JSON editor contents to the canvas and persist. */
@@ -2026,6 +2167,77 @@ const AnnouncementEditor = ({
     onInvalidate: invalidateRouter,
   });
 
+  const onLayoutComplete = useCallback(
+    async (completedDraft: AnnouncementDraft) => {
+      const rawPlan = completedDraft.layoutJob?.plan;
+
+      if (!rawPlan) {
+        toast.error("Layout job completed without a plan.");
+        return;
+      }
+
+      let plan;
+      try {
+        plan = parseCanvasPlan(rawPlan);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Layout plan from AI was invalid."
+        );
+        return;
+      }
+
+      setDraft(completedDraft);
+
+      const snapshot = grapesEditorRef.current?.applyAiPlan(
+        plan,
+        contentRef.current
+      );
+
+      if (!snapshot) {
+        toast.error("Editor is not ready. Try again in a moment.");
+        return;
+      }
+
+      setExportHtml(snapshot.exportHtml);
+      commitProjectHistory(snapshot.projectData);
+
+      try {
+        const next = await saveFn({
+          data: {
+            backgroundPrompt: backgroundPromptRef.current,
+            content: contentRef.current,
+            id: draftIdRef.current,
+            name: nameRef.current,
+            projectData: snapshot.projectData,
+            ...(plan.basePresetId ? { appliedStyleId: plan.basePresetId } : {}),
+          },
+        });
+        setDraft(next);
+        toast.success(
+          "Overlay generated via GrapesJS API (text only — not baked into the image)."
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Could not save generated layout."
+        );
+      }
+    },
+    [commitProjectHistory, saveFn]
+  );
+
+  useLayoutJobPoll({
+    announcementId: draft.id,
+    getAnnouncementFn,
+    layoutJob: draft.layoutJob,
+    onDraft: onPolledDraft,
+    onInvalidate: invalidateRouter,
+    onLayoutComplete,
+  });
+
   const onAddLibraryImage = async (image: ImageLibraryItem) => {
     const next = await addLibraryFn({
       data: {
@@ -2135,39 +2347,9 @@ const AnnouncementEditor = ({
       const result = await generateLayoutFn({
         data: { id: draft.id, styleNotes },
       });
-      applyDraft(result.draft, { resetProjectHistory: true });
-
-      const snapshot = grapesEditorRef.current?.applyAiPlan(
-        result.plan,
-        contentRef.current
-      );
-
-      if (!snapshot) {
-        toast.error("Editor is not ready. Try again in a moment.");
-        return;
-      }
-
-      setExportHtml(snapshot.exportHtml);
-      commitProjectHistory(snapshot.projectData);
-
-      const next = await saveFn({
-        data: {
-          backgroundPrompt: backgroundPromptRef.current,
-          content: contentRef.current,
-          id: draftIdRef.current,
-          name: nameRef.current,
-          projectData: snapshot.projectData,
-          ...(result.plan.basePresetId
-            ? { appliedStyleId: result.plan.basePresetId }
-            : {}),
-        },
-      });
-      setDraft(next);
-
+      applyDraft(result.draft);
       await router.invalidate();
-      toast.success(
-        "Overlay generated via GrapesJS API (text only — not baked into the image)."
-      );
+      toast.success("Layout generation queued.");
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Layout generation failed."
@@ -2228,76 +2410,120 @@ const AnnouncementEditor = ({
     }
   };
 
-  const onApprove = async () => {
+  const captureExportJpeg = async (): Promise<string> => {
+    if (!selectedVariation) {
+      throw new Error("Select a background variation first.");
+    }
+
+    if (!exportRef.current) {
+      throw new Error("Preview is not ready to export.");
+    }
+
+    await ensureAssetUrl(selectedVariation.objectKey);
+
+    // Flush live canvas: project JSON for persistence, HTML only in memory.
+    let snapshot: AnnouncementCanvasSnapshot | null = null;
+    flushSync(() => {
+      snapshot = grapesEditorRef.current?.flush() ?? null;
+    });
+
+    if (snapshot) {
+      const flushed = snapshot as AnnouncementCanvasSnapshot;
+      setExportHtml(flushed.exportHtml);
+
+      if (canEdit) {
+        await persist({ projectDataOverride: flushed.projectData });
+      }
+    } else if (canEdit) {
+      await persist();
+    }
+
+    // Let the browser apply nested <style> rules before html-to-image clones.
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const surface = exportRef.current;
+
+    if (!surface) {
+      throw new Error("Export surface missing.");
+    }
+
+    return await toJpeg(surface, {
+      backgroundColor: "#000000",
+      cacheBust: true,
+      height: ANNOUNCEMENT_HEIGHT,
+      pixelRatio: 1,
+      quality: 0.92,
+      width: ANNOUNCEMENT_WIDTH,
+    });
+  };
+
+  const onExport = async () => {
     if (!selectedVariation) {
       toast.error("Select a background variation first.");
       return;
     }
 
-    if (!exportRef.current) {
-      toast.error("Preview is not ready to export.");
-      return;
-    }
+    setIsExporting(true);
 
     try {
-      await ensureAssetUrl(selectedVariation.objectKey);
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not load background for export."
-      );
-      return;
-    }
-
-    setIsApproving(true);
-
-    try {
-      // Flush live canvas: project JSON for persistence, HTML only in memory.
-      let snapshot: AnnouncementCanvasSnapshot | null = null;
-      flushSync(() => {
-        snapshot = grapesEditorRef.current?.flush() ?? null;
-      });
-
-      if (snapshot) {
-        const flushed = snapshot as AnnouncementCanvasSnapshot;
-        setExportHtml(flushed.exportHtml);
-        await persist({ projectDataOverride: flushed.projectData });
-      } else {
-        await persist();
-      }
-
-      // Let the browser apply nested <style> rules before html-to-image clones.
-      await Promise.resolve();
-      await Promise.resolve();
-
-      const surface = exportRef.current;
-
-      if (!surface) {
-        throw new Error("Export surface missing.");
-      }
-
-      const dataUrl = await toJpeg(surface, {
-        backgroundColor: "#000000",
-        cacheBust: true,
-        height: ANNOUNCEMENT_HEIGHT,
-        pixelRatio: 1,
-        quality: 0.92,
-        width: ANNOUNCEMENT_WIDTH,
-      });
-
+      const dataUrl = await captureExportJpeg();
       const base64 = dataUrl.replace(/^data:image\/jpe?g;base64,/u, "");
-      const next = await approveFn({
+      const next = await exportFn({
         data: { base64, id: draft.id },
       });
       applyDraft(next);
       setExportPreview(dataUrl);
       setExportDialogOpen(true);
       await router.invalidate();
-      toast.success("Announcement approved. JPG stored in R2.");
+      toast.success("JPG export stored in R2.");
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Approval export failed."
+        error instanceof Error ? error.message : "Export failed."
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const onApprove = async () => {
+    if (!selectedVariation) {
+      toast.error("Select a background variation first.");
+      return;
+    }
+
+    setIsApproving(true);
+
+    try {
+      if (canEdit) {
+        let snapshot: AnnouncementCanvasSnapshot | null = null;
+        flushSync(() => {
+          snapshot = grapesEditorRef.current?.flush() ?? null;
+        });
+
+        if (snapshot) {
+          const flushed = snapshot as AnnouncementCanvasSnapshot;
+          setExportHtml(flushed.exportHtml);
+          await persist({ projectDataOverride: flushed.projectData });
+        } else {
+          await persist();
+        }
+      }
+
+      const next = await approveFn({
+        data: { id: draft.id },
+      });
+      applyDraft(next);
+      setEditUnlocked(false);
+      await router.invalidate();
+      toast.success(
+        next.exportObjectKey
+          ? "Announcement approved."
+          : "Announcement approved. Export a JPG to use it in the presentation deck."
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Approval failed."
       );
     } finally {
       setIsApproving(false);
@@ -2364,7 +2590,7 @@ const AnnouncementEditor = ({
         <div className="flex shrink-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              {isEditingName ? (
+              {isEditingName && canEdit ? (
                 <Input
                   aria-label="Announcement name"
                   autoFocus
@@ -2389,16 +2615,18 @@ const AnnouncementEditor = ({
                   <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
                     {name || "Announcement"}
                   </h1>
-                  <Button
-                    aria-label="Edit announcement name"
-                    className="text-muted-foreground size-8 shrink-0"
-                    onClick={startEditName}
-                    size="icon"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <PencilSimpleIcon className="size-4" />
-                  </Button>
+                  {canEdit ? (
+                    <Button
+                      aria-label="Edit announcement name"
+                      className="text-muted-foreground size-8 shrink-0"
+                      onClick={startEditName}
+                      size="icon"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <PencilSimpleIcon className="size-4" />
+                    </Button>
+                  ) : null}
                 </>
               )}
               <Badge
@@ -2409,8 +2637,48 @@ const AnnouncementEditor = ({
             </div>
             <p className="text-muted-foreground max-w-2xl text-sm">
               Edit the overlay layout on the canvas. Swap backgrounds
-              independently below; AI HTML generation and draft tools follow.
+              independently below; AI layout generation and draft tools follow.
+              Approve and Export are separate — export a JPG for the presentation
+              deck.
             </p>
+            {isEditLocked ? (
+              <div className="bg-muted/60 flex max-w-2xl flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-muted-foreground text-sm">
+                  This announcement is approved. Unlock editing to change it;
+                  saving material changes will return it to draft.
+                </p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" type="button" variant="outline">
+                      <PencilSimpleIcon data-icon="inline-start" />
+                      Edit
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Edit approved announcement?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        You can view and export without unlocking. If you edit
+                        and save changes (layout, content, or background), status
+                        will return to draft and you will need to approve again.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          setEditUnlocked(true);
+                        }}
+                      >
+                        Unlock editing
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            ) : null}
             <PresentationDeckControls
               announcementId={draft.id}
               enabled={presentationDeckEnabled}
@@ -2420,7 +2688,7 @@ const AnnouncementEditor = ({
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <Button
-              disabled={isSaving}
+              disabled={isSaving || !canEdit}
               onClick={() => void onSave()}
               type="button"
               variant="outline"
@@ -2435,18 +2703,38 @@ const AnnouncementEditor = ({
               )}
               Save draft
             </Button>
-            {hasApprovedExport ? (
+            {hasStoredExport ? (
               <Button
                 onClick={() => setExportDialogOpen(true)}
                 type="button"
                 variant="outline"
               >
                 <EyeIcon data-icon="inline-start" />
-                View approved export
+                View export
               </Button>
             ) : null}
             <Button
-              disabled={isApproving || !selectedVariation}
+              disabled={isExporting || !selectedVariation}
+              onClick={() => void onExport()}
+              type="button"
+              variant="outline"
+            >
+              {isExporting ? (
+                <CircleNotchIcon
+                  className="animate-spin"
+                  data-icon="inline-start"
+                />
+              ) : (
+                <DownloadSimpleIcon data-icon="inline-start" />
+              )}
+              Export JPG
+            </Button>
+            <Button
+              disabled={
+                isApproving ||
+                !selectedVariation ||
+                draft.status === "approved"
+              }
               onClick={() => void onApprove()}
               type="button"
             >
@@ -2458,7 +2746,7 @@ const AnnouncementEditor = ({
               ) : (
                 <CheckCircleIcon data-icon="inline-start" />
               )}
-              Approve &amp; export JPG
+              Approve
             </Button>
           </div>
         </div>
@@ -2473,6 +2761,7 @@ const AnnouncementEditor = ({
           }}
           onProjectChange={onCanvasProjectChange}
           projectData={projectData}
+          readOnly={isEditLocked}
           seedHtml={seedHtml}
           seedRevision={seedRevision}
         />
@@ -2493,6 +2782,7 @@ const AnnouncementEditor = ({
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-title">Title</Label>
                 <Input
+                  disabled={!canEdit}
                   id="content-title"
                   onChange={(event) =>
                     updateContentField("title", event.target.value)
@@ -2503,6 +2793,7 @@ const AnnouncementEditor = ({
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-subtitle">Subtitle</Label>
                 <Input
+                  disabled={!canEdit}
                   id="content-subtitle"
                   onChange={(event) =>
                     updateContentField("subtitle", event.target.value)
@@ -2513,6 +2804,7 @@ const AnnouncementEditor = ({
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-heading">Heading</Label>
                 <Input
+                  disabled={!canEdit}
                   id="content-heading"
                   onChange={(event) =>
                     updateContentField("heading", event.target.value)
@@ -2523,6 +2815,7 @@ const AnnouncementEditor = ({
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-tertiary">Tertiary information</Label>
                 <Input
+                  disabled={!canEdit}
                   id="content-tertiary"
                   onChange={(event) =>
                     updateContentField("tertiary", event.target.value)
@@ -2535,6 +2828,7 @@ const AnnouncementEditor = ({
 
           <BackgroundImageCard
             backgroundPrompt={backgroundPrompt}
+            editDisabled={!canEdit}
             generationJob={draft.generationJob}
             isClearingContext={isClearingContext}
             isGeneratingBg={isGeneratingBg}
@@ -2566,42 +2860,61 @@ const AnnouncementEditor = ({
           <CardHeader>
             <CardTitle>Generate overlay with AI</CardTitle>
             <CardDescription>
-              Builds a layout plan applied through the GrapesJS editor API
-              (presets, blocks, styles — not raw HTML). Optional style notes
-              steer composition, typography, and accents. Refine on the canvas
-              after generation.
+              Queues a layout plan on the image-gen worker, then applies it
+              through the GrapesJS editor API (presets, blocks, styles — not raw
+              HTML). Optional style notes steer composition and accents.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <Label htmlFor="style-notes">Style notes (optional)</Label>
-              <Input
-                id="style-notes"
-                onChange={(event) => setStyleNotes(event.target.value)}
-                placeholder="Modern sans-serif, left-aligned, gold accent…"
-                value={styleNotes}
-              />
-            </div>
-            <Button
-              disabled={isGeneratingHtml}
-              onClick={() => void onGenerateLayout()}
-              type="button"
-            >
-              {isGeneratingHtml ? (
-                <CircleNotchIcon
-                  className="animate-spin"
-                  data-icon="inline-start"
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Label htmlFor="style-notes">Style notes (optional)</Label>
+                <Input
+                  disabled={!canEdit || isGeneratingHtml}
+                  id="style-notes"
+                  onChange={(event) => setStyleNotes(event.target.value)}
+                  placeholder="Modern sans-serif, left-aligned, gold accent…"
+                  value={styleNotes}
                 />
-              ) : (
-                <MagicWandIcon data-icon="inline-start" />
-              )}
-              Generate with AI
-            </Button>
+              </div>
+              <Button
+                disabled={
+                  !canEdit ||
+                  isGeneratingHtml ||
+                  isActiveLayoutJob(draft.layoutJob)
+                }
+                onClick={() => void onGenerateLayout()}
+                type="button"
+              >
+                {isGeneratingHtml || isActiveLayoutJob(draft.layoutJob) ? (
+                  <CircleNotchIcon
+                    className="animate-spin"
+                    data-icon="inline-start"
+                  />
+                ) : (
+                  <MagicWandIcon data-icon="inline-start" />
+                )}
+                {isActiveLayoutJob(draft.layoutJob)
+                  ? "Generating layout…"
+                  : "Generate with AI"}
+              </Button>
+            </div>
+            {draft.layoutJob?.status === "failed" && draft.layoutJob.error ? (
+              <p className="text-destructive text-sm">
+                Layout failed: {draft.layoutJob.error}
+              </p>
+            ) : null}
+            {isActiveLayoutJob(draft.layoutJob) ? (
+              <p className="text-muted-foreground text-sm">
+                Layout job {draft.layoutJob?.status}… polling for the plan.
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 
         <VariationLibraryCard
           assetUrls={assetUrls}
+          editDisabled={!canEdit}
           isClearingContext={isClearingContext}
           isRemovingAll={isRemovingAll}
           onClearContext={() => {
@@ -2703,7 +3016,7 @@ const AnnouncementEditor = ({
       <Dialog onOpenChange={setExportDialogOpen} open={exportDialogOpen}>
         <DialogContent className="sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Approved export</DialogTitle>
+            <DialogTitle>Export JPG</DialogTitle>
             <DialogDescription>
               Stored JPG in R2
               {draft.exportObjectKey ? (
@@ -2712,13 +3025,13 @@ const AnnouncementEditor = ({
                   at <code className="text-xs">{draft.exportObjectKey}</code>
                 </>
               ) : null}
-              .
+              . Export does not change approval status.
             </DialogDescription>
           </DialogHeader>
           {exportPreview ? (
             <div className="overflow-hidden rounded-lg border">
               <img
-                alt="Approved announcement export"
+                alt="Announcement export"
                 className="h-auto w-full"
                 src={exportPreview}
               />

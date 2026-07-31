@@ -23,13 +23,8 @@
       "bucket_name": "vbc-order-of-service-pdfs",
     },
   ],
-  "ai": {
-    "binding": "AI",
-  },
-  // Non-secret gateway routing for env.AI.run (same pattern as product-gen-portal).
-  "vars": {
-    "AI_GATEWAY_ID": "default",
-  },
+  // AI inference (layout + background images) runs on vbc-oos-announcement-image-gen.
+  // Main app only produces to oos-announcement-image-gen.
   "queues": {
     "producers": [
       {

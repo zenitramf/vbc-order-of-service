@@ -85,7 +85,7 @@ export interface AnnouncementVariation {
   source: AnnouncementVariationSource;
 }
 
-/** Lifecycle of an async background image generation job (Queue consumer). */
+/** Lifecycle of an async AI job (Queue consumer). */
 export type AnnouncementGenerationStatus =
   | "idle"
   | "queued"
@@ -107,10 +107,26 @@ export interface AnnouncementGenerationJob {
 }
 
 /**
- * Queue message for announcement image generation.
- * Keep under 128 KB — pass R2 keys, never image bytes.
+ * Async AI layout (CanvasPlan) job. Plan is produced on the slim worker;
+ * the client applies it via GrapesJS when status is completed.
  */
-export interface AnnouncementImageGenQueueMessage {
+export interface AnnouncementLayoutJob {
+  error: string | null;
+  id: string;
+  /** Validated plan when completed; null while queued/running/failed. */
+  plan: CanvasPlan | null;
+  startedAt: string | null;
+  status: AnnouncementGenerationStatus;
+  styleNotes: string;
+  updatedAt: string;
+}
+
+/**
+ * Queue message for AI background image generation.
+ * Keep under 128 KB — pass R2 keys, never image bytes.
+ * `type` is optional for backward compatibility (missing ⇒ background).
+ */
+export interface AnnouncementBackgroundGenQueueMessage {
   announcementId: string;
   count: number;
   jobId: string;
@@ -118,7 +134,28 @@ export interface AnnouncementImageGenQueueMessage {
   prompt: string;
   /** R2 object key for reference context; never base64. */
   referenceObjectKey: string | null;
+  type?: "background";
 }
+
+/** Queue message for AI layout (CanvasPlan) generation. */
+export interface AnnouncementLayoutGenQueueMessage {
+  announcementId: string;
+  jobId: string;
+  styleNotes: string;
+  type: "layout";
+}
+
+/** Discriminated union for the announcement AI queue. */
+export type AnnouncementAiQueueMessage =
+  | AnnouncementBackgroundGenQueueMessage
+  | AnnouncementLayoutGenQueueMessage;
+
+/**
+ * @deprecated Prefer AnnouncementBackgroundGenQueueMessage /
+ * AnnouncementAiQueueMessage. Alias kept for existing imports.
+ */
+export type AnnouncementImageGenQueueMessage =
+  AnnouncementBackgroundGenQueueMessage;
 
 export interface AnnouncementDraft {
   /** Last-applied style library pack id (informational; styles bake into project). */
@@ -132,6 +169,11 @@ export interface AnnouncementDraft {
   generationJob: AnnouncementGenerationJob | null;
   height: number;
   id: string;
+  /**
+   * Async AI layout job (CanvasPlan). Null when never started.
+   * Client applies `plan` when status is completed.
+   */
+  layoutJob: AnnouncementLayoutJob | null;
   /**
    * One-shot seed from R2 drafts that still store a legacy `html` field.
    * Populated on read only when `projectData` is missing; never written back.
@@ -204,13 +246,11 @@ export interface SaveAnnouncementInput {
 }
 
 /**
- * AI layout generation: structured CanvasPlan applied client-side via GrapesJS API.
- * Never HTML or full project JSON from the model.
+ * AI layout generation enqueue result.
+ * Plan is applied client-side after `layoutJob` completes (poll draft).
  */
 export interface GenerateAnnouncementLayoutResult {
   draft: AnnouncementDraft;
-  /** Validated op plan; client executes with editor.applyAiPlan. */
-  plan: CanvasPlan;
 }
 
 export interface GenerateBackgroundsInput {
@@ -255,7 +295,13 @@ export interface GenerateAnnouncementHtmlInput {
 /** Same payload as the old HTML generator; renamed for clarity. */
 export type GenerateAnnouncementLayoutInput = GenerateAnnouncementHtmlInput;
 
+/** Approve sets status only — does not capture or store a JPG. */
 export interface ApproveAnnouncementInput {
+  id: string;
+}
+
+/** Export stores a client-captured JPG without changing approval status. */
+export interface ExportAnnouncementInput {
   base64: string;
   id: string;
 }

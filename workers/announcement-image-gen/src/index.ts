@@ -1,43 +1,51 @@
 /**
- * Slim queue consumer Worker for announcement AI backgrounds.
+ * Slim queue consumer Worker for announcement AI (backgrounds + layout).
  * No HTTP app surface — only processes oos-announcement-image-gen messages.
  */
-import { processAnnouncementImageGen } from "./consumer";
-import type { AnnouncementImageGenQueueMessage } from "./types";
+import {
+  processAnnouncementImageGen,
+  processAnnouncementLayoutGen,
+} from "./consumer";
+import type { AnnouncementAiQueueMessage } from "./types";
+import {
+  isBackgroundQueueMessage,
+  isLayoutQueueMessage,
+} from "./types";
 
 const IMAGE_GEN_QUEUE = "oos-announcement-image-gen";
 
-const isImageGenMessage = (
-  body: unknown
-): body is AnnouncementImageGenQueueMessage =>
-  typeof body === "object" &&
-  body !== null &&
-  "announcementId" in body &&
-  "jobId" in body &&
-  typeof (body as AnnouncementImageGenQueueMessage).announcementId ===
-    "string" &&
-  typeof (body as AnnouncementImageGenQueueMessage).jobId === "string";
-
 const processMessage = async (
-  message: Message<AnnouncementImageGenQueueMessage>
+  message: Message<AnnouncementAiQueueMessage>
 ): Promise<void> => {
-  if (!isImageGenMessage(message.body)) {
-    message.ack();
+  const { body } = message;
+
+  if (isLayoutQueueMessage(body)) {
+    try {
+      await processAnnouncementLayoutGen(body);
+      message.ack();
+    } catch {
+      // Leave for Queues retries (max_retries / retry_delay / DLQ).
+      message.retry();
+    }
     return;
   }
 
-  try {
-    await processAnnouncementImageGen(message.body);
-    message.ack();
-  } catch {
-    // Leave for Queues retries (max_retries / retry_delay / DLQ).
-    message.retry();
+  if (isBackgroundQueueMessage(body)) {
+    try {
+      await processAnnouncementImageGen(body);
+      message.ack();
+    } catch {
+      message.retry();
+    }
+    return;
   }
+
+  message.ack();
 };
 
 export default {
   async queue(
-    batch: MessageBatch<AnnouncementImageGenQueueMessage>
+    batch: MessageBatch<AnnouncementAiQueueMessage>
   ): Promise<void> {
     if (batch.queue !== IMAGE_GEN_QUEUE) {
       for (const message of batch.messages) {
@@ -52,4 +60,4 @@ export default {
       await processMessage(message);
     }
   },
-} satisfies ExportedHandler<Env, AnnouncementImageGenQueueMessage>;
+} satisfies ExportedHandler<Env, AnnouncementAiQueueMessage>;
