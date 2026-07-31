@@ -14,24 +14,29 @@ import {
   TOP_SCRIM_GRADIENT,
   buildOverlayHtml,
   coerceBackgroundToAlphaGradient,
+  isUsableProjectData,
   parseOverlayHtml,
+  projectDataKey,
+  sanitizeProjectData,
   stripAnnouncementBackgroundHtml,
   stripRuntimePhotoBackgroundCss,
 } from "~/lib/announcement-overlay-html";
 import {
   ANNOUNCEMENT_ROLE_ATTR,
-  buildDesignPresetHtml,
+  buildDesignPresetProject,
 } from "~/lib/announcement-style-library";
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
-import type { AnnouncementContent } from "~/lib/announcement-types";
+import type {
+  AnnouncementCanvasSnapshot,
+  AnnouncementContent,
+  GrapesProjectData,
+} from "~/lib/announcement-types";
 import { cn } from "~/lib/utils";
 
-export interface ApplyStylePackHandleResult {
-  /** Serialized overlay HTML after applying the design preset layout. */
-  html: string;
+export interface ApplyStylePackHandleResult extends AnnouncementCanvasSnapshot {
   packId: string;
 }
 
@@ -40,22 +45,42 @@ export interface GrapesjsAnnouncementEditorHandle {
   /**
    * Replace the canvas with a full design-preset layout (structure + type +
    * scrims) filled from content fields. Never paints the Body photo.
-   * Returns serialized HTML so the parent can persist preset id + markup.
+   * Returns project JSON (persist) + ephemeral export HTML.
    */
   applyStylePack: (
     packId: string,
     content: AnnouncementContent
   ) => ApplyStylePackHandleResult | null;
-  /** Serialize the live canvas immediately (cancels pending debounced save). */
-  flush: () => string | null;
+  /**
+   * Serialize the live canvas immediately (cancels pending debounced save).
+   * `exportHtml` is for in-memory JPG export only — never persist it.
+   */
+  flush: () => AnnouncementCanvasSnapshot | null;
 }
 
 export interface GrapesjsAnnouncementEditorProps {
   backgroundUrl: string | null;
   className?: string;
-  html: string;
-  onHtmlChange: (html: string) => void;
+  /**
+   * Called when the canvas project changes (debounced).
+   * Persist `projectData` only; use `exportHtml` for off-screen JPG / code view.
+   */
+  onProjectChange: (snapshot: AnnouncementCanvasSnapshot) => void;
+  /**
+   * GrapesJS project JSON — sole persistence load path when present.
+   * @see https://grapesjs.com/docs/modules/Storage.html
+   */
+  projectData: GrapesProjectData | null;
   ref?: Ref<GrapesjsAnnouncementEditorHandle>;
+  /**
+   * One-shot HTML seed for: legacy draft migration, AI generate (until JSON
+   * builders land), design presets applied outside the editor, or empty new
+   * drafts. Loaded only when `projectData` is null or `seedRevision` changes.
+   * Never persisted.
+   */
+  seedHtml?: string | null;
+  /** Bump to force a seedHtml reload (e.g. AI generation, code-view apply). */
+  seedRevision?: number;
 }
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -98,7 +123,7 @@ const FRAME_BODY_CSS = `
 
 const backgroundImageCss = (url: string): string => `url("${url}")`;
 
-/** Serialize GrapesJS project into a self-contained overlay fragment for export/storage. */
+/** Serialize GrapesJS canvas into a self-contained overlay fragment for export/code view. */
 export const serializeOverlayHtml = (editor: Editor): string => {
   // Photo lives on Body as runtime style only — never persist variation URLs.
   //
@@ -113,6 +138,34 @@ export const serializeOverlayHtml = (editor: Editor): string => {
   // buildOverlayHtml flattens @media (max-width: 1920px) device rules so export
   // is not viewport-dependent, and converts any <body> wrapper to <div>.
   return buildOverlayHtml(components, css);
+};
+
+/**
+ * Canonical GrapesJS persistence: project JSON (not HTML).
+ * Strips runtime Body photo paint so R2 variations remain the source of truth.
+ * @see https://grapesjs.com/docs/modules/Storage.html
+ */
+export const serializeProjectDocument = (
+  editor: Editor
+): AnnouncementCanvasSnapshot => {
+  // getProjectData is JSON-serializable GrapesJS output; clone into the
+  // serializable GrapesProjectData shape used by server functions.
+  const raw = structuredClone(editor.getProjectData()) as GrapesProjectData;
+  const projectData = sanitizeProjectData(raw);
+  const exportHtml = serializeOverlayHtml(editor);
+
+  if (!projectData) {
+    // Extremely defensive — GrapesJS always returns a project object.
+    return {
+      exportHtml,
+      projectData: { pages: [], styles: [] },
+    };
+  }
+
+  return {
+    exportHtml,
+    projectData,
+  };
 };
 
 const makeCanvasChrome = (editor: Editor): void => {
@@ -230,6 +283,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("heading"),
       content: "HEADING",
+      name: "heading",
       style: {
         color: "#ffffff",
         "font-family": "system-ui, sans-serif",
@@ -250,6 +304,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("title"),
       content: "Announcement Title",
+      name: "title",
       style: {
         color: "#ffffff",
         "font-family": "Georgia, 'Times New Roman', serif",
@@ -271,6 +326,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("subtitle"),
       content: "Subtitle text",
+      name: "subtitle",
       style: {
         color: "#ffffff",
         "font-family": "Georgia, 'Times New Roman', serif",
@@ -291,6 +347,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("body"),
       content: "Additional details go here.",
+      name: "tertiary",
       style: {
         color: "#ffffff",
         "font-family": "system-ui, sans-serif",
@@ -314,6 +371,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
         {
           attributes: roleAttrs("body"),
           content: "Editable text block",
+          name: "tertiary",
           style: {
             color: "#ffffff",
             "font-size": "40px",
@@ -322,6 +380,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
           type: "text",
         },
       ],
+      name: "Panel",
       style: {
         background: PANEL_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -340,6 +399,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-bottom"),
+      name: "Bottom scrim",
       style: {
         background: BOTTOM_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -361,6 +421,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-top"),
+      name: "Top scrim",
       style: {
         background: TOP_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -381,6 +442,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-left"),
+      name: "Left scrim",
       style: {
         background: LEFT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -401,6 +463,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-right"),
+      name: "Right scrim",
       style: {
         background: RIGHT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -420,6 +483,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
   blockManager.add("ann-spacer", {
     category: "Announcement",
     content: {
+      name: "Spacer",
       style: {
         height: "40px",
         width: "100%",
@@ -487,24 +551,45 @@ const loadHtmlIntoEditor = (editor: Editor, html: string): void => {
 };
 
 /**
- * Replace the editor canvas with a design-preset layout HTML fragment.
+ * Load canvas from GrapesJS project JSON when available; otherwise parse seed HTML.
+ * Prefer project JSON — HTML round-trips drop component metadata.
+ * Seed HTML is never persisted (legacy migrate / AI / default preset only).
+ */
+export const loadDocumentIntoEditor = (
+  editor: Editor,
+  options: {
+    projectData: GrapesProjectData | null;
+    seedHtml?: string | null;
+  }
+): void => {
+  if (isUsableProjectData(options.projectData)) {
+    editor.loadProjectData(options.projectData);
+    return;
+  }
+
+  loadHtmlIntoEditor(editor, options.seedHtml ?? "");
+};
+
+/**
+ * Replace the editor canvas with a design-preset GrapesJS project.
  * Photo stays on Body via syncBackgroundOnBody (caller should re-sync after).
+ * Returns project JSON (persist) + ephemeral export HTML.
  */
 export const applyDesignPresetToEditor = (
   editor: Editor,
   packId: string,
   content: AnnouncementContent
 ): ApplyStylePackHandleResult | null => {
-  const presetHtml = buildDesignPresetHtml(packId, content);
+  const presetProject = buildDesignPresetProject(packId, content);
 
-  if (!presetHtml) {
+  if (!presetProject) {
     return null;
   }
 
-  loadHtmlIntoEditor(editor, presetHtml);
-  const overlayHtml = serializeOverlayHtml(editor);
+  editor.loadProjectData(presetProject);
+  const snapshot = serializeProjectDocument(editor);
 
-  return { html: overlayHtml, packId };
+  return { ...snapshot, packId };
 };
 
 const isClearPaint = (value: string): boolean =>
@@ -569,29 +654,42 @@ const coerceComponentBackground = (component: {
 /**
  * GrapesJS-powered announcement overlay editor.
  *
- * The selected background variation is painted on the GrapesJS Body (`#wrapper`)
- * as `background-image` and updates when `backgroundUrl` changes. Photo URLs are
- * stripped from serialized draft HTML so R2 variations remain the source of truth.
+ * Persistence is project JSON only (`getProjectData` / `loadProjectData`).
+ * HTML is never saved — only derived in memory for JPG export / code view.
+ * Seed HTML is a one-shot load path for legacy migration, AI (until JSON
+ * builders), and default presets.
+ *
+ * @see https://grapesjs.com/docs/modules/Storage.html
  */
 export const GrapesjsAnnouncementEditor = ({
   backgroundUrl,
   className,
-  html,
-  onHtmlChange,
+  onProjectChange,
+  projectData,
   ref,
+  seedHtml = null,
+  seedRevision = 0,
 }: GrapesjsAnnouncementEditorProps) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Editor | null>(null);
-  const onHtmlChangeRef = useRef(onHtmlChange);
+  const onProjectChangeRef = useRef(onProjectChange);
   const backgroundUrlRef = useRef(backgroundUrl);
-  const syncedHtmlRef = useRef(html);
+  const seedHtmlRef = useRef(seedHtml);
+  const projectDataRef = useRef(projectData);
+  const syncedProjectKeyRef = useRef(projectDataKey(projectData));
+  const syncedSeedRevisionRef = useRef(seedRevision);
   const suppressEmitRef = useRef(false);
   const coercingBackgroundRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushSaveRef = useRef<(() => void) | null>(null);
+  const lastSnapshotRef = useRef<AnnouncementCanvasSnapshot | null>(
+    isUsableProjectData(projectData) ? { exportHtml: "", projectData } : null
+  );
 
-  onHtmlChangeRef.current = onHtmlChange;
+  onProjectChangeRef.current = onProjectChange;
   backgroundUrlRef.current = backgroundUrl;
+  seedHtmlRef.current = seedHtml;
+  projectDataRef.current = projectData;
 
   useImperativeHandle(
     ref,
@@ -626,7 +724,12 @@ export const GrapesjsAnnouncementEditor = ({
           fitAnnouncementViewport(editor);
         });
 
-        syncedHtmlRef.current = result.html;
+        const snapshot: AnnouncementCanvasSnapshot = {
+          exportHtml: result.exportHtml,
+          projectData: result.projectData,
+        };
+        syncedProjectKeyRef.current = projectDataKey(snapshot.projectData);
+        lastSnapshotRef.current = snapshot;
         suppressEmitRef.current = false;
 
         return result;
@@ -643,8 +746,17 @@ export const GrapesjsAnnouncementEditor = ({
           saveTimerRef.current = null;
         }
 
-        flushSaveRef.current?.();
-        return syncedHtmlRef.current;
+        // Always snapshot the live canvas (even if emit is suppressed) so
+        // approve/export sees current project JSON + in-memory HTML.
+        const snapshot = serializeProjectDocument(editor);
+        syncedProjectKeyRef.current = projectDataKey(snapshot.projectData);
+        lastSnapshotRef.current = snapshot;
+
+        if (!suppressEmitRef.current) {
+          onProjectChangeRef.current(snapshot);
+        }
+
+        return snapshot;
       },
     }),
     []
@@ -753,14 +865,18 @@ export const GrapesjsAnnouncementEditor = ({
         return;
       }
 
-      const next = serializeOverlayHtml(editor);
+      const next = serializeProjectDocument(editor);
+      const nextProjectKey = projectDataKey(next.projectData);
 
-      if (next === syncedHtmlRef.current) {
+      if (nextProjectKey === syncedProjectKeyRef.current) {
+        // Still refresh ephemeral export HTML for the off-screen stage.
+        lastSnapshotRef.current = next;
         return;
       }
 
-      syncedHtmlRef.current = next;
-      onHtmlChangeRef.current(next);
+      syncedProjectKeyRef.current = nextProjectKey;
+      lastSnapshotRef.current = next;
+      onProjectChangeRef.current(next);
     };
 
     flushSaveRef.current = flushSave;
@@ -884,10 +1000,21 @@ export const GrapesjsAnnouncementEditor = ({
     }
 
     suppressEmitRef.current = true;
-    loadHtmlIntoEditor(editor, syncedHtmlRef.current);
+    const initialProject = projectDataRef.current;
+    loadDocumentIntoEditor(editor, {
+      projectData: isUsableProjectData(initialProject) ? initialProject : null,
+      seedHtml: seedHtmlRef.current,
+    });
     syncBackgroundOnBody(editor, backgroundUrlRef.current);
     editor.UndoManager.clear();
+
+    // New / legacy / seed loads should emit projectData so the parent can
+    // persist JSON and drop any legacy html from R2.
+    const initialSnapshot = serializeProjectDocument(editor);
+    syncedProjectKeyRef.current = projectDataKey(initialSnapshot.projectData);
+    lastSnapshotRef.current = initialSnapshot;
     suppressEmitRef.current = false;
+    onProjectChangeRef.current(initialSnapshot);
 
     makeCanvasChrome(editor);
     requestAnimationFrame(() => {
@@ -918,22 +1045,33 @@ export const GrapesjsAnnouncementEditor = ({
       editor.destroy();
       editorRef.current = null;
     };
+    // Mount once — external project/seed reloads are handled below.
   }, []);
 
-  // External HTML (AI generation, undo snapshots, code editor) → reload canvas.
+  // External project (undo) or seed HTML (AI / code view / migrate) → reload canvas.
   useEffect(() => {
     const editor = editorRef.current;
+    const nextProjectKey = projectDataKey(projectData);
+    const projectChanged = nextProjectKey !== syncedProjectKeyRef.current;
+    const seedChanged = seedRevision !== syncedSeedRevisionRef.current;
 
     if (!editor) {
-      syncedHtmlRef.current = html;
+      syncedProjectKeyRef.current = nextProjectKey;
+      syncedSeedRevisionRef.current = seedRevision;
       return;
     }
 
-    if (html === syncedHtmlRef.current) {
+    if (!projectChanged && !seedChanged) {
       return;
     }
 
-    syncedHtmlRef.current = html;
+    // Prefer project JSON when present and seed did not just change.
+    // Seed revision bumps force HTML load (AI / code apply) even if project exists.
+    const useSeed = seedChanged && Boolean(seedHtml?.trim());
+    const loadProject = !useSeed && isUsableProjectData(projectData);
+
+    syncedProjectKeyRef.current = nextProjectKey;
+    syncedSeedRevisionRef.current = seedRevision;
     suppressEmitRef.current = true;
 
     if (saveTimerRef.current) {
@@ -941,16 +1079,39 @@ export const GrapesjsAnnouncementEditor = ({
       saveTimerRef.current = null;
     }
 
-    loadHtmlIntoEditor(editor, html);
+    loadDocumentIntoEditor(editor, {
+      projectData: loadProject ? projectData : null,
+      seedHtml: useSeed || !loadProject ? seedHtml : null,
+    });
     syncBackgroundOnBody(editor, backgroundUrlRef.current);
     editor.UndoManager.clear();
     makeCanvasChrome(editor);
+
+    // After seed load, emit so parent migrates to projectData and persists.
+    if (useSeed || !loadProject) {
+      const snapshot = serializeProjectDocument(editor);
+      syncedProjectKeyRef.current = projectDataKey(snapshot.projectData);
+      lastSnapshotRef.current = snapshot;
+      requestAnimationFrame(() => {
+        fitAnnouncementViewport(editor);
+        suppressEmitRef.current = false;
+        onProjectChangeRef.current(snapshot);
+      });
+      return;
+    }
+
+    lastSnapshotRef.current = isUsableProjectData(projectData)
+      ? {
+          exportHtml: lastSnapshotRef.current?.exportHtml ?? "",
+          projectData,
+        }
+      : lastSnapshotRef.current;
 
     requestAnimationFrame(() => {
       fitAnnouncementViewport(editor);
       suppressEmitRef.current = false;
     });
-  }, [html]);
+  }, [projectData, seedHtml, seedRevision]);
 
   // Swappable background — painted on GrapesJS Body, dynamic with variation.
   useEffect(() => {

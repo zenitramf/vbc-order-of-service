@@ -124,12 +124,23 @@ import {
   selectVariation,
   setShowInPresentationDeck,
 } from "~/lib/announcement-data";
-import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
-import { getStylePack, listStylePacks } from "~/lib/announcement-style-library";
+import {
+  isUsableProjectData,
+  prepareOverlayHtmlForRender,
+  projectDataKey,
+  sanitizeProjectData,
+} from "~/lib/announcement-overlay-html";
+import {
+  buildDesignPresetProject,
+  getStylePack,
+  listStylePacks,
+} from "~/lib/announcement-style-library";
 import type {
+  AnnouncementCanvasSnapshot,
   AnnouncementContent,
   AnnouncementDraft,
   AnnouncementVariation,
+  GrapesProjectData,
 } from "~/lib/announcement-types";
 import {
   ANNOUNCEMENT_HEIGHT,
@@ -163,6 +174,43 @@ const formatCreatedAt = (value: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+
+/** Pretty-print GrapesJS project JSON for the advanced editor. */
+const formatProjectJson = (data: GrapesProjectData | null): string => {
+  if (!data) {
+    return "null";
+  }
+
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch {
+    return "{}";
+  }
+};
+
+/**
+ * Resolve the canvas project for an announcement draft:
+ * stored projectData → else legacy HTML migrate (null) → else default preset JSON.
+ */
+const resolveCanvasProject = (
+  draft: Pick<
+    AnnouncementDraft,
+    "appliedStyleId" | "content" | "legacyHtml" | "projectData"
+  >
+): GrapesProjectData | null => {
+  if (draft.projectData) {
+    return draft.projectData;
+  }
+
+  if (draft.legacyHtml?.trim()) {
+    return null;
+  }
+
+  return buildDesignPresetProject(
+    draft.appliedStyleId ?? "classic-bottom",
+    draft.content
+  );
+};
 
 const renderSortIcon = (sortDirection: false | "asc" | "desc") => {
   if (sortDirection === "asc") {
@@ -362,17 +410,21 @@ const LiveCanvasEditor = ({
   applyingPackId,
   backgroundUrl,
   editorRef,
-  html,
   onApplyStylePack,
-  onHtmlChange,
+  onProjectChange,
+  projectData,
+  seedHtml,
+  seedRevision,
 }: {
   appliedStyleId: string | null;
   applyingPackId: string | null;
   backgroundUrl: string | null;
   editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
-  html: string;
   onApplyStylePack: (packId: string) => void;
-  onHtmlChange: (html: string) => void;
+  onProjectChange: (snapshot: AnnouncementCanvasSnapshot) => void;
+  projectData: GrapesProjectData | null;
+  seedHtml: string | null;
+  seedRevision: number;
 }) => {
   const selectedPackId = applyingPackId ?? appliedStyleId;
   const selectedPack =
@@ -447,8 +499,10 @@ const LiveCanvasEditor = ({
           ref={editorRef}
           backgroundUrl={backgroundUrl}
           className="min-h-0 flex-1"
-          html={html}
-          onHtmlChange={onHtmlChange}
+          onProjectChange={onProjectChange}
+          projectData={projectData}
+          seedHtml={seedHtml}
+          seedRevision={seedRevision}
         />
       </CardContent>
     </Card>
@@ -1135,18 +1189,35 @@ const AnnouncementEditor = ({
   const [backgroundPrompt, setBackgroundPrompt] = useState(
     initial.backgroundPrompt
   );
+  const initialCanvasProject = resolveCanvasProject(initial);
+
   const {
     canRedo,
     canUndo,
-    commit: commitHtmlHistory,
-    html,
-    redo: redoHtmlHistory,
-    reset: resetHtmlHistory,
-    setHtml,
-    undo: undoHtmlHistory,
-  } = useHtmlHistory(initial.html);
+    commit: commitProjectHistory,
+    projectData,
+    redo: redoProjectHistory,
+    reset: resetProjectHistory,
+    setProjectData,
+    undo: undoProjectHistory,
+  } = useHtmlHistory(initialCanvasProject);
+  /** Ephemeral HTML for JPG export + view-only advanced panel — never persisted. */
+  const [exportHtml, setExportHtml] = useState("");
+  /**
+   * One-shot HTML seed for legacy R2 drafts only (migrate → project JSON).
+   * New drafts and presets use project JSON directly.
+   */
+  const [seedHtml, setSeedHtml] = useState<string | null>(() =>
+    initial.projectData ? null : (initial.legacyHtml?.trim() ?? null)
+  );
+  const [seedRevision, setSeedRevision] = useState(0);
   const [styleNotes, setStyleNotes] = useState("");
   const [markupOpen, setMarkupOpen] = useState(false);
+  /** Local draft of project JSON while the advanced editor is open/dirty. */
+  const [projectJsonDraft, setProjectJsonDraft] = useState(() =>
+    formatProjectJson(initialCanvasProject)
+  );
+  const [projectJsonDirty, setProjectJsonDirty] = useState(false);
   const [variationCount, setVariationCount] = useState(2);
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [exportPreview, setExportPreview] = useState<string | null>(null);
@@ -1166,19 +1237,28 @@ const AnnouncementEditor = ({
   const [isRemovingAll, setIsRemovingAll] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const grapesEditorRef = useRef<GrapesjsAnnouncementEditorHandle>(null);
-  const htmlRef = useRef(html);
+  const projectDataRef = useRef(projectData);
   const nameRef = useRef(name);
   const contentRef = useRef(content);
   const backgroundPromptRef = useRef(backgroundPrompt);
   const draftIdRef = useRef(draft.id);
   const autoSaveInFlightRef = useRef(false);
-  const autoSaveLatestRef = useRef<string | null>(null);
+  const autoSaveLatestRef = useRef<GrapesProjectData | null>(null);
 
-  htmlRef.current = html;
+  projectDataRef.current = projectData;
   nameRef.current = name;
   contentRef.current = content;
   backgroundPromptRef.current = backgroundPrompt;
   draftIdRef.current = draft.id;
+
+  // Keep advanced JSON editor in sync with canvas unless the user is mid-edit.
+  useEffect(() => {
+    if (projectJsonDirty) {
+      return;
+    }
+
+    setProjectJsonDraft(formatProjectJson(projectData));
+  }, [projectData, projectJsonDirty]);
 
   const hasApprovedExport =
     draft.status === "approved" && Boolean(exportPreview);
@@ -1222,12 +1302,21 @@ const AnnouncementEditor = ({
     setContent(initial.content);
     setBackgroundPrompt(initial.backgroundPrompt);
 
-    // Reset undo stack only when opening a different announcement.
+    // Reset undo stack / seed only when opening a different announcement.
     if (lastHydratedIdRef.current !== initial.id) {
       lastHydratedIdRef.current = initial.id;
-      resetHtmlHistory(initial.html);
+      const nextProject = resolveCanvasProject(initial);
+
+      resetProjectHistory(nextProject);
+      setExportHtml("");
+      setProjectJsonDraft(formatProjectJson(nextProject));
+      setProjectJsonDirty(false);
+      setSeedHtml(
+        initial.projectData ? null : (initial.legacyHtml?.trim() ?? null)
+      );
+      setSeedRevision((revision) => revision + 1);
     }
-  }, [initial, resetHtmlHistory]);
+  }, [initial, resetProjectHistory]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1288,24 +1377,24 @@ const AnnouncementEditor = ({
 
   const applyDraft = (
     next: AnnouncementDraft,
-    options?: { resetHtmlHistory?: boolean }
+    options?: { resetProjectHistory?: boolean }
   ) => {
     setDraft(next);
     setName(next.name);
     setContent(next.content);
     setBackgroundPrompt(next.backgroundPrompt);
 
-    if (options?.resetHtmlHistory) {
-      resetHtmlHistory(next.html);
+    if (options?.resetProjectHistory) {
+      resetProjectHistory(next.projectData);
     } else {
-      setHtml(next.html);
+      setProjectData(next.projectData);
     }
   };
 
-  /** Persist HTML from canvas/undo without toast spam; coalesces concurrent saves. */
-  const autoSaveHtml = useCallback(
-    (htmlValue: string) => {
-      autoSaveLatestRef.current = htmlValue;
+  /** Persist project JSON only (no HTML); coalesces concurrent saves. */
+  const autoSaveProject = useCallback(
+    (nextProject: GrapesProjectData) => {
+      autoSaveLatestRef.current = nextProject;
 
       if (autoSaveInFlightRef.current) {
         return;
@@ -1328,9 +1417,9 @@ const AnnouncementEditor = ({
             data: {
               backgroundPrompt: backgroundPromptRef.current,
               content: contentRef.current,
-              html: toSave,
               id: draftIdRef.current,
               name: nameRef.current,
+              projectData: toSave,
             },
           });
           setDraft(next);
@@ -1355,37 +1444,79 @@ const AnnouncementEditor = ({
     [saveFn]
   );
 
-  const onCanvasHtmlChange = useCallback(
-    (nextHtml: string) => {
-      if (nextHtml === htmlRef.current) {
+  const onCanvasProjectChange = useCallback(
+    (snapshot: AnnouncementCanvasSnapshot) => {
+      // Export HTML is in-memory only (JPG stage + view-only advanced panel).
+      setExportHtml(snapshot.exportHtml);
+
+      if (
+        projectDataKey(snapshot.projectData) ===
+        projectDataKey(projectDataRef.current)
+      ) {
         return;
       }
 
-      commitHtmlHistory(nextHtml);
-      autoSaveHtml(nextHtml);
+      commitProjectHistory(snapshot.projectData);
+      autoSaveProject(snapshot.projectData);
     },
-    [autoSaveHtml, commitHtmlHistory]
+    [autoSaveProject, commitProjectHistory]
   );
 
+  /** Apply advanced JSON editor contents to the canvas and persist. */
+  const onApplyProjectJson = useCallback(() => {
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(projectJsonDraft) as unknown;
+    } catch {
+      toast.error("Project JSON is not valid JSON.");
+      return;
+    }
+
+    if (!isUsableProjectData(parsed)) {
+      toast.error(
+        "Project JSON must be a GrapesJS project object (pages and/or styles)."
+      );
+      return;
+    }
+
+    const sanitized = sanitizeProjectData(parsed);
+
+    if (!sanitized) {
+      toast.error("Could not sanitize project JSON.");
+      return;
+    }
+
+    setProjectJsonDirty(false);
+    setProjectJsonDraft(formatProjectJson(sanitized));
+    commitProjectHistory(sanitized);
+    autoSaveProject(sanitized);
+    toast.success("Project JSON applied to the canvas.");
+  }, [autoSaveProject, commitProjectHistory, projectJsonDraft]);
+
   const onUndoCanvas = useCallback(() => {
-    const restored = undoHtmlHistory();
+    const restored = undoProjectHistory();
 
     if (restored === null) {
       return;
     }
 
-    autoSaveHtml(restored);
-  }, [autoSaveHtml, undoHtmlHistory]);
+    if (restored) {
+      autoSaveProject(restored);
+    }
+  }, [autoSaveProject, undoProjectHistory]);
 
   const onRedoCanvas = useCallback(() => {
-    const restored = redoHtmlHistory();
+    const restored = redoProjectHistory();
 
     if (restored === null) {
       return;
     }
 
-    autoSaveHtml(restored);
-  }, [autoSaveHtml, redoHtmlHistory]);
+    if (restored) {
+      autoSaveProject(restored);
+    }
+  }, [autoSaveProject, redoProjectHistory]);
 
   useHotkey(
     "Mod+Z",
@@ -1414,20 +1545,25 @@ const AnnouncementEditor = ({
 
   const persist = async (overrides?: {
     contentOverride?: AnnouncementContent;
-    htmlOverride?: string;
     nameOverride?: string;
+    projectDataOverride?: GrapesProjectData | null;
     promptOverride?: string;
   }): Promise<AnnouncementDraft> => {
     setIsSaving(true);
 
     try {
+      const projectToSave =
+        overrides?.projectDataOverride === undefined
+          ? projectData
+          : overrides.projectDataOverride;
+
       const next = await saveFn({
         data: {
           backgroundPrompt: overrides?.promptOverride ?? backgroundPrompt,
           content: overrides?.contentOverride ?? content,
-          html: overrides?.htmlOverride ?? html,
           id: draft.id,
           name: overrides?.nameOverride ?? name,
+          projectData: projectToSave,
         },
       });
       applyDraft(next);
@@ -1584,13 +1720,16 @@ const AnnouncementEditor = ({
 
     try {
       await persist({ contentOverride: content });
-      const next = await generateHtmlFn({
+      const result = await generateHtmlFn({
         data: { id: draft.id, styleNotes },
       });
-      applyDraft(next, { resetHtmlHistory: true });
+      applyDraft(result.draft, { resetProjectHistory: true });
+      // AI returns HTML ephemerally — seed the editor; it emits projectData to save.
+      setSeedHtml(result.generatedHtml);
+      setSeedRevision((revision) => revision + 1);
       await router.invalidate();
       toast.success(
-        "HTML overlay generated (text only — not baked into the image)."
+        "Overlay generated (text only — not baked into the image)."
       );
     } catch (error) {
       toast.error(
@@ -1622,17 +1761,18 @@ const AnnouncementEditor = ({
         return;
       }
 
-      // Update canvas history + local html without double-firing auto-save.
-      commitHtmlHistory(result.html);
+      // Update history + ephemeral export HTML; persist project JSON only.
+      setExportHtml(result.exportHtml);
+      commitProjectHistory(result.projectData);
 
       const next = await saveFn({
         data: {
           appliedStyleId: packId,
           backgroundPrompt: backgroundPromptRef.current,
           content: contentRef.current,
-          html: result.html,
           id: draftIdRef.current,
           name: nameRef.current,
+          projectData: result.projectData,
         },
       });
       setDraft(next);
@@ -1676,23 +1816,20 @@ const AnnouncementEditor = ({
     setIsApproving(true);
 
     try {
-      // Flush debounced GrapesJS serialization so IDs + CSS match the canvas.
-      let exportHtml = html;
+      // Flush live canvas: project JSON for persistence, HTML only in memory.
+      let snapshot: AnnouncementCanvasSnapshot | null = null;
       flushSync(() => {
-        const flushed = grapesEditorRef.current?.flush();
-        if (flushed) {
-          exportHtml = flushed;
-        }
+        snapshot = grapesEditorRef.current?.flush() ?? null;
       });
 
-      await persist({ htmlOverride: exportHtml });
+      if (snapshot) {
+        const flushed = snapshot as AnnouncementCanvasSnapshot;
+        setExportHtml(flushed.exportHtml);
+        await persist({ projectDataOverride: flushed.projectData });
+      } else {
+        await persist();
+      }
 
-      // Ensure the off-screen surface has committed the flushed markup.
-      flushSync(() => {
-        if (exportHtml !== htmlRef.current) {
-          setHtml(exportHtml);
-        }
-      });
       // Let the browser apply nested <style> rules before html-to-image clones.
       await Promise.resolve();
       await Promise.resolve();
@@ -1894,11 +2031,13 @@ const AnnouncementEditor = ({
           applyingPackId={applyingStylePackId}
           backgroundUrl={selectedBackgroundUrl}
           editorRef={grapesEditorRef}
-          html={html}
           onApplyStylePack={(packId) => {
             void onApplyStylePack(packId);
           }}
-          onHtmlChange={onCanvasHtmlChange}
+          onProjectChange={onCanvasProjectChange}
+          projectData={projectData}
+          seedHtml={seedHtml}
+          seedRevision={seedRevision}
         />
       </div>
 
@@ -2044,32 +2183,74 @@ const AnnouncementEditor = ({
         <Accordion
           collapsible
           onValueChange={(value) => {
-            setMarkupOpen(value === "html-markup");
+            const open = value === "project-json";
+            setMarkupOpen(open);
+
+            if (open) {
+              setProjectJsonDraft(formatProjectJson(projectDataRef.current));
+              setProjectJsonDirty(false);
+            }
           }}
           type="single"
-          value={markupOpen ? "html-markup" : ""}
+          value={markupOpen ? "project-json" : ""}
         >
-          <AccordionItem value="html-markup">
+          <AccordionItem value="project-json">
             <AccordionTrigger>
               <span className="flex flex-col items-start gap-1">
-                <span className="text-base">HTML markup (advanced)</span>
+                <span className="text-base">Project JSON (advanced)</span>
                 <span className="text-muted-foreground text-sm font-normal">
-                  Source view of the same draft HTML as the canvas above. Expand
-                  only when you need to inspect or hand-edit markup.
+                  GrapesJS project data is the source of truth. Export HTML
+                  below is view-only (used for JPG capture).
                 </span>
               </span>
             </AccordionTrigger>
             <AccordionContent className="h-auto">
               {/* Mount only when open so CodeMirror lays out at full height. */}
               {markupOpen ? (
-                <div className="flex min-h-72 flex-col gap-2 pt-1">
-                  <Label htmlFor="overlay-html">HTML markup</Label>
-                  <HtmlCodeEditor
-                    id="overlay-html"
-                    minHeight="18rem"
-                    onChange={setHtml}
-                    value={html}
-                  />
+                <div className="flex min-h-72 flex-col gap-4 pt-1">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Label htmlFor="project-json">Project JSON</Label>
+                      <Button
+                        disabled={!projectJsonDirty}
+                        onClick={onApplyProjectJson}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Apply to canvas
+                      </Button>
+                    </div>
+                    <HtmlCodeEditor
+                      id="project-json"
+                      language="json"
+                      minHeight="18rem"
+                      onChange={(nextJson) => {
+                        setProjectJsonDraft(nextJson);
+                        setProjectJsonDirty(true);
+                      }}
+                      value={projectJsonDraft}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="export-html-preview">
+                      Export HTML (view only)
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      Derived from the live canvas for JPG export. Not editable
+                      and not stored on the draft.
+                    </p>
+                    <HtmlCodeEditor
+                      id="export-html-preview"
+                      language="html"
+                      minHeight="12rem"
+                      readOnly
+                      value={
+                        exportHtml ||
+                        "<!-- Export HTML appears after the canvas loads -->"
+                      }
+                    />
+                  </div>
                 </div>
               ) : null}
             </AccordionContent>
@@ -2133,7 +2314,7 @@ const AnnouncementEditor = ({
         <div ref={exportRef}>
           <AnnouncementStage
             backgroundUrl={selectedBackgroundUrl}
-            html={html}
+            html={exportHtml}
           />
         </div>
       </div>

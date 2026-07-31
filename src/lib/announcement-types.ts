@@ -5,12 +5,46 @@ export const ANNOUNCEMENT_ASPECT_RATIO = "16:9" as const;
 
 export type AnnouncementStatus = "draft" | "approved";
 
+/** JSON-serializable object map (TanStack server-fn compatible). */
+export interface JsonObject {
+  [key: string]: JsonValue;
+}
+
+/** JSON-serializable values (TanStack server-fn compatible). */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | JsonObject;
+
+/**
+ * GrapesJS project JSON (`editor.getProjectData()` / `loadProjectData()`).
+ * Canonical editor persistence — do not reconstruct from HTML alone.
+ * @see https://grapesjs.com/docs/modules/Storage.html
+ */
+export type GrapesProjectData = JsonObject;
+
 export interface AnnouncementContent {
   heading: string;
   subtitle: string;
   tertiary: string;
   title: string;
 }
+
+/**
+ * Live canvas snapshot from GrapesJS.
+ * `projectData` is what we persist; `exportHtml` is ephemeral (export / code view only).
+ */
+export interface AnnouncementCanvasSnapshot {
+  /** Derived overlay HTML for JPG export and advanced code view — never persisted. */
+  exportHtml: string;
+  projectData: GrapesProjectData;
+}
+
+/** @deprecated Use AnnouncementCanvasSnapshot */
+export type AnnouncementDocument = AnnouncementCanvasSnapshot;
 
 /** Where a background variation originated. */
 export type AnnouncementVariationSource = "generated" | "library";
@@ -30,7 +64,7 @@ export interface AnnouncementVariation {
 }
 
 export interface AnnouncementDraft {
-  /** Last-applied style library pack id (informational; styles bake into html). */
+  /** Last-applied style library pack id (informational; styles bake into project). */
   appliedStyleId: string | null;
   approvedAt: string | null;
   backgroundPrompt: string;
@@ -38,9 +72,19 @@ export interface AnnouncementDraft {
   createdAt: string;
   exportObjectKey: string | null;
   height: number;
-  html: string;
   id: string;
+  /**
+   * One-shot seed from R2 drafts that still store a legacy `html` field.
+   * Populated on read only when `projectData` is missing; never written back.
+   * Client migrates: load HTML → getProjectData → save projectData (html dropped).
+   */
+  legacyHtml: string | null;
   name: string;
+  /**
+   * GrapesJS project JSON — sole persistence format for the visual editor.
+   * Null until the first canvas save / client migration from legacyHtml.
+   */
+  projectData: GrapesProjectData | null;
   selectedVariationId: string | null;
   /**
    * When true and status is `approved`, include this announcement in the
@@ -94,9 +138,16 @@ export interface SaveAnnouncementInput {
   appliedStyleId?: string | null;
   backgroundPrompt?: string;
   content?: Partial<AnnouncementContent>;
-  html?: string;
   id: string;
   name?: string;
+  /** GrapesJS project JSON — sole canvas persistence field. */
+  projectData?: GrapesProjectData | null;
+}
+
+/** AI still returns HTML (JSON builders are a separate PR); client converts to projectData. */
+export interface GenerateAnnouncementHtmlResult {
+  draft: AnnouncementDraft;
+  generatedHtml: string;
 }
 
 export interface GenerateBackgroundsInput {
