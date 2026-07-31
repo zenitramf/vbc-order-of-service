@@ -380,7 +380,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
           type: "text",
         },
       ],
-      name: "panel",
+      name: "Panel",
       style: {
         background: PANEL_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -399,7 +399,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-bottom"),
-      name: "scrim-bottom",
+      name: "Bottom scrim",
       style: {
         background: BOTTOM_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -421,7 +421,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-top"),
-      name: "scrim-top",
+      name: "Top scrim",
       style: {
         background: TOP_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -442,7 +442,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-left"),
-      name: "scrim-left",
+      name: "Left scrim",
       style: {
         background: LEFT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -463,7 +463,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-right"),
-      name: "scrim-right",
+      name: "Right scrim",
       style: {
         background: RIGHT_SCRIM_GRADIENT,
         "background-color": "transparent",

@@ -92,18 +92,18 @@ interface ComponentDef {
 
 /**
  * Layer Manager labels for announcement roles.
- * Text roles use the same names as draft content fields
- * (heading / title / subtitle / tertiary).
+ * Text roles use draft content field names (heading / title / subtitle / tertiary).
+ * Structural roles keep readable labels (scrims, panel, etc.).
  */
 const ROLE_LAYER_NAMES: Record<AnnouncementStyleRole, string> = {
   body: "tertiary",
   heading: "heading",
-  link: "link",
-  panel: "panel",
-  "scrim-bottom": "scrim-bottom",
-  "scrim-left": "scrim-left",
-  "scrim-right": "scrim-right",
-  "scrim-top": "scrim-top",
+  link: "Link",
+  panel: "Panel",
+  "scrim-bottom": "Bottom scrim",
+  "scrim-left": "Left scrim",
+  "scrim-right": "Right scrim",
+  "scrim-top": "Top scrim",
   subtitle: "subtitle",
   title: "title",
 };
