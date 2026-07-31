@@ -37,11 +37,9 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "~/components/ui/empty";
-import { Skeleton } from "~/components/ui/skeleton";
 import { hasPermission } from "~/lib/admin-permissions";
 import {
   deleteLibraryImage,
-  getLibraryImage,
   listLibraryImages,
   uploadLibraryImage,
 } from "~/lib/image-library-data";
@@ -50,6 +48,7 @@ import {
   LIBRARY_IMAGE_HEIGHT,
   LIBRARY_IMAGE_WIDTH,
 } from "~/lib/image-library-types";
+import { r2AssetUrl } from "~/lib/r2-asset-url";
 import { requirePermission } from "~/lib/route-guards";
 
 const formatWhen = (value: string) =>
@@ -68,6 +67,15 @@ const formatBytes = (bytes: number): string => {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const downloadLibraryImage = (image: ImageLibraryItem): void => {
+  const anchor = document.createElement("a");
+  anchor.href = r2AssetUrl(image.objectKey, {
+    downloadFilename: image.filename,
+  });
+  anchor.download = image.filename;
+  anchor.click();
 };
 
 const fileToBase64 = async (file: File): Promise<string> => {
@@ -91,41 +99,13 @@ const readFileImageDimensions = async (
   return dimensions;
 };
 
-const openLibraryImage = (
-  base64: string,
-  contentType: string,
-  filename: string,
-  download: boolean
-): void => {
-  const binary = window.atob(base64);
-  const bytes = Uint8Array.from(
-    binary,
-    (character) => character.codePointAt(0) ?? 0
-  );
-  const url = window.URL.createObjectURL(
-    new Blob([bytes], { type: contentType })
-  );
-
-  if (download) {
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.click();
-    window.URL.revokeObjectURL(url);
-    return;
-  }
-
-  window.open(url, "_blank", "noopener,noreferrer");
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
-};
-
 interface LibraryImageCardProps {
   canDelete: boolean;
   image: ImageLibraryItem;
   isDeleting: boolean;
   onDelete: (image: ImageLibraryItem) => void;
   onDownload: (image: ImageLibraryItem) => void;
-  previewUrl: string | null;
+  previewUrl: string;
 }
 
 const LibraryImageCard = ({
@@ -138,15 +118,13 @@ const LibraryImageCard = ({
 }: LibraryImageCardProps) => (
   <Card className="overflow-hidden pt-0" size="sm">
     <div className="relative aspect-video w-full overflow-hidden bg-muted">
-      {previewUrl ? (
-        <img
-          alt={image.filename}
-          className="size-full object-cover transition-transform duration-300 group-hover/card:scale-[1.02]"
-          src={previewUrl}
-        />
-      ) : (
-        <Skeleton className="size-full rounded-none" />
-      )}
+      <img
+        alt={image.filename}
+        className="size-full object-cover transition-transform duration-300 group-hover/card:scale-[1.02]"
+        decoding="async"
+        loading="lazy"
+        src={previewUrl}
+      />
       <div className="absolute right-2 bottom-2 rounded-md bg-background/85 px-2 py-0.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm">
         {image.width}×{image.height}
       </div>
@@ -198,12 +176,9 @@ const ImageLibraryPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadFn = useServerFn(uploadLibraryImage);
-  const getImageFn = useServerFn(getLibraryImage);
   const deleteFn = useServerFn(deleteLibraryImage);
 
   const [images, setImages] = useState(initialImages);
-  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
-  const previewUrlsRef = useRef(previewUrls);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [imageToDelete, setImageToDelete] = useState<ImageLibraryItem | null>(
@@ -217,66 +192,6 @@ const ImageLibraryPage = () => {
   useEffect(() => {
     setImages(initialImages);
   }, [initialImages]);
-
-  useEffect(() => {
-    previewUrlsRef.current = previewUrls;
-  }, [previewUrls]);
-
-  const imageObjectKeys = images.map((image) => image.objectKey).join("\0");
-
-  useEffect(() => {
-    let cancelled = false;
-    const keys = imageObjectKeys.length > 0 ? imageObjectKeys.split("\0") : [];
-    const missing = keys.filter((key) => !previewUrlsRef.current[key]);
-
-    if (missing.length === 0) {
-      return;
-    }
-
-    const loadMissingPreviews = async () => {
-      const entries = await Promise.all(
-        missing.map(async (objectKey) => {
-          try {
-            const asset = await getImageFn({ data: objectKey });
-            return [
-              objectKey,
-              `data:${asset.contentType};base64,${asset.base64}`,
-            ] as const;
-          } catch {
-            return null;
-          }
-        })
-      );
-
-      if (cancelled) {
-        return;
-      }
-
-      setPreviewUrls((current) => {
-        const next = { ...current };
-
-        for (const entry of entries) {
-          if (!entry) {
-            continue;
-          }
-
-          const [objectKey, dataUrl] = entry;
-
-          if (!next[objectKey]) {
-            next[objectKey] = dataUrl;
-          }
-        }
-
-        return next;
-      });
-    };
-
-    void loadMissingPreviews();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [getImageFn, imageObjectKeys]);
 
   const validateAndUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -310,10 +225,6 @@ const ImageLibraryPage = () => {
       });
 
       setImages((current) => [uploaded, ...current]);
-      setPreviewUrls((current) => ({
-        ...current,
-        [uploaded.objectKey]: URL.createObjectURL(file),
-      }));
       await router.invalidate();
       toast.success(`Uploaded "${uploaded.filename}".`);
     } catch (error) {
@@ -353,17 +264,6 @@ const ImageLibraryPage = () => {
     await validateAndUpload(file);
   };
 
-  const handleDownload = async (image: ImageLibraryItem) => {
-    try {
-      const asset = await getImageFn({ data: image.objectKey });
-      openLibraryImage(asset.base64, asset.contentType, asset.filename, true);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Could not download image."
-      );
-    }
-  };
-
   const handleDelete = async () => {
     if (!imageToDelete) {
       return;
@@ -378,11 +278,6 @@ const ImageLibraryPage = () => {
         current.filter((item) => item.objectKey !== target.objectKey)
       );
       setImageToDelete(null);
-      setPreviewUrls((current) =>
-        Object.fromEntries(
-          Object.entries(current).filter(([key]) => key !== target.objectKey)
-        )
-      );
 
       await deleteFn({ data: target.objectKey });
       await router.invalidate();
@@ -508,8 +403,8 @@ const ImageLibraryPage = () => {
               isDeleting={isDeleting}
               key={image.objectKey}
               onDelete={setImageToDelete}
-              onDownload={handleDownload}
-              previewUrl={previewUrls[image.objectKey] ?? null}
+              onDownload={downloadLibraryImage}
+              previewUrl={r2AssetUrl(image.objectKey)}
             />
           ))}
         </div>

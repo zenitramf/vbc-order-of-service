@@ -7,13 +7,11 @@ import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
+import { presentationAssetUrl } from "~/lib/r2-asset-url";
 import { seo } from "~/utils/seo";
 
 /** How long each approved slide stays on screen before advancing. */
 const SLIDE_INTERVAL_MS = 20_000;
-
-const toDataUrl = (base64: string, contentType: string): string =>
-  `data:${contentType};base64,${base64}`;
 
 /**
  * Uniform scale so the fixed 1920×1080 stage fills the viewport without
@@ -50,8 +48,9 @@ const PresentationDeck = () => {
   const [index, setIndex] = useState(0);
   const scale = useStageScale();
 
+  // Binary public URLs — loader stays lightweight (metadata only).
   const imageUrls = useMemo(
-    () => slides.map((slide) => toDataUrl(slide.base64, slide.contentType)),
+    () => slides.map((slide) => presentationAssetUrl(slide.id)),
     [slides]
   );
 
@@ -72,6 +71,23 @@ const PresentationDeck = () => {
       window.clearInterval(timer);
     };
   }, [slides.length]);
+
+  // Warm the next slide so fades do not flash empty while the network catches up.
+  useEffect(() => {
+    if (imageUrls.length <= 1) {
+      return;
+    }
+
+    const nextUrl = imageUrls[(index + 1) % imageUrls.length];
+
+    if (!nextUrl) {
+      return;
+    }
+
+    const image = new Image();
+    image.decoding = "async";
+    image.src = nextUrl;
+  }, [imageUrls, index]);
 
   // Lock document to a black full-bleed stage (production displays).
   useEffect(() => {
@@ -117,6 +133,9 @@ const PresentationDeck = () => {
         {imageUrls.map((url, slideIndex) => {
           const slide = slides[slideIndex];
           const isActive = slideIndex === index;
+          const isNext =
+            imageUrls.length > 1 &&
+            slideIndex === (index + 1) % imageUrls.length;
 
           return (
             <img
@@ -124,8 +143,10 @@ const PresentationDeck = () => {
               className="absolute inset-0 size-full object-fill transition-opacity duration-700 ease-in-out"
               decoding="async"
               draggable={false}
+              fetchPriority={isActive ? "high" : "auto"}
               height={ANNOUNCEMENT_HEIGHT}
               key={slide?.id ?? url}
+              loading={isActive || isNext ? "eager" : "lazy"}
               src={url}
               style={{
                 opacity: isActive ? 1 : 0,

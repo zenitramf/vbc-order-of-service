@@ -111,6 +111,7 @@ import {
   HTML_HISTORY_MAX_SNAPSHOTS,
   useHtmlHistory,
 } from "~/hooks/use-html-history";
+import { parseCanvasPlan } from "~/lib/announcement-ai-plan";
 import {
   addLibraryImageAsVariation,
   approveAnnouncement,
@@ -119,14 +120,12 @@ import {
   generateAnnouncementLayout,
   generateBackgrounds,
   getAnnouncement,
-  getAnnouncementAsset,
   removeAllVariations,
   removeVariation,
   saveAnnouncement,
   selectVariation,
   setShowInPresentationDeck,
 } from "~/lib/announcement-data";
-import { parseCanvasPlan } from "~/lib/announcement-ai-plan";
 import {
   isUsableProjectData,
   prepareOverlayHtmlForRender,
@@ -152,8 +151,9 @@ import {
   ANNOUNCEMENT_IMAGE_MODEL,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
-import { getLibraryImage, listLibraryImages } from "~/lib/image-library-data";
+import { listLibraryImages } from "~/lib/image-library-data";
 import type { ImageLibraryItem } from "~/lib/image-library-types";
+import { preloadImage, r2AssetUrl } from "~/lib/r2-asset-url";
 import { requirePermission } from "~/lib/route-guards";
 import { cn } from "~/lib/utils";
 
@@ -169,14 +169,15 @@ const STYLE_PACK_OPTIONS: StylePackOption[] = listStylePacks().map((pack) => ({
   value: pack.id,
 }));
 
-const toDataUrl = (base64: string, contentType: string) =>
-  `data:${contentType};base64,${base64}`;
-
 const formatCreatedAt = (value: string) =>
   new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+
+/** Ensure the browser has decoded the background before html-to-image runs. */
+const ensureAssetUrl = async (objectKey: string): Promise<string> =>
+  await preloadImage(r2AssetUrl(objectKey));
 
 /** Pretty-print GrapesJS project JSON for the advanced editor. */
 const formatProjectJson = (data: GrapesProjectData | null): string => {
@@ -247,7 +248,9 @@ const AnnouncementStage = ({
         <img
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
-          crossOrigin="anonymous"
+          // Same-origin `/api/r2-asset` URLs stay canvas-safe for html-to-image
+          // without CORS; avoid crossOrigin so the export surface is not tainted.
+          decoding="async"
           src={backgroundUrl}
         />
       ) : (
@@ -297,7 +300,13 @@ const createVariationColumns = ({
             )}
           >
             {url ? (
-              <img alt="" className="size-full object-cover" src={url} />
+              <img
+                alt=""
+                className="size-full object-cover"
+                decoding="async"
+                loading="lazy"
+                src={url}
+              />
             ) : (
               <div className="text-muted-foreground flex size-full items-center justify-center text-[10px]">
                 …
@@ -758,9 +767,7 @@ const LibraryImagePickerDialog = ({
   usedLibraryImageIds: ReadonlySet<string>;
 }) => {
   const listFn = useServerFn(listLibraryImages);
-  const getImageFn = useServerFn(getLibraryImage);
   const [images, setImages] = useState<ImageLibraryItem[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [addingKey, setAddingKey] = useState<string | null>(null);
@@ -778,6 +785,7 @@ const LibraryImagePickerDialog = ({
       setLoadError(null);
 
       try {
+        // Metadata only — previews use authenticated binary `/api/r2-asset` URLs.
         const items = await listFn();
 
         if (cancelled) {
@@ -785,39 +793,6 @@ const LibraryImagePickerDialog = ({
         }
 
         setImages(items);
-
-        const entries = await Promise.all(
-          items.map(async (item) => {
-            try {
-              const asset = await getImageFn({ data: item.objectKey });
-              return [
-                item.objectKey,
-                toDataUrl(asset.base64, asset.contentType),
-              ] as const;
-            } catch {
-              return null;
-            }
-          })
-        );
-
-        if (cancelled) {
-          return;
-        }
-
-        setPreviewUrls((previous) => {
-          const next = { ...previous };
-
-          for (const entry of entries) {
-            if (!entry) {
-              continue;
-            }
-
-            const [objectKey, dataUrl] = entry;
-            next[objectKey] = dataUrl;
-          }
-
-          return next;
-        });
       } catch (error) {
         if (!cancelled) {
           setLoadError(
@@ -838,7 +813,7 @@ const LibraryImagePickerDialog = ({
     return () => {
       cancelled = true;
     };
-  }, [getImageFn, listFn, open]);
+  }, [listFn, open]);
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -887,7 +862,7 @@ const LibraryImagePickerDialog = ({
         {!isLoading && !loadError && images.length > 0 ? (
           <div className="grid max-h-[min(28rem,60vh)] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
             {images.map((image) => {
-              const previewUrl = previewUrls[image.objectKey];
+              const previewUrl = r2AssetUrl(image.objectKey);
               const isThisAdding = isAdding && addingKey === image.objectKey;
               const alreadyInAnnouncement = usedLibraryImageIds.has(image.id);
               const isDisabled = isAdding || alreadyInAnnouncement;
@@ -920,18 +895,16 @@ const LibraryImagePickerDialog = ({
                   type="button"
                 >
                   <div className="bg-muted aspect-video w-full overflow-hidden">
-                    {previewUrl ? (
-                      <img
-                        alt={image.filename}
-                        className={cn(
-                          "size-full object-cover transition-transform duration-300",
-                          !alreadyInAnnouncement && "group-hover:scale-[1.03]"
-                        )}
-                        src={previewUrl}
-                      />
-                    ) : (
-                      <Skeleton className="size-full rounded-none" />
-                    )}
+                    <img
+                      alt={image.filename}
+                      className={cn(
+                        "size-full object-cover transition-transform duration-300",
+                        !alreadyInAnnouncement && "group-hover:scale-[1.03]"
+                      )}
+                      decoding="async"
+                      loading="lazy"
+                      src={previewUrl}
+                    />
                   </div>
                   <div className="flex items-start justify-between gap-2 p-2">
                     <div className="min-w-0">
@@ -1687,7 +1660,6 @@ const AnnouncementEditor = ({
   const removeAllVariationsFn = useServerFn(removeAllVariations);
   const generateLayoutFn = useServerFn(generateAnnouncementLayout);
   const getAnnouncementFn = useServerFn(getAnnouncement);
-  const getAssetFn = useServerFn(getAnnouncementAsset);
   const approveFn = useServerFn(approveAnnouncement);
   const exportFn = useServerFn(exportAnnouncement);
 
@@ -1730,7 +1702,7 @@ const AnnouncementEditor = ({
     formatProjectJson(initialCanvasProject)
   );
   const [projectJsonDirty, setProjectJsonDirty] = useState(false);
-  const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
+  /** Fresh client-captured export (data URL); stored R2 export uses `r2AssetUrl`. */
   const [exportPreview, setExportPreview] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -1772,7 +1744,11 @@ const AnnouncementEditor = ({
     setProjectJsonDraft(formatProjectJson(projectData));
   }, [projectData, projectJsonDirty]);
 
-  const hasStoredExport = Boolean(exportPreview || draft.exportObjectKey);
+  const storedExportUrl = draft.exportObjectKey
+    ? r2AssetUrl(draft.exportObjectKey)
+    : null;
+  const displayExportUrl = exportPreview ?? storedExportUrl;
+  const hasStoredExport = Boolean(displayExportUrl);
   const presentationDeckEnabled =
     draft.status === "approved" && Boolean(draft.exportObjectKey);
   const isEditLocked = draft.status === "approved" && !editUnlocked;
@@ -1798,24 +1774,23 @@ const AnnouncementEditor = ({
     return ids;
   }, [draft.variations]);
 
-  const selectedBackgroundUrl = selectedVariation
-    ? (assetUrls[selectedVariation.objectKey] ?? null)
-    : null;
+  /**
+   * Synchronous URL map — browser fetches binary images via `/api/r2-asset`.
+   * No base64 bulk download on editor open.
+   */
+  const assetUrls = useMemo(() => {
+    const next: Record<string, string> = {};
 
-  const ensureAssetUrl = async (objectKey: string): Promise<string> => {
-    const existing = assetUrls[objectKey];
-
-    if (existing) {
-      return existing;
+    for (const variation of draft.variations) {
+      next[variation.objectKey] = r2AssetUrl(variation.objectKey);
     }
 
-    const asset = await getAssetFn({ data: objectKey });
-    const url = toDataUrl(asset.base64, asset.contentType);
-    setAssetUrls((previous) =>
-      previous[objectKey] ? previous : { ...previous, [objectKey]: url }
-    );
-    return url;
-  };
+    return next;
+  }, [draft.variations]);
+
+  const selectedBackgroundUrl = selectedVariation
+    ? r2AssetUrl(selectedVariation.objectKey)
+    : null;
 
   const lastHydratedIdRef = useRef<string | null>(null);
 
@@ -1835,6 +1810,7 @@ const AnnouncementEditor = ({
 
       resetProjectHistory(nextProject);
       setExportHtml("");
+      setExportPreview(null);
       setProjectJsonDraft(formatProjectJson(nextProject));
       setProjectJsonDirty(false);
       setSeedHtml(
@@ -1846,63 +1822,6 @@ const AnnouncementEditor = ({
       setEditUnlocked(true);
     }
   }, [initial, resetProjectHistory]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      const keys = new Set(draft.variations.map((item) => item.objectKey));
-
-      if (draft.exportObjectKey) {
-        keys.add(draft.exportObjectKey);
-      }
-
-      const results = await Promise.all(
-        [...keys].map(async (key) => {
-          try {
-            const asset = await getAssetFn({ data: key });
-            return {
-              key,
-              url: toDataUrl(asset.base64, asset.contentType),
-            };
-          } catch {
-            return null;
-          }
-        })
-      );
-
-      if (cancelled) {
-        return;
-      }
-
-      setAssetUrls((previous) => {
-        const next = { ...previous };
-
-        for (const result of results) {
-          if (result && !next[result.key]) {
-            next[result.key] = result.url;
-          }
-        }
-
-        return next;
-      });
-
-      if (draft.exportObjectKey) {
-        const exportResult = results.find(
-          (result) => result?.key === draft.exportObjectKey
-        );
-        if (exportResult) {
-          setExportPreview(exportResult.url);
-        }
-      }
-    };
-
-    void load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [draft.exportObjectKey, draft.variations, getAssetFn]);
 
   const applyDraft = (
     next: AnnouncementDraft,
@@ -2490,9 +2409,7 @@ const AnnouncementEditor = ({
       await router.invalidate();
       toast.success("JPG export stored in R2.");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Export failed."
-      );
+      toast.error(error instanceof Error ? error.message : "Export failed.");
     } finally {
       setIsExporting(false);
     }
@@ -2534,9 +2451,7 @@ const AnnouncementEditor = ({
           : "Announcement approved. Export a JPG to use it in the presentation deck."
       );
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Approval failed."
-      );
+      toast.error(error instanceof Error ? error.message : "Approval failed.");
     } finally {
       setIsApproving(false);
     }
@@ -2550,7 +2465,7 @@ const AnnouncementEditor = ({
   };
 
   const onDownloadExport = () => {
-    if (!exportPreview) {
+    if (!displayExportUrl) {
       return;
     }
 
@@ -2560,9 +2475,15 @@ const AnnouncementEditor = ({
         .toLowerCase()
         .replaceAll(/[^a-z0-9]+/gu, "-")
         .replaceAll(/^-|-$/gu, "") || "announcement";
+    const filename = `${slug}.jpg`;
     const link = document.createElement("a");
-    link.href = exportPreview;
-    link.download = `${slug}.jpg`;
+    // Prefer attachment Content-Disposition for stored R2 exports.
+    link.href =
+      exportPreview ??
+      (draft.exportObjectKey
+        ? r2AssetUrl(draft.exportObjectKey, { downloadFilename: filename })
+        : displayExportUrl);
+    link.download = filename;
     link.click();
   };
 
@@ -2650,8 +2571,8 @@ const AnnouncementEditor = ({
             <p className="text-muted-foreground max-w-2xl text-sm">
               Edit the overlay layout on the canvas. Swap backgrounds
               independently below; AI layout generation and draft tools follow.
-              Approve and Export are separate — export a JPG for the presentation
-              deck.
+              Approve and Export are separate — export a JPG for the
+              presentation deck.
             </p>
             {isEditLocked ? (
               <div className="bg-muted/60 flex max-w-2xl flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2673,8 +2594,9 @@ const AnnouncementEditor = ({
                       </AlertDialogTitle>
                       <AlertDialogDescription>
                         You can view and export without unlocking. If you edit
-                        and save changes (layout, content, or background), status
-                        will return to draft and you will need to approve again.
+                        and save changes (layout, content, or background),
+                        status will return to draft and you will need to approve
+                        again.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -2743,9 +2665,7 @@ const AnnouncementEditor = ({
             </Button>
             <Button
               disabled={
-                isApproving ||
-                !selectedVariation ||
-                draft.status === "approved"
+                isApproving || !selectedVariation || draft.status === "approved"
               }
               onClick={() => void onApprove()}
               type="button"
@@ -3051,17 +2971,18 @@ const AnnouncementEditor = ({
               . Export does not change approval status.
             </DialogDescription>
           </DialogHeader>
-          {exportPreview ? (
+          {displayExportUrl ? (
             <div className="overflow-hidden rounded-lg border">
               <img
                 alt="Announcement export"
                 className="h-auto w-full"
-                src={exportPreview}
+                decoding="async"
+                src={displayExportUrl}
               />
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">
-              Export preview is still loading…
+              No export is available yet. Capture a JPG to preview it here.
             </p>
           )}
           <DialogFooter>
@@ -3071,7 +2992,7 @@ const AnnouncementEditor = ({
               </Button>
             </DialogClose>
             <Button
-              disabled={!exportPreview}
+              disabled={!displayExportUrl}
               onClick={onDownloadExport}
               type="button"
             >

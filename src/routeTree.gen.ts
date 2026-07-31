@@ -14,6 +14,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
+import { Route as ApiR2AssetRouteImport } from './routes/api/r2-asset'
+import { Route as ApiPresentationAssetRouteImport } from './routes/api/presentation-asset'
 import { Route as AuthenticatedPlannerRouteImport } from './routes/_authenticated/planner'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedTemplatesIndexRouteImport } from './routes/_authenticated/templates/index'
@@ -66,6 +68,16 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const ApiMcpRoute = ApiMcpRouteImport.update({
   id: '/api/mcp',
   path: '/api/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiR2AssetRoute = ApiR2AssetRouteImport.update({
+  id: '/api/r2-asset',
+  path: '/api/r2-asset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPresentationAssetRoute = ApiPresentationAssetRouteImport.update({
+  id: '/api/presentation-asset',
+  path: '/api/presentation-asset',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedPlannerRoute = AuthenticatedPlannerRouteImport.update({
@@ -240,6 +252,8 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/api/presentation-asset': typeof ApiPresentationAssetRoute
+  '/api/r2-asset': typeof ApiR2AssetRoute
   '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
@@ -273,6 +287,8 @@ export interface FileRoutesByTo {
   '/presentation': typeof PresentationRoute
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/api/presentation-asset': typeof ApiPresentationAssetRoute
+  '/api/r2-asset': typeof ApiR2AssetRoute
   '/': typeof AuthenticatedIndexRoute
   '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
@@ -310,6 +326,8 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
+  '/api/presentation-asset': typeof ApiPresentationAssetRoute
+  '/api/r2-asset': typeof ApiR2AssetRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
   '/_authenticated/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
@@ -348,6 +366,8 @@ export interface FileRouteTypes {
     | '/admin'
     | '/planner'
     | '/api/mcp'
+    | '/api/presentation-asset'
+    | '/api/r2-asset'
     | '/announcements/$announcementId'
     | '/hymns/$hymnId'
     | '/hymns/new'
@@ -381,6 +401,8 @@ export interface FileRouteTypes {
     | '/presentation'
     | '/planner'
     | '/api/mcp'
+    | '/api/presentation-asset'
+    | '/api/r2-asset'
     | '/'
     | '/announcements/$announcementId'
     | '/hymns/$hymnId'
@@ -417,6 +439,8 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/planner'
     | '/api/mcp'
+    | '/api/presentation-asset'
+    | '/api/r2-asset'
     | '/_authenticated/'
     | '/_authenticated/announcements/$announcementId'
     | '/_authenticated/hymns/$hymnId'
@@ -452,6 +476,8 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PresentationRoute: typeof PresentationRoute
   ApiMcpRoute: typeof ApiMcpRoute
+  ApiPresentationAssetRoute: typeof ApiPresentationAssetRoute
+  ApiR2AssetRoute: typeof ApiR2AssetRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -490,6 +516,20 @@ declare module '@tanstack/react-router' {
       path: '/api/mcp'
       fullPath: '/api/mcp'
       preLoaderRoute: typeof ApiMcpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/r2-asset': {
+      id: '/api/r2-asset'
+      path: '/api/r2-asset'
+      fullPath: '/api/r2-asset'
+      preLoaderRoute: typeof ApiR2AssetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/presentation-asset': {
+      id: '/api/presentation-asset'
+      path: '/api/presentation-asset'
+      fullPath: '/api/presentation-asset'
+      preLoaderRoute: typeof ApiPresentationAssetRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/planner': {
@@ -781,6 +821,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PresentationRoute: PresentationRoute,
   ApiMcpRoute: ApiMcpRoute,
+  ApiPresentationAssetRoute: ApiPresentationAssetRoute,
+  ApiR2AssetRoute: ApiR2AssetRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

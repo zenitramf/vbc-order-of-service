@@ -212,10 +212,13 @@ export interface AnnouncementSummary {
   variationCount: number;
 }
 
-/** Slide payload for the unauthenticated presentation deck. */
+/**
+ * Slide metadata for the unauthenticated presentation deck.
+ * Image bytes are loaded by the browser via `/api/presentation-asset` (binary).
+ */
 export interface PresentationSlide {
-  base64: string;
-  contentType: string;
+  /** R2 object key for the approved JPG export (served publicly when on the deck). */
+  exportObjectKey: string;
   id: string;
   name: string;
 }

@@ -226,11 +226,7 @@ const isLayoutPlan = (value: unknown): value is CanvasPlan => {
   }
 
   const raw = value as Record<string, unknown>;
-  return (
-    raw.version === 1 &&
-    raw.mode === "rebuild" &&
-    Array.isArray(raw.ops)
-  );
+  return raw.version === 1 && raw.mode === "rebuild" && Array.isArray(raw.ops);
 };
 
 /** Backfill for drafts saved before async layout jobs existed. */
@@ -945,7 +941,8 @@ export const setShowInPresentationDeck = createServerFn({ method: "POST" })
 
 /**
  * Public (unauthenticated) list of approved announcements opted into the
- * presentation deck, with JPEG export payloads for the slideshow.
+ * presentation deck. Returns metadata only — browsers load JPEGs via
+ * `/api/presentation-asset` (binary), not base64 over this server function.
  */
 export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
   async (): Promise<PresentationSlide[]> => {
@@ -964,34 +961,51 @@ export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
         (Date.parse(b.approvedAt ?? b.createdAt) || 0)
     );
 
-    const results = await Promise.all(
-      eligible.map(async (item): Promise<PresentationSlide | null> => {
-        const objectKey = item.exportObjectKey;
+    return eligible.flatMap((item): PresentationSlide[] => {
+      const { exportObjectKey } = item;
 
-        if (!objectKey) {
-          return null;
-        }
+      if (!exportObjectKey) {
+        return [];
+      }
 
-        try {
-          const asset = await readAssetBase64(objectKey);
-          return {
-            base64: asset.base64,
-            contentType: asset.contentType,
-            id: item.id,
-            name: item.name,
-          };
-        } catch {
-          // Skip missing exports rather than failing the whole deck.
-          return null;
-        }
-      })
-    );
-
-    return results.filter(
-      (slide): slide is PresentationSlide => slide !== null
-    );
+      return [
+        {
+          exportObjectKey,
+          id: item.id,
+          name: item.name,
+        },
+      ];
+    });
   }
 );
+
+/**
+ * Resolve the R2 export key for a public presentation slide, or null if the
+ * announcement is not currently eligible for the unauthenticated deck.
+ */
+export const resolvePresentationExportKey = async (
+  announcementId: string
+): Promise<string | null> => {
+  const id = announcementId.trim();
+
+  if (!id) {
+    return null;
+  }
+
+  const index = await readIndex();
+  const item = index.find((entry) => entry.id === id);
+
+  if (
+    !item ||
+    item.status !== "approved" ||
+    !item.showInPresentationDeck ||
+    !item.exportObjectKey
+  ) {
+    return null;
+  }
+
+  return item.exportObjectKey;
+};
 
 export const deleteAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
