@@ -1,3 +1,5 @@
+import type { CanvasPlan } from "~/lib/announcement-ai-plan";
+
 /** Canvas dimensions for announcement outputs (16:9 Full HD). */
 export const ANNOUNCEMENT_WIDTH = 1920;
 export const ANNOUNCEMENT_HEIGHT = 1080;
@@ -144,10 +146,14 @@ export interface SaveAnnouncementInput {
   projectData?: GrapesProjectData | null;
 }
 
-/** AI still returns HTML (JSON builders are a separate PR); client converts to projectData. */
-export interface GenerateAnnouncementHtmlResult {
+/**
+ * AI layout generation: structured CanvasPlan applied client-side via GrapesJS API.
+ * Never HTML or full project JSON from the model.
+ */
+export interface GenerateAnnouncementLayoutResult {
   draft: AnnouncementDraft;
-  generatedHtml: string;
+  /** Validated op plan; client executes with editor.applyAiPlan. */
+  plan: CanvasPlan;
 }
 
 export interface GenerateBackgroundsInput {
@@ -187,6 +193,9 @@ export interface GenerateAnnouncementHtmlInput {
   id: string;
   styleNotes?: string;
 }
+
+/** Same payload as the old HTML generator; renamed for clarity. */
+export type GenerateAnnouncementLayoutInput = GenerateAnnouncementHtmlInput;
 
 export interface ApproveAnnouncementInput {
   base64: string;

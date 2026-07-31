@@ -114,7 +114,7 @@ import {
   addLibraryImageAsVariation,
   approveAnnouncement,
   clearVariationContext,
-  generateAnnouncementHtml,
+  generateAnnouncementLayout,
   generateBackgrounds,
   getAnnouncement,
   getAnnouncementAsset,
@@ -1179,7 +1179,7 @@ const AnnouncementEditor = ({
   const clearContextFn = useServerFn(clearVariationContext);
   const removeVariationFn = useServerFn(removeVariation);
   const removeAllVariationsFn = useServerFn(removeAllVariations);
-  const generateHtmlFn = useServerFn(generateAnnouncementHtml);
+  const generateLayoutFn = useServerFn(generateAnnouncementLayout);
   const getAssetFn = useServerFn(getAnnouncementAsset);
   const approveFn = useServerFn(approveAnnouncement);
 
@@ -1715,25 +1715,50 @@ const AnnouncementEditor = ({
     }
   };
 
-  const onGenerateHtml = async () => {
+  const onGenerateLayout = async () => {
     setIsGeneratingHtml(true);
 
     try {
       await persist({ contentOverride: content });
-      const result = await generateHtmlFn({
+      const result = await generateLayoutFn({
         data: { id: draft.id, styleNotes },
       });
       applyDraft(result.draft, { resetProjectHistory: true });
-      // AI returns HTML ephemerally — seed the editor; it emits projectData to save.
-      setSeedHtml(result.generatedHtml);
-      setSeedRevision((revision) => revision + 1);
+
+      const snapshot = grapesEditorRef.current?.applyAiPlan(
+        result.plan,
+        contentRef.current
+      );
+
+      if (!snapshot) {
+        toast.error("Editor is not ready. Try again in a moment.");
+        return;
+      }
+
+      setExportHtml(snapshot.exportHtml);
+      commitProjectHistory(snapshot.projectData);
+
+      const next = await saveFn({
+        data: {
+          backgroundPrompt: backgroundPromptRef.current,
+          content: contentRef.current,
+          id: draftIdRef.current,
+          name: nameRef.current,
+          projectData: snapshot.projectData,
+          ...(result.plan.basePresetId
+            ? { appliedStyleId: result.plan.basePresetId }
+            : {}),
+        },
+      });
+      setDraft(next);
+
       await router.invalidate();
       toast.success(
-        "Overlay generated (text only — not baked into the image)."
+        "Overlay generated via GrapesJS API (text only — not baked into the image)."
       );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "HTML generation failed."
+        error instanceof Error ? error.message : "Layout generation failed."
       );
     } finally {
       setIsGeneratingHtml(false);
@@ -2125,9 +2150,10 @@ const AnnouncementEditor = ({
           <CardHeader>
             <CardTitle>Generate overlay with AI</CardTitle>
             <CardDescription>
-              Builds layout HTML from the content fields above. Optional style
-              notes steer typography, alignment, and accents. Prefer the canvas
-              editor for manual edits after generation.
+              Builds a layout plan applied through the GrapesJS editor API
+              (presets, blocks, styles — not raw HTML). Optional style notes
+              steer composition, typography, and accents. Refine on the canvas
+              after generation.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -2142,7 +2168,7 @@ const AnnouncementEditor = ({
             </div>
             <Button
               disabled={isGeneratingHtml}
-              onClick={() => void onGenerateHtml()}
+              onClick={() => void onGenerateLayout()}
               type="button"
             >
               {isGeneratingHtml ? (
@@ -2153,7 +2179,7 @@ const AnnouncementEditor = ({
               ) : (
                 <MagicWandIcon data-icon="inline-start" />
               )}
-              Generate HTML with AI
+              Generate with AI
             </Button>
           </CardContent>
         </Card>
