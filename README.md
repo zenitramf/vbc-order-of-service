@@ -99,8 +99,16 @@ pnpm preview
 
 ```sh
 pnpm run db:migrate:remote
-pnpm run deploy
+# Image-gen queue consumer first (claims oos-announcement-image-gen), then app.
+pnpm run deploy:all
+# Or separately:
+#   pnpm run deploy:image-gen
+#   pnpm run deploy
 ```
+
+Announcement AI backgrounds run on a dedicated slim Worker
+(`vbc-oos-announcement-image-gen`) that writes JPEGs to R2. The main app only
+enqueues jobs and serves results from R2.
 
 ## Cloudflare Bindings
 

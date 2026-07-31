@@ -1,5 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["workers/**", "node_modules", "dist", "coverage"],
   "compilerOptions": {
     "strict": true,
     "esModuleInterop": true,

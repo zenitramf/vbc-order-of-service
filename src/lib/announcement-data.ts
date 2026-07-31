@@ -705,7 +705,7 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
 
 /**
  * Enqueue async AI background generation (HTTP path stays thin).
- * Consumer: `processAnnouncementImageGen` via OOS_ANNOUNCEMENT_IMAGE_GEN.
+ * Consumer: slim Worker `vbc-oos-announcement-image-gen` (deploy:image-gen).
  */
 export const generateBackgrounds = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])

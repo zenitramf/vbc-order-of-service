@@ -1,14 +1,12 @@
 /**
  * Queue consumer for announcement AI background generation.
  *
- * Kept separate from `announcement-data.ts` (createServerFn module) so the
- * Vite client graph never pulls a plain async export that breaks
- * `cloudflare:workers` resolution during `vite build`.
+ * Runs only in the slim `vbc-oos-announcement-image-gen` Worker so AI payloads
+ * never share an isolate with TanStack Start / GrapesJS.
  */
 import { Buffer } from "node:buffer";
 
 import { env } from "cloudflare:workers";
-import { v4 as uuidv4 } from "uuid";
 
 import type {
   AnnouncementAsset,
@@ -17,7 +15,7 @@ import type {
   AnnouncementImageGenQueueMessage,
   AnnouncementSummary,
   AnnouncementVariation,
-} from "~/lib/announcement-types";
+} from "./types";
 import {
   ANNOUNCEMENT_ASPECT_RATIO,
   ANNOUNCEMENT_HEIGHT,
@@ -25,7 +23,7 @@ import {
   ANNOUNCEMENT_IMAGE_REF_MAX_BYTES,
   ANNOUNCEMENT_IMAGE_RESOLUTION,
   ANNOUNCEMENT_WIDTH,
-} from "~/lib/announcement-types";
+} from "./types";
 
 const INDEX_KEY = "announcements/index.json";
 
@@ -691,7 +689,7 @@ const persistGeneratedVariation = async (options: {
   referenceImageBase64?: string;
 }): Promise<void> => {
   const { index, message } = options;
-  const variationId = uuidv4();
+  const variationId = crypto.randomUUID();
   const stored = await generateAndStoreBackgroundImage({
     draftId: message.announcementId,
     index,

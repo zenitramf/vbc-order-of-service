@@ -41,22 +41,14 @@
         "queue": "oos-announcement-image-gen",
       },
     ],
+    // Image-gen consumer lives on vbc-oos-announcement-image-gen (Phase B).
+    // Main app only produces to oos-announcement-image-gen.
     "consumers": [
       {
         "queue": "oos-email-sender",
         "max_batch_size": 5,
         "max_batch_timeout": 10,
         "max_retries": 0,
-      },
-      {
-        "queue": "oos-announcement-image-gen",
-        "max_batch_size": 1,
-        "max_batch_timeout": 5,
-        "max_retries": 3,
-        // One consumer only — AI image payloads + SSR share the 128MB isolate.
-        "max_concurrency": 1,
-        "dead_letter_queue": "oos-announcement-image-gen-dlq",
-        "retry_delay": 30,
       },
     ],
   },

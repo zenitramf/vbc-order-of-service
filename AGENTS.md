@@ -19,6 +19,29 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 
 Run `wrangler types` after changing bindings in wrangler.jsonc.
 
+## Multi-Worker deploy (announcement image gen)
+
+AI background generation runs on a **separate slim Worker** so payloads never
+share the TanStack Start isolate (128 MB limit).
+
+| Worker | Role |
+| ------ | ---- |
+| `vbc-order-of-service` | App HTTP + email queue; **produces** image-gen jobs |
+| `vbc-oos-announcement-image-gen` | **Consumes** image-gen queue → Workers AI → R2 |
+
+```bash
+pnpm deploy:image-gen   # deploy consumer first (claims the queue)
+pnpm deploy             # main app (producer only for image-gen)
+# or
+pnpm deploy:all
+```
+
+Local end-to-end image gen needs the consumer running separately:
+
+```bash
+pnpm exec wrangler dev -c workers/announcement-image-gen/wrangler.jsonc
+```
+
 ## Node.js Compatibility
 
 https://developers.cloudflare.com/workers/runtime-apis/nodejs/

@@ -1,33 +1,20 @@
 import serverEntry from "@tanstack/react-start/server-entry";
 
 import { OrderEmailStatusDurableObject } from "~/email-status-durable-object";
-import { processAnnouncementImageGen } from "~/lib/announcement-image-gen-consumer";
-import type { AnnouncementImageGenQueueMessage } from "~/lib/announcement-types";
 import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
 
 export { OrderEmailStatusDurableObject };
 
 const EMAIL_QUEUE = "oos-email-sender";
-const IMAGE_GEN_QUEUE = "oos-announcement-image-gen";
 
-type QueueMessage = OrderEmailQueueMessage | AnnouncementImageGenQueueMessage;
-
-const isEmailMessage = (body: QueueMessage): body is OrderEmailQueueMessage =>
+const isEmailMessage = (body: unknown): body is OrderEmailQueueMessage =>
   typeof body === "object" &&
   body !== null &&
   "orderId" in body &&
   "deliveryId" in body;
 
-const isImageGenMessage = (
-  body: QueueMessage
-): body is AnnouncementImageGenQueueMessage =>
-  typeof body === "object" &&
-  body !== null &&
-  "announcementId" in body &&
-  "jobId" in body;
-
 const processEmailBatch = async (
-  batch: MessageBatch<QueueMessage>,
+  batch: MessageBatch<OrderEmailQueueMessage>,
   env: Env
 ): Promise<void> => {
   await Promise.all(
@@ -43,23 +30,6 @@ const processEmailBatch = async (
   );
 };
 
-const processImageGenMessage = async (
-  message: Message<QueueMessage>
-): Promise<void> => {
-  if (!isImageGenMessage(message.body)) {
-    message.ack();
-    return;
-  }
-
-  try {
-    await processAnnouncementImageGen(message.body);
-    message.ack();
-  } catch {
-    // Leave for Queues retries (max_retries / retry_delay / DLQ).
-    message.retry();
-  }
-};
-
 export default {
   // `/api/auth/*` is owned by the TanStack Start server route in
   // src/routes/api/auth/$.ts, which instantiates Better Auth from the
@@ -68,23 +38,18 @@ export default {
   async fetch(request: Request): Promise<Response> {
     return await serverEntry.fetch(request);
   },
-  async queue(batch: MessageBatch<QueueMessage>, env: Env): Promise<void> {
+  async queue(
+    batch: MessageBatch<OrderEmailQueueMessage>,
+    env: Env
+  ): Promise<void> {
     if (batch.queue === EMAIL_QUEUE) {
       await processEmailBatch(batch, env);
       return;
     }
 
-    if (batch.queue === IMAGE_GEN_QUEUE) {
-      // Sequential (max_batch_size is 1) — avoid parallel AI memory spikes.
-      for (const message of batch.messages) {
-        // oxlint-disable-next-line eslint/no-await-in-loop -- intentional sequential jobs
-        await processImageGenMessage(message);
-      }
-      return;
-    }
-
+    // Image-gen is consumed by vbc-oos-announcement-image-gen (separate Worker).
     for (const message of batch.messages) {
       message.ack();
     }
   },
-} satisfies ExportedHandler<Env, QueueMessage>;
+} satisfies ExportedHandler<Env, OrderEmailQueueMessage>;

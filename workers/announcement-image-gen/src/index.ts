@@ -1,0 +1,55 @@
+/**
+ * Slim queue consumer Worker for announcement AI backgrounds.
+ * No HTTP app surface — only processes oos-announcement-image-gen messages.
+ */
+import { processAnnouncementImageGen } from "./consumer";
+import type { AnnouncementImageGenQueueMessage } from "./types";
+
+const IMAGE_GEN_QUEUE = "oos-announcement-image-gen";
+
+const isImageGenMessage = (
+  body: unknown
+): body is AnnouncementImageGenQueueMessage =>
+  typeof body === "object" &&
+  body !== null &&
+  "announcementId" in body &&
+  "jobId" in body &&
+  typeof (body as AnnouncementImageGenQueueMessage).announcementId ===
+    "string" &&
+  typeof (body as AnnouncementImageGenQueueMessage).jobId === "string";
+
+const processMessage = async (
+  message: Message<AnnouncementImageGenQueueMessage>
+): Promise<void> => {
+  if (!isImageGenMessage(message.body)) {
+    message.ack();
+    return;
+  }
+
+  try {
+    await processAnnouncementImageGen(message.body);
+    message.ack();
+  } catch {
+    // Leave for Queues retries (max_retries / retry_delay / DLQ).
+    message.retry();
+  }
+};
+
+export default {
+  async queue(
+    batch: MessageBatch<AnnouncementImageGenQueueMessage>
+  ): Promise<void> {
+    if (batch.queue !== IMAGE_GEN_QUEUE) {
+      for (const message of batch.messages) {
+        message.ack();
+      }
+      return;
+    }
+
+    // Sequential (max_batch_size is 1) — one AI job at a time per batch.
+    for (const message of batch.messages) {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- intentional sequential jobs
+      await processMessage(message);
+    }
+  },
+} satisfies ExportedHandler<Env, AnnouncementImageGenQueueMessage>;
