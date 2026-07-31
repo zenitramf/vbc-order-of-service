@@ -125,8 +125,10 @@ import {
   setShowInPresentationDeck,
 } from "~/lib/announcement-data";
 import {
+  isUsableProjectData,
   prepareOverlayHtmlForRender,
   projectDataKey,
+  sanitizeProjectData,
 } from "~/lib/announcement-overlay-html";
 import {
   buildDesignPresetHtml,
@@ -172,6 +174,19 @@ const formatCreatedAt = (value: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+
+/** Pretty-print GrapesJS project JSON for the advanced editor. */
+const formatProjectJson = (data: GrapesProjectData | null): string => {
+  if (!data) {
+    return "null";
+  }
+
+  try {
+    return JSON.stringify(data, null, 2);
+  } catch {
+    return "{}";
+  }
+};
 
 const renderSortIcon = (sortDirection: false | "asc" | "desc") => {
   if (sortDirection === "asc") {
@@ -1160,11 +1175,11 @@ const AnnouncementEditor = ({
     setProjectData,
     undo: undoProjectHistory,
   } = useHtmlHistory(initial.projectData);
-  /** Ephemeral HTML for export stage + advanced code view — never persisted. */
+  /** Ephemeral HTML for JPG export + view-only advanced panel — never persisted. */
   const [exportHtml, setExportHtml] = useState("");
   /**
    * One-shot seed for legacy migration, empty new drafts (default preset),
-   * AI HTML (until JSON builders), and code-view apply.
+   * and AI HTML (until JSON builders). Not used by the advanced JSON editor.
    */
   const [seedHtml, setSeedHtml] = useState<string | null>(() => {
     if (initial.projectData) {
@@ -1185,6 +1200,11 @@ const AnnouncementEditor = ({
   const [seedRevision, setSeedRevision] = useState(0);
   const [styleNotes, setStyleNotes] = useState("");
   const [markupOpen, setMarkupOpen] = useState(false);
+  /** Local draft of project JSON while the advanced editor is open/dirty. */
+  const [projectJsonDraft, setProjectJsonDraft] = useState(() =>
+    formatProjectJson(initial.projectData)
+  );
+  const [projectJsonDirty, setProjectJsonDirty] = useState(false);
   const [variationCount, setVariationCount] = useState(2);
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [exportPreview, setExportPreview] = useState<string | null>(null);
@@ -1217,6 +1237,15 @@ const AnnouncementEditor = ({
   contentRef.current = content;
   backgroundPromptRef.current = backgroundPrompt;
   draftIdRef.current = draft.id;
+
+  // Keep advanced JSON editor in sync with canvas unless the user is mid-edit.
+  useEffect(() => {
+    if (projectJsonDirty) {
+      return;
+    }
+
+    setProjectJsonDraft(formatProjectJson(projectData));
+  }, [projectData, projectJsonDirty]);
 
   const hasApprovedExport =
     draft.status === "approved" && Boolean(exportPreview);
@@ -1265,6 +1294,8 @@ const AnnouncementEditor = ({
       lastHydratedIdRef.current = initial.id;
       resetProjectHistory(initial.projectData);
       setExportHtml("");
+      setProjectJsonDraft(formatProjectJson(initial.projectData));
+      setProjectJsonDirty(false);
 
       if (initial.projectData) {
         setSeedHtml(null);
@@ -1411,7 +1442,7 @@ const AnnouncementEditor = ({
 
   const onCanvasProjectChange = useCallback(
     (snapshot: AnnouncementCanvasSnapshot) => {
-      // Export HTML is in-memory only (JPG stage + code view).
+      // Export HTML is in-memory only (JPG stage + view-only advanced panel).
       setExportHtml(snapshot.exportHtml);
 
       if (
@@ -1426,6 +1457,38 @@ const AnnouncementEditor = ({
     },
     [autoSaveProject, commitProjectHistory]
   );
+
+  /** Apply advanced JSON editor contents to the canvas and persist. */
+  const onApplyProjectJson = useCallback(() => {
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(projectJsonDraft) as unknown;
+    } catch {
+      toast.error("Project JSON is not valid JSON.");
+      return;
+    }
+
+    if (!isUsableProjectData(parsed)) {
+      toast.error(
+        "Project JSON must be a GrapesJS project object (pages and/or styles)."
+      );
+      return;
+    }
+
+    const sanitized = sanitizeProjectData(parsed);
+
+    if (!sanitized) {
+      toast.error("Could not sanitize project JSON.");
+      return;
+    }
+
+    setProjectJsonDirty(false);
+    setProjectJsonDraft(formatProjectJson(sanitized));
+    commitProjectHistory(sanitized);
+    autoSaveProject(sanitized);
+    toast.success("Project JSON applied to the canvas.");
+  }, [autoSaveProject, commitProjectHistory, projectJsonDraft]);
 
   const onUndoCanvas = useCallback(() => {
     const restored = undoProjectHistory();
@@ -2116,36 +2179,74 @@ const AnnouncementEditor = ({
         <Accordion
           collapsible
           onValueChange={(value) => {
-            setMarkupOpen(value === "html-markup");
+            const open = value === "project-json";
+            setMarkupOpen(open);
+
+            if (open) {
+              setProjectJsonDraft(formatProjectJson(projectDataRef.current));
+              setProjectJsonDirty(false);
+            }
           }}
           type="single"
-          value={markupOpen ? "html-markup" : ""}
+          value={markupOpen ? "project-json" : ""}
         >
-          <AccordionItem value="html-markup">
+          <AccordionItem value="project-json">
             <AccordionTrigger>
               <span className="flex flex-col items-start gap-1">
-                <span className="text-base">HTML markup (advanced)</span>
+                <span className="text-base">Project JSON (advanced)</span>
                 <span className="text-muted-foreground text-sm font-normal">
-                  Ephemeral export HTML derived from the live GrapesJS project.
-                  Edits re-seed the canvas and re-save as project JSON only.
+                  GrapesJS project data is the source of truth. Export HTML
+                  below is view-only (used for JPG capture).
                 </span>
               </span>
             </AccordionTrigger>
             <AccordionContent className="h-auto">
               {/* Mount only when open so CodeMirror lays out at full height. */}
               {markupOpen ? (
-                <div className="flex min-h-72 flex-col gap-2 pt-1">
-                  <Label htmlFor="overlay-html">HTML markup</Label>
-                  <HtmlCodeEditor
-                    id="overlay-html"
-                    minHeight="18rem"
-                    onChange={(nextHtml) => {
-                      setExportHtml(nextHtml);
-                      setSeedHtml(nextHtml);
-                      setSeedRevision((revision) => revision + 1);
-                    }}
-                    value={exportHtml}
-                  />
+                <div className="flex min-h-72 flex-col gap-4 pt-1">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <Label htmlFor="project-json">Project JSON</Label>
+                      <Button
+                        disabled={!projectJsonDirty}
+                        onClick={onApplyProjectJson}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Apply to canvas
+                      </Button>
+                    </div>
+                    <HtmlCodeEditor
+                      id="project-json"
+                      language="json"
+                      minHeight="18rem"
+                      onChange={(nextJson) => {
+                        setProjectJsonDraft(nextJson);
+                        setProjectJsonDirty(true);
+                      }}
+                      value={projectJsonDraft}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="export-html-preview">
+                      Export HTML (view only)
+                    </Label>
+                    <p className="text-muted-foreground text-xs">
+                      Derived from the live canvas for JPG export. Not editable
+                      and not stored on the draft.
+                    </p>
+                    <HtmlCodeEditor
+                      id="export-html-preview"
+                      language="html"
+                      minHeight="12rem"
+                      readOnly
+                      value={
+                        exportHtml ||
+                        "<!-- Export HTML appears after the canvas loads -->"
+                      }
+                    />
+                  </div>
                 </div>
               ) : null}
             </AccordionContent>
