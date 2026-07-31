@@ -12,6 +12,19 @@ export const ANNOUNCEMENT_ASPECT_RATIO = "16:9" as const;
  */
 export const ANNOUNCEMENT_IMAGE_MODEL = "google/nano-banana-2" as const;
 
+/**
+ * nano-banana-2 resolution. Prefer `1K` to stay under the Workers 128MB isolate
+ * limit; backgrounds are soft plates under text, not hero stills.
+ * @see https://developers.cloudflare.com/ai/models/google/nano-banana-2/
+ */
+export const ANNOUNCEMENT_IMAGE_RESOLUTION = "1K" as const;
+
+/**
+ * Max R2 object size (bytes) for style-reference images loaded into the isolate
+ * as base64 data URIs. Larger refs are skipped so `ai.run` input stays lean.
+ */
+export const ANNOUNCEMENT_IMAGE_REF_MAX_BYTES = 400 * 1024;
+
 export type AnnouncementStatus = "draft" | "approved";
 
 /** JSON-serializable object map (TanStack server-fn compatible). */

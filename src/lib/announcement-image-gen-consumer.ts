@@ -22,6 +22,8 @@ import {
   ANNOUNCEMENT_ASPECT_RATIO,
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_IMAGE_MODEL,
+  ANNOUNCEMENT_IMAGE_REF_MAX_BYTES,
+  ANNOUNCEMENT_IMAGE_RESOLUTION,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
 
@@ -308,7 +310,8 @@ const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
 });
 
 const putJson = async (key: string, value: unknown): Promise<void> => {
-  await getBucket().put(key, JSON.stringify(value, null, 2), {
+  // Compact JSON — pretty-print doubles transient string size on every job tick.
+  await getBucket().put(key, JSON.stringify(value), {
     httpMetadata: { contentType: "application/json" },
   });
 };
@@ -449,6 +452,11 @@ const streamImageUrlToR2 = async (
   return { contentType, objectKey };
 };
 
+/** Reject oversized base64 fallbacks — they can alone exhaust the 128MB isolate. */
+const MAX_BASE64_FALLBACK_CHARS = Math.floor(
+  (ANNOUNCEMENT_IMAGE_REF_MAX_BYTES * 4) / 3
+);
+
 const putBase64ImageToR2 = async (
   draftId: string,
   variationId: string,
@@ -472,12 +480,21 @@ const putBase64ImageToR2 = async (
     }
   }
 
+  if (base64.length > MAX_BASE64_FALLBACK_CHARS) {
+    throw new Error(
+      `AI returned base64 image too large for Worker memory (${base64.length} chars; max ${MAX_BASE64_FALLBACK_CHARS}). Prefer URL responses.`
+    );
+  }
+
   const objectKey = backgroundKey(
     draftId,
     variationId,
     extensionForContentType(contentType)
   );
-  await putImageBody(objectKey, Buffer.from(base64, "base64"), contentType);
+  const bytes = Buffer.from(base64, "base64");
+  // Drop the large string before R2 put so peak RAM is one buffer, not two.
+  base64 = "";
+  await putImageBody(objectKey, bytes, contentType);
   return { contentType, objectKey };
 };
 
@@ -566,18 +583,32 @@ const generateAndStoreBackgroundImage = async (options: {
     aspect_ratio: ANNOUNCEMENT_ASPECT_RATIO,
     output_format: "jpg",
     prompt: `${basePrompt}${variationHint}`,
-    resolution: "2K",
+    resolution: ANNOUNCEMENT_IMAGE_RESOLUTION,
   };
 
+  // Hold data URI only for the duration of ai.run — never across R2 streaming.
+  let referenceDataUri: string | undefined;
   if (options.referenceImageBase64) {
-    const dataUri = `data:${options.referenceContentType || "image/jpeg"};base64,${options.referenceImageBase64}`;
+    referenceDataUri = `data:${options.referenceContentType || "image/jpeg"};base64,${options.referenceImageBase64}`;
     // Prefer image_input[] (up to 3 refs); `image` also accepts a single URI.
-    input.image_input = [dataUri];
+    input.image_input = [referenceDataUri];
     input.prompt = `${basePrompt} Use the reference image as style and subject context.${variationHint}`;
   }
 
-  const response = await runAiGateway(ANNOUNCEMENT_IMAGE_MODEL, input);
+  let response: unknown;
+  try {
+    response = await runAiGateway(ANNOUNCEMENT_IMAGE_MODEL, input);
+  } finally {
+    // Help GC before we download/stream the result image.
+    referenceDataUri = undefined;
+    if ("image_input" in input) {
+      delete input.image_input;
+    }
+  }
+
   const imagePayload = extractImageFromAiResponse(response);
+  // Drop gateway response object as soon as the URL/base64 string is extracted.
+  response = undefined;
 
   if (!imagePayload) {
     throw new Error("AI Gateway image generation returned no image payload.");
@@ -590,13 +621,29 @@ const generateAndStoreBackgroundImage = async (options: {
   );
 };
 
-const readAssetBase64 = async (
+/**
+ * Load a style-reference image only if it fits under the isolate budget.
+ * Oversized objects are skipped (prompt-only generation) rather than OOMing.
+ */
+const readReferenceAssetBase64 = async (
   objectKey: string
-): Promise<AnnouncementAsset> => {
+): Promise<AnnouncementAsset | null> => {
   const object = await getBucket().get(objectKey);
 
   if (!object) {
     throw new Error("Asset not found in R2.");
+  }
+
+  if (object.size > ANNOUNCEMENT_IMAGE_REF_MAX_BYTES) {
+    console.warn(
+      JSON.stringify({
+        event: "announcement_image_ref_skipped",
+        maxBytes: ANNOUNCEMENT_IMAGE_REF_MAX_BYTES,
+        objectKey,
+        size: object.size,
+      })
+    );
+    return null;
   }
 
   const arrayBuffer = await object.arrayBuffer();
@@ -633,17 +680,20 @@ const markJob = (
   };
 };
 
+/**
+ * Generate one variation, then reload draft before persist so we do not hold
+ * the full draft graph in memory alongside AI request/response buffers.
+ */
 const persistGeneratedVariation = async (options: {
-  draft: AnnouncementDraft;
   index: number;
   message: AnnouncementImageGenQueueMessage;
   referenceContentType?: string;
   referenceImageBase64?: string;
 }): Promise<void> => {
-  const { draft, index, message } = options;
+  const { index, message } = options;
   const variationId = uuidv4();
   const stored = await generateAndStoreBackgroundImage({
-    draftId: draft.id,
+    draftId: message.announcementId,
     index,
     prompt: message.prompt,
     referenceContentType: options.referenceContentType,
@@ -652,6 +702,7 @@ const persistGeneratedVariation = async (options: {
     variationId,
   });
 
+  const draft = await loadDraft(message.announcementId);
   const variation: AnnouncementVariation = {
     createdAt: nowIso(),
     id: variationId,
@@ -679,7 +730,6 @@ const persistGeneratedVariation = async (options: {
 };
 
 const generateVariationsSequentially = async (options: {
-  draft: AnnouncementDraft;
   index: number;
   message: AnnouncementImageGenQueueMessage;
   referenceContentType?: string;
@@ -759,32 +809,43 @@ export const processAnnouncementImageGen = async (
   });
   await saveDraft(draft);
 
+  // Drop draft before AI work — reload only for status updates / final persist.
+  const announcementId = draft.id;
   let referenceImageBase64: string | undefined;
   let referenceContentType: string | undefined;
 
   if (message.referenceObjectKey) {
-    const asset = await readAssetBase64(message.referenceObjectKey);
-    referenceImageBase64 = asset.base64;
-    referenceContentType = asset.contentType;
+    const asset = await readReferenceAssetBase64(message.referenceObjectKey);
+    if (asset) {
+      referenceImageBase64 = asset.base64;
+      referenceContentType = asset.contentType;
+    }
   }
 
   try {
     await generateVariationsSequentially({
-      draft,
       index: startIndex,
       message,
       referenceContentType,
       referenceImageBase64,
     });
 
-    markJob(draft, message, {
+    // Release reference bytes before final draft reload/write.
+    referenceImageBase64 = undefined;
+    referenceContentType = undefined;
+
+    const completed = await loadDraft(announcementId);
+    markJob(completed, message, {
       completedCount: message.count,
       error: null,
       status: "completed",
     });
-    await saveDraft(draft);
+    await saveDraft(completed);
   } catch (error) {
-    await markJobFailed(message, draft, error);
+    referenceImageBase64 = undefined;
+    referenceContentType = undefined;
+    const fallback = await loadDraft(announcementId).catch(() => draft);
+    await markJobFailed(message, fallback, error);
     throw error;
   }
 };
