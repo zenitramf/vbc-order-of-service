@@ -13,9 +13,9 @@ import { Route as PresentationRouteImport } from './routes/presentation'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as ApiR2AssetRouteImport } from './routes/api/r2-asset'
 import { Route as ApiPresentationAssetRouteImport } from './routes/api/presentation-asset'
+import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as AuthenticatedPlannerRouteImport } from './routes/_authenticated/planner'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedTemplatesIndexRouteImport } from './routes/_authenticated/templates/index'
@@ -65,11 +65,6 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ApiMcpRoute = ApiMcpRouteImport.update({
-  id: '/api/mcp',
-  path: '/api/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiR2AssetRoute = ApiR2AssetRouteImport.update({
   id: '/api/r2-asset',
   path: '/api/r2-asset',
@@ -78,6 +73,11 @@ const ApiR2AssetRoute = ApiR2AssetRouteImport.update({
 const ApiPresentationAssetRoute = ApiPresentationAssetRouteImport.update({
   id: '/api/presentation-asset',
   path: '/api/presentation-asset',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMcpRoute = ApiMcpRouteImport.update({
+  id: '/api/mcp',
+  path: '/api/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedPlannerRoute = AuthenticatedPlannerRouteImport.update({
@@ -511,13 +511,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/mcp': {
-      id: '/api/mcp'
-      path: '/api/mcp'
-      fullPath: '/api/mcp'
-      preLoaderRoute: typeof ApiMcpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/r2-asset': {
       id: '/api/r2-asset'
       path: '/api/r2-asset'
@@ -530,6 +523,13 @@ declare module '@tanstack/react-router' {
       path: '/api/presentation-asset'
       fullPath: '/api/presentation-asset'
       preLoaderRoute: typeof ApiPresentationAssetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mcp': {
+      id: '/api/mcp'
+      path: '/api/mcp'
+      fullPath: '/api/mcp'
+      preLoaderRoute: typeof ApiMcpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/planner': {
