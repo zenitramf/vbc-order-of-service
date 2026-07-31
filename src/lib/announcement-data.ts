@@ -979,34 +979,6 @@ export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
   }
 );
 
-/**
- * Resolve the R2 export key for a public presentation slide, or null if the
- * announcement is not currently eligible for the unauthenticated deck.
- */
-export const resolvePresentationExportKey = async (
-  announcementId: string
-): Promise<string | null> => {
-  const id = announcementId.trim();
-
-  if (!id) {
-    return null;
-  }
-
-  const index = await readIndex();
-  const item = index.find((entry) => entry.id === id);
-
-  if (
-    !item ||
-    item.status !== "approved" ||
-    !item.showInPresentationDeck ||
-    !item.exportObjectKey
-  ) {
-    return null;
-  }
-
-  return item.exportObjectKey;
-};
-
 export const deleteAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
   .validator((id: string) => id)

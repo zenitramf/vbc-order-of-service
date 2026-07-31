@@ -1,8 +1,67 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "cloudflare:workers";
 
-import { resolvePresentationExportKey } from "~/lib/announcement-data";
 import { responseFromR2Object } from "~/lib/r2-object-response";
+
+const INDEX_KEY = "announcements/index.json";
+
+interface PresentationIndexRow {
+  exportObjectKey?: string | null;
+  id?: string;
+  showInPresentationDeck?: boolean;
+  status?: string;
+}
+
+/**
+ * Resolve the R2 export key for a public presentation slide.
+ *
+ * Kept local to this API route so the client route graph never imports
+ * `announcement-data` (which pulls in `cloudflare:workers` + createServerFn).
+ */
+const resolvePresentationExportKey = async (
+  announcementId: string
+): Promise<string | null> => {
+  const id = announcementId.trim();
+
+  if (!id) {
+    return null;
+  }
+
+  const bucket = env.SERVICE_PDFS;
+
+  if (!bucket) {
+    return null;
+  }
+
+  const object = await bucket.get(INDEX_KEY);
+
+  if (!object) {
+    return null;
+  }
+
+  let rows: PresentationIndexRow[] = [];
+
+  try {
+    const parsed: unknown = await object.json();
+    rows = Array.isArray(parsed) ? (parsed as PresentationIndexRow[]) : [];
+  } catch {
+    return null;
+  }
+
+  const item = rows.find((entry) => entry.id === id);
+
+  if (
+    !item ||
+    item.status !== "approved" ||
+    !item.showInPresentationDeck ||
+    typeof item.exportObjectKey !== "string" ||
+    !item.exportObjectKey
+  ) {
+    return null;
+  }
+
+  return item.exportObjectKey;
+};
 
 /**
  * Public binary proxy for presentation-deck export JPEGs.
