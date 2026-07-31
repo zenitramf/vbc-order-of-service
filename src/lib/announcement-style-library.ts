@@ -80,10 +80,29 @@ interface ComponentDef {
   attributes?: Record<string, string>;
   components?: ComponentDef[];
   content?: string;
+  /**
+   * Layer Manager label. Without this GrapesJS falls back to tagName/type
+   * (usually "Div" / "Text") — not `data-ann-role`.
+   */
+  name?: string;
   style?: StyleMap;
   tagName?: string;
   type?: string;
 }
+
+/** Human labels for Layer Manager (from announcement roles). */
+const ROLE_LAYER_NAMES: Record<AnnouncementStyleRole, string> = {
+  body: "Body",
+  heading: "Heading",
+  link: "Link",
+  panel: "Panel",
+  "scrim-bottom": "Bottom scrim",
+  "scrim-left": "Left scrim",
+  "scrim-right": "Right scrim",
+  "scrim-top": "Top scrim",
+  subtitle: "Subtitle",
+  title: "Title",
+};
 
 interface ResolvedContent {
   body: string;
@@ -154,6 +173,7 @@ const textNode = (
 ): ComponentDef => ({
   attributes: roleAttrs(role),
   content: text,
+  name: ROLE_LAYER_NAMES[role],
   style,
   tagName,
   type: "text",
@@ -162,10 +182,12 @@ const textNode = (
 const divNode = (
   style: StyleMap,
   components: ComponentDef[],
-  role?: AnnouncementStyleRole
+  role?: AnnouncementStyleRole,
+  layerName?: string
 ): ComponentDef => ({
   attributes: role ? roleAttrs(role) : undefined,
   components,
+  name: layerName ?? (role ? ROLE_LAYER_NAMES[role] : "Box"),
   style,
   tagName: "div",
 });
@@ -232,6 +254,7 @@ const textStack = (
 const toProjectData = (components: ComponentDef[]): GrapesProjectData => {
   const wrapper: ComponentDef = {
     components,
+    name: "Body",
     style: {
       "background-color": "transparent",
       "box-sizing": "border-box",
@@ -319,7 +342,9 @@ const buildBottomBand = (content: AnnouncementContent): GrapesProjectData => {
         headingStyle: HEADING_CLASSIC,
         subtitleStyle: SUBTITLE_CLASSIC,
         titleStyle: TITLE_CLASSIC,
-      })
+      }),
+      undefined,
+      "Text stack"
     ),
   ]);
 };
@@ -378,7 +403,9 @@ const buildLowerLeft = (content: AnnouncementContent): GrapesProjectData => {
         headingStyle: HEADING_CLASSIC,
         subtitleStyle: SUBTITLE_CLASSIC,
         titleStyle: `${TITLE_CLASSIC}font-size:120px;`,
-      })
+      }),
+      undefined,
+      "Text stack"
     ),
   ]);
 };
@@ -437,7 +464,9 @@ const buildCenteredHero = (content: AnnouncementContent): GrapesProjectData => {
         headingStyle: HEADING_MODERN,
         subtitleStyle: `${SUBTITLE_MODERN}max-width:1200px;`,
         titleStyle: `${TITLE_MODERN}font-size:140px;max-width:1600px;`,
-      })
+      }),
+      undefined,
+      "Text stack"
     ),
   ]);
 };
@@ -480,7 +509,9 @@ const buildTopBanner = (content: AnnouncementContent): GrapesProjectData => {
         headingStyle: HEADING_CLASSIC,
         subtitleStyle: SUBTITLE_CLASSIC,
         titleStyle: `${TITLE_CLASSIC}font-size:124px;`,
-      })
+      }),
+      undefined,
+      "Text stack"
     ),
   ]);
 };
@@ -655,7 +686,9 @@ const buildTwoPanel = (content: AnnouncementContent): GrapesProjectData => {
           display: "flex",
           "flex-direction": "column",
         },
-        topParts
+        topParts,
+        undefined,
+        "Title block"
       )
     );
   }
@@ -670,7 +703,9 @@ const buildTwoPanel = (content: AnnouncementContent): GrapesProjectData => {
           "flex-direction": "column",
           "margin-top": "48px",
         },
-        bottomParts
+        bottomParts,
+        undefined,
+        "Details block"
       )
     );
   }
