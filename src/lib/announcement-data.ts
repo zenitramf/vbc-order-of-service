@@ -815,6 +815,20 @@ export const addLibraryImageAsVariation = createServerFn({ method: "POST" })
       custom.filename?.trim() ||
       libraryObjectKey.split("/").pop() ||
       "library-image";
+
+    if (
+      libraryImageId &&
+      draft.variations.some(
+        (variation) =>
+          variation.source === "library" &&
+          variation.libraryImageId === libraryImageId
+      )
+    ) {
+      throw new Error(
+        "This library image is already in the announcement variation library."
+      );
+    }
+
     const contentType =
       libraryObject.httpMetadata?.contentType ||
       custom.contentType ||

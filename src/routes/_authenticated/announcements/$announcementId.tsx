@@ -735,11 +735,14 @@ const LibraryImagePickerDialog = ({
   onAdd,
   onOpenChange,
   open,
+  usedLibraryImageIds,
 }: {
   isAdding: boolean;
   onAdd: (image: ImageLibraryItem) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  /** Library image ids already present as variations on this announcement. */
+  usedLibraryImageIds: ReadonlySet<string>;
 }) => {
   const listFn = useServerFn(listLibraryImages);
   const getImageFn = useServerFn(getLibraryImage);
@@ -873,27 +876,44 @@ const LibraryImagePickerDialog = ({
             {images.map((image) => {
               const previewUrl = previewUrls[image.objectKey];
               const isThisAdding = isAdding && addingKey === image.objectKey;
+              const alreadyInAnnouncement = usedLibraryImageIds.has(image.id);
+              const isDisabled = isAdding || alreadyInAnnouncement;
 
               return (
                 <button
                   className={cn(
                     "group relative overflow-hidden rounded-lg border text-left transition-colors",
-                    "hover:border-primary focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                    "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                    alreadyInAnnouncement
+                      ? "cursor-not-allowed opacity-60"
+                      : "hover:border-primary",
                     isThisAdding && "border-primary opacity-80"
                   )}
-                  disabled={isAdding}
+                  disabled={isDisabled}
                   key={image.id}
                   onClick={() => {
+                    if (alreadyInAnnouncement) {
+                      return;
+                    }
+
                     setAddingKey(image.objectKey);
                     onAdd(image);
                   }}
+                  title={
+                    alreadyInAnnouncement
+                      ? "Already added to this announcement"
+                      : undefined
+                  }
                   type="button"
                 >
                   <div className="bg-muted aspect-video w-full overflow-hidden">
                     {previewUrl ? (
                       <img
                         alt={image.filename}
-                        className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        className={cn(
+                          "size-full object-cover transition-transform duration-300",
+                          !alreadyInAnnouncement && "group-hover:scale-[1.03]"
+                        )}
                         src={previewUrl}
                       />
                     ) : (
@@ -909,16 +929,25 @@ const LibraryImagePickerDialog = ({
                         {image.filename}
                       </p>
                       <p className="text-muted-foreground text-xs">
-                        Library template
+                        {alreadyInAnnouncement
+                          ? "Already in this announcement"
+                          : "Library template"}
                       </p>
                     </div>
-                    <Badge
-                      className="shrink-0 bg-sky-600 text-white hover:bg-sky-600"
-                      variant="secondary"
-                    >
-                      <BooksIcon className="size-3" weight="fill" />
-                      Library
-                    </Badge>
+                    {alreadyInAnnouncement ? (
+                      <Badge className="shrink-0" variant="secondary">
+                        <CheckCircleIcon className="size-3" weight="fill" />
+                        Added
+                      </Badge>
+                    ) : (
+                      <Badge
+                        className="shrink-0 bg-sky-600 text-white hover:bg-sky-600"
+                        variant="secondary"
+                      >
+                        <BooksIcon className="size-3" weight="fill" />
+                        Library
+                      </Badge>
+                    )}
                   </div>
                   {isThisAdding ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/45">
@@ -1314,6 +1343,7 @@ const BackgroundImageCard = ({
   onGenerateBackgrounds,
   selectedVariation,
   setBackgroundPrompt,
+  usedLibraryImageIds,
 }: {
   backgroundPrompt: string;
   generationJob: AnnouncementGenerationJob | null;
@@ -1324,6 +1354,7 @@ const BackgroundImageCard = ({
   onGenerateBackgrounds: () => void;
   selectedVariation: AnnouncementVariation | null;
   setBackgroundPrompt: (value: string) => void;
+  usedLibraryImageIds: ReadonlySet<string>;
 }) => {
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [isAddingLibraryImage, setIsAddingLibraryImage] = useState(false);
@@ -1444,6 +1475,7 @@ const BackgroundImageCard = ({
         }}
         onOpenChange={setLibraryPickerOpen}
         open={libraryPickerOpen}
+        usedLibraryImageIds={usedLibraryImageIds}
       />
     </>
   );
@@ -1626,6 +1658,18 @@ const AnnouncementEditor = ({
       ) ?? null,
     [draft.selectedVariationId, draft.variations]
   );
+
+  const usedLibraryImageIds = useMemo(() => {
+    const ids = new Set<string>();
+
+    for (const variation of draft.variations) {
+      if (variation.source === "library" && variation.libraryImageId) {
+        ids.add(variation.libraryImageId);
+      }
+    }
+
+    return ids;
+  }, [draft.variations]);
 
   const selectedBackgroundUrl = selectedVariation
     ? (assetUrls[selectedVariation.objectKey] ?? null)
@@ -2514,6 +2558,7 @@ const AnnouncementEditor = ({
             }}
             selectedVariation={selectedVariation}
             setBackgroundPrompt={setBackgroundPrompt}
+            usedLibraryImageIds={usedLibraryImageIds}
           />
         </div>
 
