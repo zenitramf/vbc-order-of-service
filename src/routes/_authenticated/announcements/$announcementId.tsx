@@ -2003,6 +2003,10 @@ const AnnouncementEditor = ({
 
   /** Apply advanced JSON editor contents to the canvas and persist. */
   const onApplyProjectJson = useCallback(() => {
+    if (!canEdit) {
+      return;
+    }
+
     let parsed: unknown;
 
     try {
@@ -2031,9 +2035,13 @@ const AnnouncementEditor = ({
     commitProjectHistory(sanitized);
     autoSaveProject(sanitized);
     toast.success("Project JSON applied to the canvas.");
-  }, [autoSaveProject, commitProjectHistory, projectJsonDraft]);
+  }, [autoSaveProject, canEdit, commitProjectHistory, projectJsonDraft]);
 
   const onUndoCanvas = useCallback(() => {
+    if (!canEdit) {
+      return;
+    }
+
     const restored = undoProjectHistory();
 
     if (restored === null) {
@@ -2043,9 +2051,13 @@ const AnnouncementEditor = ({
     if (restored) {
       autoSaveProject(restored);
     }
-  }, [autoSaveProject, undoProjectHistory]);
+  }, [autoSaveProject, canEdit, undoProjectHistory]);
 
   const onRedoCanvas = useCallback(() => {
+    if (!canEdit) {
+      return;
+    }
+
     const restored = redoProjectHistory();
 
     if (restored === null) {
@@ -2055,14 +2067,14 @@ const AnnouncementEditor = ({
     if (restored) {
       autoSaveProject(restored);
     }
-  }, [autoSaveProject, redoProjectHistory]);
+  }, [autoSaveProject, canEdit, redoProjectHistory]);
 
   useHotkey(
     "Mod+Z",
     () => {
       onUndoCanvas();
     },
-    { enabled: canUndo }
+    { enabled: canUndo && canEdit }
   );
 
   useHotkey(
@@ -2070,7 +2082,7 @@ const AnnouncementEditor = ({
     () => {
       onRedoCanvas();
     },
-    { enabled: canRedo }
+    { enabled: canRedo && canEdit }
   );
 
   // Common redo chord (in addition to Mod+Y).
@@ -2079,7 +2091,7 @@ const AnnouncementEditor = ({
     () => {
       onRedoCanvas();
     },
-    { enabled: canRedo }
+    { enabled: canRedo && canEdit }
   );
 
   const persist = async (overrides?: {
@@ -2967,7 +2979,7 @@ const AnnouncementEditor = ({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <Label htmlFor="project-json">Project JSON</Label>
                       <Button
-                        disabled={!projectJsonDirty}
+                        disabled={!canEdit || !projectJsonDirty}
                         onClick={onApplyProjectJson}
                         size="sm"
                         type="button"
@@ -2976,14 +2988,25 @@ const AnnouncementEditor = ({
                         Apply to canvas
                       </Button>
                     </div>
+                    {canEdit ? null : (
+                      <p className="text-muted-foreground text-xs">
+                        Unlock editing to change project JSON on an approved
+                        announcement.
+                      </p>
+                    )}
                     <HtmlCodeEditor
                       id="project-json"
                       language="json"
                       minHeight="18rem"
                       onChange={(nextJson) => {
+                        if (!canEdit) {
+                          return;
+                        }
+
                         setProjectJsonDraft(nextJson);
                         setProjectJsonDirty(true);
                       }}
+                      readOnly={!canEdit}
                       value={projectJsonDraft}
                     />
                   </div>
