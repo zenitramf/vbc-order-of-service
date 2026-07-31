@@ -6,12 +6,22 @@ import { listPresentationDeck } from "~/lib/announcement-data";
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
+  SILENCE_PHONE_SLIDE_ID,
 } from "~/lib/announcement-types";
+import type { PresentationSlide } from "~/lib/announcement-types";
 import { presentationAssetUrl } from "~/lib/r2-asset-url";
 import { seo } from "~/utils/seo";
 
 /** How long each approved slide stays on screen before advancing. */
 const SLIDE_INTERVAL_MS = 20_000;
+
+const slideImageUrl = (slide: PresentationSlide): string => {
+  if (slide.kind === "silence_phone" || slide.imageUrl) {
+    return slide.imageUrl ?? "";
+  }
+
+  return presentationAssetUrl(slide.id);
+};
 
 /**
  * Uniform scale so the fixed 1920×1080 stage fills the viewport without
@@ -41,16 +51,17 @@ const useStageScale = (): number => {
 
 /**
  * Production display surface for church screens at 1920×1080.
- * No chrome, captions, or controls — only the approved export images.
+ * No chrome, captions, or controls — only the approved export images
+ * (plus the fixed silence-phone system slide).
  */
 const PresentationDeck = () => {
   const slides = Route.useLoaderData();
   const [index, setIndex] = useState(0);
   const scale = useStageScale();
 
-  // Binary public URLs — loader stays lightweight (metadata only).
+  // Binary public URLs for announcements; absolute URL for system slides.
   const imageUrls = useMemo(
-    () => slides.map((slide) => presentationAssetUrl(slide.id)),
+    () => slides.map((slide) => slideImageUrl(slide)),
     [slides]
   );
 
@@ -136,23 +147,42 @@ const PresentationDeck = () => {
           const isNext =
             imageUrls.length > 1 &&
             slideIndex === (index + 1) % imageUrls.length;
+          const isSilence =
+            slide?.kind === "silence_phone" ||
+            slide?.id === SILENCE_PHONE_SLIDE_ID;
 
           return (
-            <img
-              alt=""
-              className="absolute inset-0 size-full object-fill transition-opacity duration-700 ease-in-out"
-              decoding="async"
-              draggable={false}
-              fetchPriority={isActive ? "high" : "auto"}
-              height={ANNOUNCEMENT_HEIGHT}
+            <div
+              className="absolute inset-0 transition-opacity duration-700 ease-in-out"
               key={slide?.id ?? url}
-              loading={isActive || isNext ? "eager" : "lazy"}
-              src={url}
-              style={{
-                opacity: isActive ? 1 : 0,
-              }}
-              width={ANNOUNCEMENT_WIDTH}
-            />
+              style={{ opacity: isActive ? 1 : 0 }}
+            >
+              {url ? (
+                <img
+                  alt=""
+                  className="absolute inset-0 size-full object-fill"
+                  decoding="async"
+                  draggable={false}
+                  fetchPriority={isActive ? "high" : "auto"}
+                  height={ANNOUNCEMENT_HEIGHT}
+                  loading={isActive || isNext ? "eager" : "lazy"}
+                  src={url}
+                  width={ANNOUNCEMENT_WIDTH}
+                />
+              ) : (
+                <div className="absolute inset-0 bg-black" />
+              )}
+              {isSilence ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/55 px-16">
+                  <p
+                    className="text-center font-semibold tracking-wide text-white"
+                    style={{ fontSize: 72, lineHeight: 1.2 }}
+                  >
+                    Please silence your phone
+                  </p>
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </div>

@@ -138,6 +138,7 @@ const routeLabels = new Map([
   ["templates", "Templates"],
   ["hymns", "Hymns"],
   ["announcements", "Announcements"],
+  ["deck", "Presentation deck"],
   ["library", "Image Library"],
   ["teams", "Teams"],
   ["members", "Team Members"],

@@ -2,8 +2,12 @@ import { Buffer } from "node:buffer";
 
 import { createServerFn } from "@tanstack/react-start";
 import { env } from "cloudflare:workers";
+import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
+import { getAppDb } from "~/db/client";
+import type { AppDatabase } from "~/db/client";
+import { appSettings } from "~/db/schema";
 import type { CanvasPlan } from "~/lib/announcement-ai-plan";
 import { isMaterialSave } from "~/lib/announcement-material";
 import type {
@@ -22,8 +26,11 @@ import type {
   GenerateAnnouncementLayoutInput,
   GenerateAnnouncementLayoutResult,
   GenerateBackgroundsInput,
+  PresentationDeckEditorSlide,
+  PresentationDeckOrderSettings,
   PresentationSlide,
   SaveAnnouncementInput,
+  SavePresentationDeckOrderInput,
   ClearVariationContextInput,
   RemoveAllVariationsInput,
   RemoveVariationInput,
@@ -33,6 +40,8 @@ import type {
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
+  SILENCE_PHONE_PLACEHOLDER_URL,
+  SILENCE_PHONE_SLIDE_ID,
 } from "~/lib/announcement-types";
 import { requireSessionMiddleware } from "~/lib/auth.functions";
 import { LIBRARY_R2_PREFIX } from "~/lib/image-library-types";
@@ -40,8 +49,18 @@ import { LIBRARY_R2_PREFIX } from "~/lib/image-library-types";
 export { isMaterialSave } from "~/lib/announcement-material";
 
 const INDEX_KEY = "announcements/index.json";
+/** D1 `app_settings` key for presentation deck announcement order. */
+const PRESENTATION_DECK_ORDER_KEY = "presentationDeckOrder";
 /** Always generate a single background per request (UI no longer exposes count). */
 const VARIATIONS_PER_REQUEST = 1;
+
+const SILENCE_PHONE_SLIDE: PresentationSlide = {
+  exportObjectKey: null,
+  id: SILENCE_PHONE_SLIDE_ID,
+  imageUrl: SILENCE_PHONE_PLACEHOLDER_URL,
+  kind: "silence_phone",
+  name: "Please silence your phone",
+};
 
 const getBucket = (): R2Bucket => {
   if (!env.SERVICE_PDFS) {
@@ -939,43 +958,239 @@ export const setShowInPresentationDeck = createServerFn({ method: "POST" })
     return await saveDraft(draft);
   });
 
-/**
- * Public (unauthenticated) list of approved announcements opted into the
- * presentation deck. Returns metadata only — browsers load JPEGs via
- * `/api/presentation-asset` (binary), not base64 over this server function.
- */
-export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
-  async (): Promise<PresentationSlide[]> => {
-    const index = await readIndex();
-    const eligible = index.filter(
-      (item) =>
-        item.status === "approved" &&
-        item.showInPresentationDeck &&
-        Boolean(item.exportObjectKey)
-    );
+const parsePresentationDeckOrder = (
+  value: string | null | undefined
+): PresentationDeckOrderSettings => {
+  if (!value) {
+    return { orderedIds: [] };
+  }
 
-    // Stable order: oldest approved first so the deck order is predictable.
-    eligible.sort(
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (!parsed || typeof parsed !== "object") {
+      return { orderedIds: [] };
+    }
+
+    const { orderedIds } = parsed as { orderedIds?: unknown };
+
+    if (!Array.isArray(orderedIds)) {
+      return { orderedIds: [] };
+    }
+
+    return {
+      orderedIds: orderedIds.filter(
+        (id): id is string => typeof id === "string" && id.trim().length > 0
+      ),
+    };
+  } catch {
+    return { orderedIds: [] };
+  }
+};
+
+const loadPresentationDeckOrder = async (
+  db: AppDatabase
+): Promise<PresentationDeckOrderSettings> => {
+  const row = await db
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, PRESENTATION_DECK_ORDER_KEY))
+    .get();
+
+  return parsePresentationDeckOrder(row?.value);
+};
+
+/**
+ * Order eligible deck announcements by saved D1 order. Ids present in the
+ * saved list come first (in that order); any new deck members not yet saved
+ * append after, oldest-approved first. Silence-phone is never stored here.
+ */
+const orderEligibleDeckItems = (
+  eligible: AnnouncementSummary[],
+  orderedIds: string[]
+): AnnouncementSummary[] => {
+  const byId = new Map(eligible.map((item) => [item.id, item]));
+  const ordered: AnnouncementSummary[] = [];
+  const seen = new Set<string>();
+
+  for (const id of orderedIds) {
+    const item = byId.get(id);
+
+    if (!item || seen.has(id)) {
+      continue;
+    }
+
+    ordered.push(item);
+    seen.add(id);
+  }
+
+  // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target lacks toSorted.
+  const remainder = eligible
+    .filter((item) => !seen.has(item.id))
+    .sort(
       (a, b) =>
         (Date.parse(a.approvedAt ?? a.createdAt) || 0) -
         (Date.parse(b.approvedAt ?? b.createdAt) || 0)
     );
 
-    return eligible.flatMap((item): PresentationSlide[] => {
-      const { exportObjectKey } = item;
+  return [...ordered, ...remainder];
+};
 
-      if (!exportObjectKey) {
-        return [];
+const eligibleDeckSummaries = (
+  index: AnnouncementSummary[]
+): AnnouncementSummary[] =>
+  index.filter(
+    (item) =>
+      item.status === "approved" &&
+      item.showInPresentationDeck &&
+      Boolean(item.exportObjectKey)
+  );
+
+const summaryToEditorSlide = (
+  item: AnnouncementSummary
+): PresentationDeckEditorSlide | null => {
+  const { exportObjectKey } = item;
+
+  if (!exportObjectKey) {
+    return null;
+  }
+
+  return {
+    approvedAt: item.approvedAt,
+    exportObjectKey,
+    id: item.id,
+    name: item.name,
+    updatedAt: item.updatedAt,
+  };
+};
+
+const summaryToPresentationSlide = (
+  item: AnnouncementSummary
+): PresentationSlide | null => {
+  const { exportObjectKey } = item;
+
+  if (!exportObjectKey) {
+    return null;
+  }
+
+  return {
+    exportObjectKey,
+    id: item.id,
+    kind: "announcement",
+    name: item.name,
+  };
+};
+
+/**
+ * Authenticated deck editor payload: ordered announcement slides currently on
+ * the deck (silence-phone is fixed at the end of the public player, not here).
+ */
+export const getPresentationDeckEditor = createServerFn({ method: "GET" })
+  .middleware([requireSessionMiddleware])
+  .handler(async (): Promise<PresentationDeckEditorSlide[]> => {
+    const [index, order] = await Promise.all([
+      readIndex(),
+      loadPresentationDeckOrder(getAppDb()),
+    ]);
+    const ordered = orderEligibleDeckItems(
+      eligibleDeckSummaries(index),
+      order.orderedIds
+    );
+
+    return ordered.flatMap((item) => {
+      const slide = summaryToEditorSlide(item);
+      return slide ? [slide] : [];
+    });
+  });
+
+/**
+ * Persist deck order explicitly (no autosave). Only announcement ids that are
+ * currently approved and opted into the deck are stored; unknown ids are dropped.
+ */
+export const savePresentationDeckOrder = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: SavePresentationDeckOrderInput) => data)
+  .handler(async ({ data }): Promise<{ orderedIds: string[] }> => {
+    const db = getAppDb();
+    const index = await readIndex();
+    const eligibleIds = new Set(
+      eligibleDeckSummaries(index).map((item) => item.id)
+    );
+
+    const seen = new Set<string>();
+    const orderedIds: string[] = [];
+
+    for (const rawId of data.orderedIds) {
+      const id = typeof rawId === "string" ? rawId.trim() : "";
+
+      if (
+        !id ||
+        id === SILENCE_PHONE_SLIDE_ID ||
+        seen.has(id) ||
+        !eligibleIds.has(id)
+      ) {
+        continue;
       }
 
-      return [
-        {
-          exportObjectKey,
-          id: item.id,
-          name: item.name,
-        },
-      ];
+      orderedIds.push(id);
+      seen.add(id);
+    }
+
+    // Keep any currently-on-deck ids that the client omitted (e.g. added while
+    // editing) so they stay in the deck after save, appended at the end.
+    for (const id of eligibleIds) {
+      if (!seen.has(id)) {
+        orderedIds.push(id);
+        seen.add(id);
+      }
+    }
+
+    const value = JSON.stringify({
+      orderedIds,
+    } satisfies PresentationDeckOrderSettings);
+    const timestamp = nowIso();
+
+    await db
+      .insert(appSettings)
+      .values({
+        key: PRESENTATION_DECK_ORDER_KEY,
+        updatedAt: timestamp,
+        value,
+      })
+      .onConflictDoUpdate({
+        set: { updatedAt: timestamp, value },
+        target: appSettings.key,
+      });
+
+    return { orderedIds };
+  });
+
+/**
+ * Public (unauthenticated) list of approved announcements opted into the
+ * presentation deck, ordered by D1 settings, with the silence-phone system
+ * slide always last. Returns metadata only — browsers load announcement JPEGs
+ * via `/api/presentation-asset` (binary), not base64 over this server function.
+ */
+export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
+  async (): Promise<PresentationSlide[]> => {
+    const [index, order] = await Promise.all([
+      readIndex(),
+      loadPresentationDeckOrder(getAppDb()),
+    ]);
+    const ordered = orderEligibleDeckItems(
+      eligibleDeckSummaries(index),
+      order.orderedIds
+    );
+
+    const slides = ordered.flatMap((item): PresentationSlide[] => {
+      const slide = summaryToPresentationSlide(item);
+      return slide ? [slide] : [];
     });
+
+    // Always last — never stored in deck order settings.
+    slides.push(SILENCE_PHONE_SLIDE);
+
+    return slides;
   }
 );
 

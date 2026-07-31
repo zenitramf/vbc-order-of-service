@@ -212,15 +212,53 @@ export interface AnnouncementSummary {
   variationCount: number;
 }
 
+/** Well-known system slide always appended at the end of the public deck. */
+export const SILENCE_PHONE_SLIDE_ID = "silence-phone" as const;
+
+/**
+ * Temporary Unsplash stand-in until the silence-phone asset is stored in R2.
+ * Dark, quiet interior — text is overlaid by the presentation player.
+ */
+export const SILENCE_PHONE_PLACEHOLDER_URL =
+  "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1920&h=1080&q=80";
+
+export type PresentationSlideKind = "announcement" | "silence_phone";
+
 /**
  * Slide metadata for the unauthenticated presentation deck.
- * Image bytes are loaded by the browser via `/api/presentation-asset` (binary).
+ * Announcement image bytes load via `/api/presentation-asset` (binary).
+ * System slides (e.g. silence phone) use `imageUrl` until R2 hosts them.
  */
 export interface PresentationSlide {
-  /** R2 object key for the approved JPG export (served publicly when on the deck). */
+  /** R2 object key for the approved JPG export (null for system slides). */
+  exportObjectKey: string | null;
+  id: string;
+  /**
+   * Absolute image URL for system/placeholder slides (Unsplash for now).
+   * Announcement slides leave this undefined and use `presentationAssetUrl(id)`.
+   */
+  imageUrl?: string;
+  kind: PresentationSlideKind;
+  name: string;
+}
+
+/** D1 `app_settings` payload for presentation deck slide order. */
+export interface PresentationDeckOrderSettings {
+  /** Announcement ids in display order (silence-phone is never stored). */
+  orderedIds: string[];
+}
+
+/** One announcement row in the deck editor (reorderable). */
+export interface PresentationDeckEditorSlide {
+  approvedAt: string | null;
   exportObjectKey: string;
   id: string;
   name: string;
+  updatedAt: string;
+}
+
+export interface SavePresentationDeckOrderInput {
+  orderedIds: string[];
 }
 
 export interface SetShowInPresentationDeckInput {

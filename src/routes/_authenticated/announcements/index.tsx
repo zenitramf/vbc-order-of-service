@@ -436,6 +436,12 @@ const AnnouncementsPage = () => {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild type="button" variant="outline">
+            <Link to="/announcements/deck">
+              <MegaphoneIcon data-icon="inline-start" />
+              Edit deck order
+            </Link>
+          </Button>
+          <Button asChild type="button" variant="outline">
             <a href="/presentation" rel="noopener" target="_blank">
               <MegaphoneIcon data-icon="inline-start" />
               Open presentation deck

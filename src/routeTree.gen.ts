@@ -38,6 +38,7 @@ import { Route as AuthenticatedMembersNewRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMembersMemberIdRouteImport } from './routes/_authenticated/members/$memberId'
 import { Route as AuthenticatedHymnsNewRouteImport } from './routes/_authenticated/hymns/new'
 import { Route as AuthenticatedHymnsHymnIdRouteImport } from './routes/_authenticated/hymns/$hymnId'
+import { Route as AuthenticatedAnnouncementsDeckRouteImport } from './routes/_authenticated/announcements/deck'
 import { Route as AuthenticatedAnnouncementsAnnouncementIdRouteImport } from './routes/_authenticated/announcements/$announcementId'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 import { Route as AuthenticatedAdminRolesIndexRouteImport } from './routes/_authenticated/admin/roles/index'
@@ -202,6 +203,12 @@ const AuthenticatedHymnsHymnIdRoute =
     path: '/hymns/$hymnId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedAnnouncementsDeckRoute =
+  AuthenticatedAnnouncementsDeckRouteImport.update({
+    id: '/announcements/deck',
+    path: '/announcements/deck',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedAnnouncementsAnnouncementIdRoute =
   AuthenticatedAnnouncementsAnnouncementIdRouteImport.update({
     id: '/announcements/$announcementId',
@@ -255,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/api/presentation-asset': typeof ApiPresentationAssetRoute
   '/api/r2-asset': typeof ApiR2AssetRoute
   '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  '/announcements/deck': typeof AuthenticatedAnnouncementsDeckRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -291,6 +299,7 @@ export interface FileRoutesByTo {
   '/api/r2-asset': typeof ApiR2AssetRoute
   '/': typeof AuthenticatedIndexRoute
   '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  '/announcements/deck': typeof AuthenticatedAnnouncementsDeckRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -330,6 +339,7 @@ export interface FileRoutesById {
   '/api/r2-asset': typeof ApiR2AssetRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  '/_authenticated/announcements/deck': typeof AuthenticatedAnnouncementsDeckRoute
   '/_authenticated/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/_authenticated/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/_authenticated/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/api/presentation-asset'
     | '/api/r2-asset'
     | '/announcements/$announcementId'
+    | '/announcements/deck'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/api/r2-asset'
     | '/'
     | '/announcements/$announcementId'
+    | '/announcements/deck'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -443,6 +455,7 @@ export interface FileRouteTypes {
     | '/api/r2-asset'
     | '/_authenticated/'
     | '/_authenticated/announcements/$announcementId'
+    | '/_authenticated/announcements/deck'
     | '/_authenticated/hymns/$hymnId'
     | '/_authenticated/hymns/new'
     | '/_authenticated/members/$memberId'
@@ -686,6 +699,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHymnsHymnIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/announcements/deck': {
+      id: '/_authenticated/announcements/deck'
+      path: '/announcements/deck'
+      fullPath: '/announcements/deck'
+      preLoaderRoute: typeof AuthenticatedAnnouncementsDeckRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/announcements/$announcementId': {
       id: '/_authenticated/announcements/$announcementId'
       path: '/announcements/$announcementId'
@@ -766,6 +786,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedPlannerRoute: typeof AuthenticatedPlannerRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAnnouncementsAnnouncementIdRoute: typeof AuthenticatedAnnouncementsAnnouncementIdRoute
+  AuthenticatedAnnouncementsDeckRoute: typeof AuthenticatedAnnouncementsDeckRoute
   AuthenticatedHymnsHymnIdRoute: typeof AuthenticatedHymnsHymnIdRoute
   AuthenticatedHymnsNewRoute: typeof AuthenticatedHymnsNewRoute
   AuthenticatedMembersMemberIdRoute: typeof AuthenticatedMembersMemberIdRoute
@@ -792,6 +813,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAnnouncementsAnnouncementIdRoute:
     AuthenticatedAnnouncementsAnnouncementIdRoute,
+  AuthenticatedAnnouncementsDeckRoute: AuthenticatedAnnouncementsDeckRoute,
   AuthenticatedHymnsHymnIdRoute: AuthenticatedHymnsHymnIdRoute,
   AuthenticatedHymnsNewRoute: AuthenticatedHymnsNewRoute,
   AuthenticatedMembersMemberIdRoute: AuthenticatedMembersMemberIdRoute,

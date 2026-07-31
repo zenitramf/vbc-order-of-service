@@ -1639,6 +1639,17 @@ const PresentationDeckControls = ({
           Show in presentation deck
         </Label>
       </div>
+      {showInPresentationDeck ? (
+        <Button
+          asChild
+          className="w-fit"
+          size="sm"
+          type="button"
+          variant="link"
+        >
+          <Link to="/announcements/deck">Edit deck order</Link>
+        </Button>
+      ) : null}
     </div>
   );
 };
