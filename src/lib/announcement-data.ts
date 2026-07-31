@@ -49,8 +49,8 @@ const INDEX_KEY = "announcements/index.json";
 const LAYOUT_MODEL = "xai/grok-4.5";
 /** Fallback if 4.5 rejects schema path provider-side. */
 const LAYOUT_MODEL_FALLBACK = "xai/grok-4.3";
-const MAX_VARIATIONS_PER_REQUEST = 4;
-const DEFAULT_VARIATION_COUNT = 2;
+/** Always generate a single background per request (UI no longer exposes count). */
+const VARIATIONS_PER_REQUEST = 1;
 
 const getBucket = (): R2Bucket => {
   if (!env.SERVICE_PDFS) {
@@ -102,11 +102,26 @@ const getAiGatewayId = (): string => {
  * Inference via Workers AI binding, routed through AI Gateway
  * (same pattern as product-gen-portal: env.AI.run + gateway.id).
  */
+const safeJsonStringify = (value: unknown): string => {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+/**
+ * Pull nested detail from AI Gateway / Workers AI error shapes so UI toasts
+ * show more than `7003: User Input Error — {"name":"AiGatewayError"}`.
+ */
 const formatAiError = (error: unknown): string => {
   if (error instanceof Error) {
     const withExtras = error as Error & {
       cause?: unknown;
       code?: number | string;
+      error?: unknown;
+      errors?: unknown;
+      details?: unknown;
     };
     const parts = [withExtras.message];
 
@@ -114,23 +129,32 @@ const formatAiError = (error: unknown): string => {
       parts.push(`code=${withExtras.code}`);
     }
 
+    for (const key of ["error", "errors", "details"] as const) {
+      const value = withExtras[key];
+      if (value !== undefined && value !== null) {
+        parts.push(
+          typeof value === "string" ? value : safeJsonStringify(value)
+        );
+      }
+    }
+
     if (withExtras.cause !== undefined && withExtras.cause !== null) {
-      parts.push(
-        typeof withExtras.cause === "string"
-          ? withExtras.cause
-          : JSON.stringify(withExtras.cause)
-      );
+      if (withExtras.cause instanceof Error) {
+        parts.push(formatAiError(withExtras.cause));
+      } else {
+        parts.push(
+          typeof withExtras.cause === "string"
+            ? withExtras.cause
+            : safeJsonStringify(withExtras.cause)
+        );
+      }
     }
 
     return parts.filter(Boolean).join(" — ");
   }
 
   if (error && typeof error === "object") {
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
-    }
+    return safeJsonStringify(error);
   }
 
   return String(error);
@@ -700,10 +724,8 @@ export const generateBackgrounds = createServerFn({ method: "POST" })
       );
     }
 
-    const count = Math.min(
-      MAX_VARIATIONS_PER_REQUEST,
-      Math.max(1, data.count ?? DEFAULT_VARIATION_COUNT)
-    );
+    // Ignore client-supplied count — always one variation per generate.
+    const count = VARIATIONS_PER_REQUEST;
 
     const useSelectedAsContext = data.useSelectedAsContext !== false;
     let parentVariationId: string | null = null;

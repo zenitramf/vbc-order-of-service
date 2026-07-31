@@ -52,11 +52,26 @@ const getAiGatewayId = (): string => {
   return fromEnv || "default";
 };
 
+const safeJsonStringify = (value: unknown): string => {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+/**
+ * Pull nested detail from AI Gateway / Workers AI error shapes so UI toasts
+ * show more than `7003: User Input Error — {"name":"AiGatewayError"}`.
+ */
 const formatAiError = (error: unknown): string => {
   if (error instanceof Error) {
     const withExtras = error as Error & {
       cause?: unknown;
       code?: number | string;
+      error?: unknown;
+      errors?: unknown;
+      details?: unknown;
     };
     const parts = [withExtras.message];
 
@@ -64,23 +79,32 @@ const formatAiError = (error: unknown): string => {
       parts.push(`code=${withExtras.code}`);
     }
 
+    for (const key of ["error", "errors", "details"] as const) {
+      const value = withExtras[key];
+      if (value !== undefined && value !== null) {
+        parts.push(
+          typeof value === "string" ? value : safeJsonStringify(value)
+        );
+      }
+    }
+
     if (withExtras.cause !== undefined && withExtras.cause !== null) {
-      parts.push(
-        typeof withExtras.cause === "string"
-          ? withExtras.cause
-          : JSON.stringify(withExtras.cause)
-      );
+      if (withExtras.cause instanceof Error) {
+        parts.push(formatAiError(withExtras.cause));
+      } else {
+        parts.push(
+          typeof withExtras.cause === "string"
+            ? withExtras.cause
+            : safeJsonStringify(withExtras.cause)
+        );
+      }
     }
 
     return parts.filter(Boolean).join(" — ");
   }
 
   if (error && typeof error === "object") {
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
-    }
+    return safeJsonStringify(error);
   }
 
   return String(error);
@@ -535,16 +559,22 @@ const generateAndStoreBackgroundImage = async (options: {
       ? ` Variation ${options.index + 1}: a subtle alternative with the same quiet mood and palette direction.`
       : "";
 
+  // Use b64_json, not url. Zero Data Retention (ZDR) xAI teams reject
+  // response_format "url" with AI Gateway 7003 ("do not have access to URL
+  // format as it requires to store the generated images"). Gateway may still
+  // return a short temporary https URL in result.image; storeImagePayloadToR2
+  // handles both URL and base64.
   const input: Record<string, unknown> = {
     aspect_ratio: ANNOUNCEMENT_ASPECT_RATIO,
     n: 1,
     prompt: `${basePrompt}${variationHint}`,
     quality: "high",
     resolution: "2k",
-    response_format: "url",
+    response_format: "b64_json",
   };
 
   if (options.referenceImageBase64) {
+    // Schema expects image: { url, type? } — bare strings trigger 7003.
     const dataUri = `data:${options.referenceContentType || "image/jpeg"};base64,${options.referenceImageBase64}`;
     input.image = {
       type: "image_url",

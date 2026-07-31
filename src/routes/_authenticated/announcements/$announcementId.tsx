@@ -16,6 +16,7 @@ import {
   SparkleIcon,
   TrashIcon,
   XCircleIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -948,6 +949,160 @@ const isActiveGenerationJob = (
   job: AnnouncementGenerationJob | null | undefined
 ): boolean => job?.status === "queued" || job?.status === "running";
 
+const GENERATION_QUEUE_STEPS = [
+  { id: "queued", label: "Queued" },
+  { id: "running", label: "Generating" },
+  { id: "completed", label: "Done" },
+] as const;
+
+const generationQueueStepIndex = (
+  status: AnnouncementGenerationJob["status"] | null | undefined
+): number => {
+  if (status === "running" || status === "failed") {
+    return 1;
+  }
+
+  if (status === "completed") {
+    return 2;
+  }
+
+  return 0;
+};
+
+const queueConnectorClass = (lit: boolean, failed: boolean): string => {
+  if (!lit) {
+    return "bg-border";
+  }
+
+  if (failed) {
+    return "bg-destructive/60";
+  }
+
+  return "bg-primary/60";
+};
+
+const queueDotClass = (options: {
+  failed: boolean;
+  isComplete: boolean;
+  isCurrent: boolean;
+  pulse: boolean;
+}): string => {
+  if (options.failed && options.isCurrent) {
+    return "bg-destructive ring-2 ring-destructive/30";
+  }
+
+  if (options.isComplete) {
+    return "bg-primary";
+  }
+
+  if (options.isCurrent) {
+    return cn(
+      "bg-primary ring-2 ring-primary/30",
+      options.pulse && "animate-pulse"
+    );
+  }
+
+  return "bg-muted-foreground/25";
+};
+
+const queueLabelClass = (options: {
+  failed: boolean;
+  isActive: boolean;
+}): string => {
+  if (options.failed && options.isActive) {
+    return "font-medium text-destructive";
+  }
+
+  if (options.isActive) {
+    return "font-medium text-foreground";
+  }
+
+  return "text-muted-foreground";
+};
+
+const generationQueueStatusText = (
+  status: AnnouncementGenerationJob["status"]
+): string | null => {
+  if (status === "queued") {
+    return "Waiting in the generation queue…";
+  }
+
+  if (status === "running") {
+    return "Creating your background image…";
+  }
+
+  return null;
+};
+
+/** Dot stepper for async image-gen queue: Queued → Generating → Done. */
+const GenerationQueueProgress = ({
+  generationJob,
+}: {
+  generationJob: AnnouncementGenerationJob;
+}) => {
+  const failed = generationJob.status === "failed";
+  const activeIndex = generationQueueStepIndex(generationJob.status);
+  const statusText = generationQueueStatusText(generationJob.status);
+  const ariaLabel = failed
+    ? "Generation failed"
+    : `Generation progress: ${GENERATION_QUEUE_STEPS[activeIndex]?.label ?? "Queued"}`;
+
+  return (
+    <output aria-label={ariaLabel} className="flex flex-col gap-2">
+      <ol className="flex items-center gap-0">
+        {GENERATION_QUEUE_STEPS.map((step, index) => {
+          const isComplete = !failed && index < activeIndex;
+          const isCurrent = index === activeIndex;
+          const connectorLit = isComplete || isCurrent;
+
+          return (
+            <li className="flex items-center" key={step.id}>
+              {index > 0 ? (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mx-1 h-px w-6 sm:w-8",
+                    queueConnectorClass(connectorLit, failed)
+                  )}
+                />
+              ) : null}
+              <span className="flex flex-col items-center gap-1">
+                <span
+                  aria-current={isCurrent ? "step" : undefined}
+                  className={cn(
+                    "size-2.5 rounded-full transition-colors",
+                    queueDotClass({
+                      failed,
+                      isComplete,
+                      isCurrent,
+                      pulse: isCurrent && !failed && statusText !== null,
+                    })
+                  )}
+                  title={step.label}
+                />
+                <span
+                  className={cn(
+                    "text-[0.65rem] leading-none",
+                    queueLabelClass({
+                      failed,
+                      isActive: isComplete || isCurrent,
+                    })
+                  )}
+                >
+                  {step.label}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      {statusText ? (
+        <p className="text-muted-foreground text-sm">{statusText}</p>
+      ) : null}
+    </output>
+  );
+};
+
 /** Poll draft while a background image-gen job is queued/running. */
 const useGenerationJobPoll = (options: {
   announcementId: string;
@@ -991,9 +1146,7 @@ const useGenerationJobPoll = (options: {
         const job = next.generationJob;
 
         if (job?.status === "completed") {
-          toast.success(
-            `Generated ${job.completedCount} background variation(s).`
-          );
+          toast.success("Background image generated.");
           await onInvalidate();
           return;
         }
@@ -1036,30 +1189,132 @@ const useGenerationJobPoll = (options: {
   ]);
 };
 
-const BackgroundImageCard = ({
-  backgroundPrompt,
-  generationJob,
-  isGeneratingBg,
-  onAddLibraryImage,
-  onGenerateBackgrounds,
-  selectedVariation,
-  setBackgroundPrompt,
-  setVariationCount,
-  variationCount,
-}: {
+const localEnqueueProgressJob = (options: {
+  prompt: string;
+  useSelectedAsContext: boolean;
+}): AnnouncementGenerationJob => ({
+  completedCount: 0,
+  error: null,
+  id: "local-enqueue",
+  prompt: options.prompt,
+  requestedCount: 1,
+  startedAt: null,
+  status: "queued",
+  updatedAt: new Date().toISOString(),
+  useSelectedAsContext: options.useSelectedAsContext,
+});
+
+const resolveProgressJob = (options: {
   backgroundPrompt: string;
   generationJob: AnnouncementGenerationJob | null;
   isGeneratingBg: boolean;
+  useSelectedAsContext: boolean;
+}): AnnouncementGenerationJob | null => {
+  if (options.generationJob) {
+    return options.generationJob;
+  }
+
+  if (options.isGeneratingBg) {
+    return localEnqueueProgressJob({
+      prompt: options.backgroundPrompt,
+      useSelectedAsContext: options.useSelectedAsContext,
+    });
+  }
+
+  return null;
+};
+
+const ActiveContextBanner = ({
+  disabled,
+  isClearingContext,
+  onClearContext,
+  selectedVariation,
+}: {
+  disabled: boolean;
+  isClearingContext: boolean;
+  onClearContext: () => void;
+  selectedVariation: AnnouncementVariation;
+}) => {
+  const contextLabel =
+    selectedVariation.source === "library" ? (
+      <>
+        library image{" "}
+        <span className="font-medium text-foreground">
+          {selectedVariation.libraryFilename ?? "template"}
+        </span>
+      </>
+    ) : (
+      <>
+        variation{" "}
+        <span className="font-mono text-xs">
+          {selectedVariation.id.slice(0, 8)}
+        </span>
+      </>
+    );
+
+  return (
+    <div className="flex items-start gap-2">
+      <p className="min-w-0 flex-1 text-muted-foreground text-sm">
+        Active context: {contextLabel}. Next generation will use it as
+        reference.
+      </p>
+      <Button
+        aria-label="Clear active context"
+        className="size-7 shrink-0"
+        disabled={disabled || isClearingContext}
+        onClick={onClearContext}
+        size="icon"
+        title="Clear context"
+        type="button"
+        variant="ghost"
+      >
+        {isClearingContext ? (
+          <CircleNotchIcon className="size-4 animate-spin" />
+        ) : (
+          <XIcon className="size-4" />
+        )}
+      </Button>
+    </div>
+  );
+};
+
+const BackgroundImageCard = ({
+  backgroundPrompt,
+  generationJob,
+  isClearingContext,
+  isGeneratingBg,
+  onAddLibraryImage,
+  onClearContext,
+  onGenerateBackgrounds,
+  selectedVariation,
+  setBackgroundPrompt,
+}: {
+  backgroundPrompt: string;
+  generationJob: AnnouncementGenerationJob | null;
+  isClearingContext: boolean;
+  isGeneratingBg: boolean;
   onAddLibraryImage: (image: ImageLibraryItem) => Promise<void>;
+  onClearContext: () => void;
   onGenerateBackgrounds: () => void;
   selectedVariation: AnnouncementVariation | null;
   setBackgroundPrompt: (value: string) => void;
-  setVariationCount: (value: number) => void;
-  variationCount: number;
 }) => {
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const [isAddingLibraryImage, setIsAddingLibraryImage] = useState(false);
   const jobBusy = isGeneratingBg || isActiveGenerationJob(generationJob);
+  const progressJob = resolveProgressJob({
+    backgroundPrompt,
+    generationJob,
+    isGeneratingBg,
+    useSelectedAsContext: Boolean(selectedVariation),
+  });
+  const showQueueProgress =
+    progressJob !== null &&
+    (isGeneratingBg ||
+      isActiveGenerationJob(progressJob) ||
+      progressJob.status === "failed");
+  const generationError =
+    generationJob?.status === "failed" ? generationJob.error : null;
 
   const handleAddLibraryImage = async (image: ImageLibraryItem) => {
     setIsAddingLibraryImage(true);
@@ -1078,9 +1333,9 @@ const BackgroundImageCard = ({
         <CardHeader>
           <CardTitle>Background image</CardTitle>
           <CardDescription>
-            Use a template from the image library, or generate AI images without
-            text. A selected variation becomes context for the next AI batch
-            (happy path) — library images included.
+            Use a template from the image library, or generate an AI image
+            without text. A selected variation becomes context for the next
+            generation (happy path) — library images included.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -1118,27 +1373,7 @@ const BackgroundImageCard = ({
               value={backgroundPrompt}
             />
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="variation-count">Variations</Label>
-              <Input
-                className="w-24"
-                disabled={jobBusy}
-                id="variation-count"
-                max={4}
-                min={1}
-                onChange={(event) =>
-                  setVariationCount(
-                    Math.min(
-                      4,
-                      Math.max(1, Number.parseInt(event.target.value, 10) || 1)
-                    )
-                  )
-                }
-                type="number"
-                value={variationCount}
-              />
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               disabled={jobBusy || !backgroundPrompt.trim()}
               onClick={onGenerateBackgrounds}
@@ -1154,44 +1389,24 @@ const BackgroundImageCard = ({
               )}
               {selectedVariation
                 ? "Generate from selected"
-                : "Generate backgrounds"}
+                : "Generate background"}
             </Button>
           </div>
-          {isActiveGenerationJob(generationJob) ? (
-            <p className="text-muted-foreground text-sm">
-              Generating in the background…{" "}
-              <span className="font-medium text-foreground">
-                {generationJob?.completedCount ?? 0}/
-                {generationJob?.requestedCount ?? variationCount}
-              </span>
-              {generationJob?.status === "queued" ? " (queued)" : null}
-            </p>
+          {showQueueProgress && progressJob ? (
+            <GenerationQueueProgress generationJob={progressJob} />
           ) : null}
-          {generationJob?.status === "failed" && generationJob.error ? (
+          {generationError ? (
             <p className="text-destructive text-sm">
-              Generation failed: {generationJob.error}
+              Generation failed: {generationError}
             </p>
           ) : null}
           {selectedVariation ? (
-            <p className="text-muted-foreground text-sm">
-              Active context:{" "}
-              {selectedVariation.source === "library" ? (
-                <>
-                  library image{" "}
-                  <span className="font-medium text-foreground">
-                    {selectedVariation.libraryFilename ?? "template"}
-                  </span>
-                </>
-              ) : (
-                <>
-                  variation{" "}
-                  <span className="font-mono text-xs">
-                    {selectedVariation.id.slice(0, 8)}
-                  </span>
-                </>
-              )}
-              . Next AI batch will use it as reference.
-            </p>
+            <ActiveContextBanner
+              disabled={jobBusy}
+              isClearingContext={isClearingContext}
+              onClearContext={onClearContext}
+              selectedVariation={selectedVariation}
+            />
           ) : null}
         </CardContent>
       </Card>
@@ -1332,7 +1547,6 @@ const AnnouncementEditor = ({
     formatProjectJson(initialCanvasProject)
   );
   const [projectJsonDirty, setProjectJsonDirty] = useState(false);
-  const [variationCount, setVariationCount] = useState(2);
   const [assetUrls, setAssetUrls] = useState<Record<string, string>>({});
   const [exportPreview, setExportPreview] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -1706,7 +1920,6 @@ const AnnouncementEditor = ({
       await persist({ promptOverride: backgroundPrompt });
       const next = await generateBgFn({
         data: {
-          count: variationCount,
           id: draft.id,
           prompt: backgroundPrompt,
           useSelectedAsContext: Boolean(draft.selectedVariationId),
@@ -1716,8 +1929,8 @@ const AnnouncementEditor = ({
       await router.invalidate();
       toast.success(
         draft.selectedVariationId
-          ? `Queued ${variationCount} variation(s) from the selected context.`
-          : `Queued ${variationCount} background variation(s).`
+          ? "Queued background generation from the selected context."
+          : "Queued background generation."
       );
     } catch (error) {
       toast.error(
@@ -2253,6 +2466,7 @@ const AnnouncementEditor = ({
           <BackgroundImageCard
             backgroundPrompt={backgroundPrompt}
             generationJob={draft.generationJob}
+            isClearingContext={isClearingContext}
             isGeneratingBg={isGeneratingBg}
             onAddLibraryImage={async (image) => {
               try {
@@ -2266,13 +2480,14 @@ const AnnouncementEditor = ({
                 throw error;
               }
             }}
+            onClearContext={() => {
+              void onClearContext();
+            }}
             onGenerateBackgrounds={() => {
               void onGenerateBackgrounds();
             }}
             selectedVariation={selectedVariation}
             setBackgroundPrompt={setBackgroundPrompt}
-            setVariationCount={setVariationCount}
-            variationCount={variationCount}
           />
         </div>
 

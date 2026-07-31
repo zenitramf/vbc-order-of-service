@@ -194,6 +194,7 @@ export interface GenerateAnnouncementLayoutResult {
 }
 
 export interface GenerateBackgroundsInput {
+  /** @deprecated Always generates 1 variation; ignored if provided. */
   count?: number;
   id: string;
   prompt?: string;
