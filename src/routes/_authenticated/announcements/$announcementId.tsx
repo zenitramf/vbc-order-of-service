@@ -146,6 +146,7 @@ import type {
 } from "~/lib/announcement-types";
 import {
   ANNOUNCEMENT_HEIGHT,
+  ANNOUNCEMENT_IMAGE_MODEL,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
 import { getLibraryImage, listLibraryImages } from "~/lib/image-library-data";
@@ -164,9 +165,6 @@ const STYLE_PACK_OPTIONS: StylePackOption[] = listStylePacks().map((pack) => ({
   label: pack.name,
   value: pack.id,
 }));
-
-/** Display label for the background image model (generation is server-side). */
-const BACKGROUND_IMAGE_MODEL = "xai/grok-imagine-image-quality";
 
 const toDataUrl = (base64: string, contentType: string) =>
   `data:${contentType};base64,${base64}`;
@@ -362,7 +360,7 @@ const createVariationColumns = ({
 
       return (
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="font-mono text-xs">{BACKGROUND_IMAGE_MODEL}</span>
+          <span className="font-mono text-xs">{ANNOUNCEMENT_IMAGE_MODEL}</span>
           {row.original.parentVariationId ? (
             <span className="text-muted-foreground text-xs">
               From selected context
@@ -969,52 +967,57 @@ const generationQueueStepIndex = (
   return 0;
 };
 
+/** Connector line between numbered step nodes. */
 const queueConnectorClass = (lit: boolean, failed: boolean): string => {
   if (!lit) {
     return "bg-border";
   }
 
   if (failed) {
-    return "bg-destructive/60";
+    return "bg-destructive/50";
   }
 
-  return "bg-primary/60";
+  return "bg-primary";
 };
 
-const queueDotClass = (options: {
+/**
+ * Numbered step node (complete / active / next).
+ * Format matches a classic progress indicator: solid fill for complete,
+ * ring for the in-progress step, muted fill for upcoming steps.
+ * Fully finished jobs fill the final node solid as well.
+ */
+const queueStepNodeClass = (options: {
   failed: boolean;
   isComplete: boolean;
   isCurrent: boolean;
-  pulse: boolean;
+  isFinished: boolean;
 }): string => {
   if (options.failed && options.isCurrent) {
-    return "bg-destructive ring-2 ring-destructive/30";
+    return "border-2 border-destructive bg-background text-destructive";
   }
 
-  if (options.isComplete) {
-    return "bg-primary";
+  if (options.isComplete || (options.isCurrent && options.isFinished)) {
+    return "border-transparent bg-primary text-primary-foreground";
   }
 
   if (options.isCurrent) {
-    return cn(
-      "bg-primary ring-2 ring-primary/30",
-      options.pulse && "animate-pulse"
-    );
+    return "border-2 border-primary bg-background text-primary";
   }
 
-  return "bg-muted-foreground/25";
+  return "border-transparent bg-muted text-muted-foreground";
 };
 
 const queueLabelClass = (options: {
   failed: boolean;
-  isActive: boolean;
+  isComplete: boolean;
+  isCurrent: boolean;
 }): string => {
-  if (options.failed && options.isActive) {
+  if (options.failed && options.isCurrent) {
     return "font-medium text-destructive";
   }
 
-  if (options.isActive) {
-    return "font-medium text-foreground";
+  if (options.isComplete || options.isCurrent) {
+    return "font-medium text-primary";
   }
 
   return "text-muted-foreground";
@@ -1034,13 +1037,18 @@ const generationQueueStatusText = (
   return null;
 };
 
-/** Dot stepper for async image-gen queue: Queued → Generating → Done. */
+/**
+ * Numbered step progress for async image-gen: Queued → Generating → Done.
+ * Layout follows a standard multi-step indicator (numbered nodes + connectors
+ * + labels), using theme colors rather than a fixed palette.
+ */
 const GenerationQueueProgress = ({
   generationJob,
 }: {
   generationJob: AnnouncementGenerationJob;
 }) => {
   const failed = generationJob.status === "failed";
+  const isFinished = generationJob.status === "completed";
   const activeIndex = generationQueueStepIndex(generationJob.status);
   const statusText = generationQueueStatusText(generationJob.status);
   const ariaLabel = failed
@@ -1048,50 +1056,68 @@ const GenerationQueueProgress = ({
     : `Generation progress: ${GENERATION_QUEUE_STEPS[activeIndex]?.label ?? "Queued"}`;
 
   return (
-    <output aria-label={ariaLabel} className="flex flex-col gap-2">
-      <ol className="flex items-center gap-0">
+    <output
+      aria-label={ariaLabel}
+      className="flex w-full max-w-md flex-col gap-2"
+    >
+      <ol className="flex w-full items-start">
         {GENERATION_QUEUE_STEPS.map((step, index) => {
-          const isComplete = !failed && index < activeIndex;
+          // Prior steps stay complete even when the active step fails.
+          const isComplete = index < activeIndex;
           const isCurrent = index === activeIndex;
-          const connectorLit = isComplete || isCurrent;
+          const isLast = index === GENERATION_QUEUE_STEPS.length - 1;
+          // Line after a step lights once that step is behind the cursor.
+          const connectorLit = isComplete;
 
           return (
-            <li className="flex items-center" key={step.id}>
-              {index > 0 ? (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "mx-1 h-px w-6 sm:w-8",
-                    queueConnectorClass(connectorLit, failed)
-                  )}
-                />
-              ) : null}
-              <span className="flex flex-col items-center gap-1">
+            <li
+              className={cn(
+                "flex items-start",
+                isLast ? "shrink-0" : "min-w-0 flex-1"
+              )}
+              key={step.id}
+            >
+              <span className="flex shrink-0 flex-col items-center gap-1.5">
                 <span
                   aria-current={isCurrent ? "step" : undefined}
                   className={cn(
-                    "size-2.5 rounded-full transition-colors",
-                    queueDotClass({
+                    "flex size-7 items-center justify-center rounded-full text-xs font-semibold tabular-nums transition-colors",
+                    queueStepNodeClass({
                       failed,
                       isComplete,
                       isCurrent,
-                      pulse: isCurrent && !failed && statusText !== null,
-                    })
+                      isFinished,
+                    }),
+                    isCurrent &&
+                      !failed &&
+                      statusText !== null &&
+                      "animate-pulse"
                   )}
-                  title={step.label}
-                />
+                >
+                  {index + 1}
+                </span>
                 <span
                   className={cn(
-                    "text-[0.65rem] leading-none",
+                    "text-[0.65rem] leading-none tracking-wide uppercase",
                     queueLabelClass({
                       failed,
-                      isActive: isComplete || isCurrent,
+                      isComplete,
+                      isCurrent,
                     })
                   )}
                 >
                   {step.label}
                 </span>
               </span>
+              {isLast ? null : (
+                <span
+                  aria-hidden
+                  className={cn(
+                    "mx-2 mt-3.5 h-px min-w-4 flex-1",
+                    queueConnectorClass(connectorLit, failed)
+                  )}
+                />
+              )}
             </li>
           );
         })}

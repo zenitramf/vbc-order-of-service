@@ -21,11 +21,11 @@ import type {
 import {
   ANNOUNCEMENT_ASPECT_RATIO,
   ANNOUNCEMENT_HEIGHT,
+  ANNOUNCEMENT_IMAGE_MODEL,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
 
 const INDEX_KEY = "announcements/index.json";
-const IMAGE_MODEL = "xai/grok-imagine-image-quality";
 
 const getBucket = (): R2Bucket => {
   if (!env.SERVICE_PDFS) {
@@ -559,31 +559,24 @@ const generateAndStoreBackgroundImage = async (options: {
       ? ` Variation ${options.index + 1}: a subtle alternative with the same quiet mood and palette direction.`
       : "";
 
-  // Use b64_json, not url. Zero Data Retention (ZDR) xAI teams reject
-  // response_format "url" with AI Gateway 7003 ("do not have access to URL
-  // format as it requires to store the generated images"). Gateway may still
-  // return a short temporary https URL in result.image; storeImagePayloadToR2
-  // handles both URL and base64.
+  // google/nano-banana-2 schema: prompt, aspect_ratio, output_format, resolution.
+  // Response returns a temporary https URL in result.image; storeImagePayloadToR2
+  // streams it into R2 (also accepts base64 if the gateway returns that).
   const input: Record<string, unknown> = {
     aspect_ratio: ANNOUNCEMENT_ASPECT_RATIO,
-    n: 1,
+    output_format: "jpg",
     prompt: `${basePrompt}${variationHint}`,
-    quality: "high",
-    resolution: "2k",
-    response_format: "b64_json",
+    resolution: "2K",
   };
 
   if (options.referenceImageBase64) {
-    // Schema expects image: { url, type? } — bare strings trigger 7003.
     const dataUri = `data:${options.referenceContentType || "image/jpeg"};base64,${options.referenceImageBase64}`;
-    input.image = {
-      type: "image_url",
-      url: dataUri,
-    };
+    // Prefer image_input[] (up to 3 refs); `image` also accepts a single URI.
+    input.image_input = [dataUri];
     input.prompt = `${basePrompt} Use the reference image as style and subject context.${variationHint}`;
   }
 
-  const response = await runAiGateway(IMAGE_MODEL, input);
+  const response = await runAiGateway(ANNOUNCEMENT_IMAGE_MODEL, input);
   const imagePayload = extractImageFromAiResponse(response);
 
   if (!imagePayload) {

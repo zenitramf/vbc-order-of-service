@@ -5,6 +5,13 @@ export const ANNOUNCEMENT_WIDTH = 1920;
 export const ANNOUNCEMENT_HEIGHT = 1080;
 export const ANNOUNCEMENT_ASPECT_RATIO = "16:9" as const;
 
+/**
+ * Default AI Gateway model for announcement background image generation.
+ * Used by the queue consumer to call `env.AI.run`, and by the editor UI as the
+ * display label for which model will produce the image.
+ */
+export const ANNOUNCEMENT_IMAGE_MODEL = "google/nano-banana-2" as const;
+
 export type AnnouncementStatus = "draft" | "approved";
 
 /** JSON-serializable object map (TanStack server-fn compatible). */
