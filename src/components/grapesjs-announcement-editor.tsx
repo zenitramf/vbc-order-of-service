@@ -283,7 +283,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("heading"),
       content: "HEADING",
-      name: "Heading",
+      name: "heading",
       style: {
         color: "#ffffff",
         "font-family": "system-ui, sans-serif",
@@ -304,7 +304,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("title"),
       content: "Announcement Title",
-      name: "Title",
+      name: "title",
       style: {
         color: "#ffffff",
         "font-family": "Georgia, 'Times New Roman', serif",
@@ -326,7 +326,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("subtitle"),
       content: "Subtitle text",
-      name: "Subtitle",
+      name: "subtitle",
       style: {
         color: "#ffffff",
         "font-family": "Georgia, 'Times New Roman', serif",
@@ -347,7 +347,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     content: {
       attributes: roleAttrs("body"),
       content: "Additional details go here.",
-      name: "Body",
+      name: "tertiary",
       style: {
         color: "#ffffff",
         "font-family": "system-ui, sans-serif",
@@ -371,7 +371,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
         {
           attributes: roleAttrs("body"),
           content: "Editable text block",
-          name: "Body",
+          name: "tertiary",
           style: {
             color: "#ffffff",
             "font-size": "40px",
@@ -380,7 +380,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
           type: "text",
         },
       ],
-      name: "Panel",
+      name: "panel",
       style: {
         background: PANEL_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -399,7 +399,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-bottom"),
-      name: "Bottom scrim",
+      name: "scrim-bottom",
       style: {
         background: BOTTOM_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -421,7 +421,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-top"),
-      name: "Top scrim",
+      name: "scrim-top",
       style: {
         background: TOP_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -442,7 +442,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-left"),
-      name: "Left scrim",
+      name: "scrim-left",
       style: {
         background: LEFT_SCRIM_GRADIENT,
         "background-color": "transparent",
@@ -463,7 +463,7 @@ const registerAnnouncementBlocks = (editor: Editor): void => {
     category: "Announcement",
     content: {
       attributes: roleAttrs("scrim-right"),
-      name: "Right scrim",
+      name: "scrim-right",
       style: {
         background: RIGHT_SCRIM_GRADIENT,
         "background-color": "transparent",

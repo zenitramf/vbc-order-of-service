@@ -62,9 +62,11 @@ describe("announcement-style-library", () => {
       expect(json).toContain(`${ANNOUNCEMENT_ROLE_ATTR}`);
       expect(json).toContain("title");
       expect(json).toContain("heading");
-      // Layer Manager labels (component.name) — not tagName fallbacks.
-      expect(json).toContain('"name":"Title"');
-      expect(json).toContain('"name":"Heading"');
+      // Layer Manager labels match content field names.
+      expect(json).toContain('"name":"title"');
+      expect(json).toContain('"name":"heading"');
+      expect(json).toContain('"name":"subtitle"');
+      expect(json).toContain('"name":"tertiary"');
       // Never embed a photo URL — Body variation owns the image.
       expect(json).not.toMatch(/url\s*\(\s*["']?(?:https?:|data:|blob:)/iu);
       expect(json).toMatch(/transparent/iu);

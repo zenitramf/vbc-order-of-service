@@ -90,18 +90,22 @@ interface ComponentDef {
   type?: string;
 }
 
-/** Human labels for Layer Manager (from announcement roles). */
+/**
+ * Layer Manager labels for announcement roles.
+ * Text roles use the same names as draft content fields
+ * (heading / title / subtitle / tertiary).
+ */
 const ROLE_LAYER_NAMES: Record<AnnouncementStyleRole, string> = {
-  body: "Body",
-  heading: "Heading",
-  link: "Link",
-  panel: "Panel",
-  "scrim-bottom": "Bottom scrim",
-  "scrim-left": "Left scrim",
-  "scrim-right": "Right scrim",
-  "scrim-top": "Top scrim",
-  subtitle: "Subtitle",
-  title: "Title",
+  body: "tertiary",
+  heading: "heading",
+  link: "link",
+  panel: "panel",
+  "scrim-bottom": "scrim-bottom",
+  "scrim-left": "scrim-left",
+  "scrim-right": "scrim-right",
+  "scrim-top": "scrim-top",
+  subtitle: "subtitle",
+  title: "title",
 };
 
 interface ResolvedContent {
