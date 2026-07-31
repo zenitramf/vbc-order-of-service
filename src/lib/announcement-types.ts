@@ -5,6 +5,13 @@ export const ANNOUNCEMENT_WIDTH = 1920;
 export const ANNOUNCEMENT_HEIGHT = 1080;
 export const ANNOUNCEMENT_ASPECT_RATIO = "16:9" as const;
 
+/**
+ * Default AI Gateway model for announcement background image generation.
+ * Used by the queue consumer to call `env.AI.run`, and by the editor UI as the
+ * display label for which model will produce the image.
+ */
+export const ANNOUNCEMENT_IMAGE_MODEL = "google/nano-banana-2" as const;
+
 export type AnnouncementStatus = "draft" | "approved";
 
 /** JSON-serializable object map (TanStack server-fn compatible). */
@@ -65,6 +72,41 @@ export interface AnnouncementVariation {
   source: AnnouncementVariationSource;
 }
 
+/** Lifecycle of an async background image generation job (Queue consumer). */
+export type AnnouncementGenerationStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed";
+
+/** In-flight / last-finished AI background generation job stored on the draft. */
+export interface AnnouncementGenerationJob {
+  completedCount: number;
+  error: string | null;
+  id: string;
+  prompt: string;
+  requestedCount: number;
+  startedAt: string | null;
+  status: AnnouncementGenerationStatus;
+  updatedAt: string;
+  useSelectedAsContext: boolean;
+}
+
+/**
+ * Queue message for announcement image generation.
+ * Keep under 128 KB — pass R2 keys, never image bytes.
+ */
+export interface AnnouncementImageGenQueueMessage {
+  announcementId: string;
+  count: number;
+  jobId: string;
+  parentVariationId: string | null;
+  prompt: string;
+  /** R2 object key for reference context; never base64. */
+  referenceObjectKey: string | null;
+}
+
 export interface AnnouncementDraft {
   /** Last-applied style library pack id (informational; styles bake into project). */
   appliedStyleId: string | null;
@@ -73,6 +115,8 @@ export interface AnnouncementDraft {
   content: AnnouncementContent;
   createdAt: string;
   exportObjectKey: string | null;
+  /** Async AI background generation job state (null when never started). */
+  generationJob: AnnouncementGenerationJob | null;
   height: number;
   id: string;
   /**
@@ -157,6 +201,7 @@ export interface GenerateAnnouncementLayoutResult {
 }
 
 export interface GenerateBackgroundsInput {
+  /** @deprecated Always generates 1 variation; ignored if provided. */
   count?: number;
   id: string;
   prompt?: string;

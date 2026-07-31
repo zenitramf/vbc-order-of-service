@@ -17,6 +17,8 @@ import type {
   AnnouncementAsset,
   AnnouncementContent,
   AnnouncementDraft,
+  AnnouncementGenerationJob,
+  AnnouncementImageGenQueueMessage,
   AnnouncementSummary,
   AnnouncementVariation,
   ApproveAnnouncementInput,
@@ -33,7 +35,6 @@ import type {
   SetShowInPresentationDeckInput,
 } from "~/lib/announcement-types";
 import {
-  ANNOUNCEMENT_ASPECT_RATIO,
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
@@ -41,8 +42,6 @@ import { requireSessionMiddleware } from "~/lib/auth.functions";
 import { LIBRARY_R2_PREFIX } from "~/lib/image-library-types";
 
 const INDEX_KEY = "announcements/index.json";
-/** xAI image model via Cloudflare AI Gateway — backgrounds only, no baked text. */
-const IMAGE_MODEL = "xai/grok-imagine-image-quality";
 /**
  * Layout ops (CanvasPlan) via structured JSON schema output.
  * @see https://docs.x.ai/developers/model-capabilities/text/structured-outputs
@@ -50,8 +49,8 @@ const IMAGE_MODEL = "xai/grok-imagine-image-quality";
 const LAYOUT_MODEL = "xai/grok-4.5";
 /** Fallback if 4.5 rejects schema path provider-side. */
 const LAYOUT_MODEL_FALLBACK = "xai/grok-4.3";
-const MAX_VARIATIONS_PER_REQUEST = 4;
-const DEFAULT_VARIATION_COUNT = 2;
+/** Always generate a single background per request (UI no longer exposes count). */
+const VARIATIONS_PER_REQUEST = 1;
 
 const getBucket = (): R2Bucket => {
   if (!env.SERVICE_PDFS) {
@@ -71,6 +70,26 @@ const getAi = (): Ai => {
   return env.AI;
 };
 
+const getImageGenQueue = (): Queue<AnnouncementImageGenQueueMessage> => {
+  const queue = (
+    env as unknown as {
+      OOS_ANNOUNCEMENT_IMAGE_GEN?: Queue<AnnouncementImageGenQueueMessage>;
+    }
+  ).OOS_ANNOUNCEMENT_IMAGE_GEN;
+
+  if (!queue) {
+    throw new Error(
+      "Cloudflare Queue binding OOS_ANNOUNCEMENT_IMAGE_GEN is not configured."
+    );
+  }
+
+  return queue;
+};
+
+const isGenerationJobActive = (
+  job: AnnouncementGenerationJob | null | undefined
+): boolean => job?.status === "queued" || job?.status === "running";
+
 /** Gateway id from wrangler vars / .env (default auto-created gateway). */
 const getAiGatewayId = (): string => {
   const fromEnv = (
@@ -83,11 +102,26 @@ const getAiGatewayId = (): string => {
  * Inference via Workers AI binding, routed through AI Gateway
  * (same pattern as product-gen-portal: env.AI.run + gateway.id).
  */
+const safeJsonStringify = (value: unknown): string => {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+/**
+ * Pull nested detail from AI Gateway / Workers AI error shapes so UI toasts
+ * show more than `7003: User Input Error — {"name":"AiGatewayError"}`.
+ */
 const formatAiError = (error: unknown): string => {
   if (error instanceof Error) {
     const withExtras = error as Error & {
       cause?: unknown;
       code?: number | string;
+      error?: unknown;
+      errors?: unknown;
+      details?: unknown;
     };
     const parts = [withExtras.message];
 
@@ -95,23 +129,32 @@ const formatAiError = (error: unknown): string => {
       parts.push(`code=${withExtras.code}`);
     }
 
+    for (const key of ["error", "errors", "details"] as const) {
+      const value = withExtras[key];
+      if (value !== undefined && value !== null) {
+        parts.push(
+          typeof value === "string" ? value : safeJsonStringify(value)
+        );
+      }
+    }
+
     if (withExtras.cause !== undefined && withExtras.cause !== null) {
-      parts.push(
-        typeof withExtras.cause === "string"
-          ? withExtras.cause
-          : JSON.stringify(withExtras.cause)
-      );
+      if (withExtras.cause instanceof Error) {
+        parts.push(formatAiError(withExtras.cause));
+      } else {
+        parts.push(
+          typeof withExtras.cause === "string"
+            ? withExtras.cause
+            : safeJsonStringify(withExtras.cause)
+        );
+      }
     }
 
     return parts.filter(Boolean).join(" — ");
   }
 
   if (error && typeof error === "object") {
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
-    }
+    return safeJsonStringify(error);
   }
 
   return String(error);
@@ -217,6 +260,52 @@ const asNullableString = (value: unknown): string | null => {
 const asString = (value: unknown, fallback = ""): string =>
   typeof value === "string" ? value : fallback;
 
+const asNonNegativeInt = (value: unknown, fallback = 0): number => {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+
+  return fallback;
+};
+
+const isGenerationStatus = (
+  value: unknown
+): value is AnnouncementGenerationJob["status"] =>
+  value === "idle" ||
+  value === "queued" ||
+  value === "running" ||
+  value === "completed" ||
+  value === "failed";
+
+/** Backfill for drafts saved before async generation jobs existed. */
+const normalizeGenerationJob = (
+  value: unknown
+): AnnouncementGenerationJob | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const raw = value as Partial<AnnouncementGenerationJob>;
+  const status = isGenerationStatus(raw.status) ? raw.status : "idle";
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    completedCount: asNonNegativeInt(raw.completedCount),
+    error: asNullableString(raw.error),
+    id,
+    prompt: asString(raw.prompt),
+    requestedCount: Math.max(1, asNonNegativeInt(raw.requestedCount, 1)),
+    startedAt: asNullableString(raw.startedAt),
+    status,
+    updatedAt: asString(raw.updatedAt, nowIso()),
+    useSelectedAsContext: Boolean(raw.useSelectedAsContext),
+  };
+};
+
 const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
   const projectData = normalizeProjectData(raw.projectData);
   const legacyHtmlFromFile =
@@ -241,6 +330,7 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
     content: emptyContent(contentPartial),
     createdAt: asString(raw.createdAt, nowIso()),
     exportObjectKey: asNullableString(raw.exportObjectKey),
+    generationJob: normalizeGenerationJob(raw.generationJob),
     height: typeof raw.height === "number" ? raw.height : ANNOUNCEMENT_HEIGHT,
     id: asString(raw.id),
     legacyHtml,
@@ -265,6 +355,7 @@ const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
   content: draft.content,
   createdAt: draft.createdAt,
   exportObjectKey: draft.exportObjectKey,
+  generationJob: draft.generationJob,
   height: draft.height,
   id: draft.id,
   name: draft.name,
@@ -389,145 +480,6 @@ const putImageBytes = async (
   await getBucket().put(key, bytes, {
     httpMetadata: { contentType },
   });
-};
-
-const downloadUrlAsBytes = async (url: string): Promise<ArrayBuffer> => {
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to download generated image (${response.status}).`);
-  }
-
-  return await response.arrayBuffer();
-};
-
-const resolveImagePayload = async (image: string): Promise<ArrayBuffer> => {
-  if (image.startsWith("data:")) {
-    const comma = image.indexOf(",");
-    const base64 = comma === -1 ? image : image.slice(comma + 1);
-    return Buffer.from(base64, "base64").buffer;
-  }
-
-  if (image.startsWith("http://") || image.startsWith("https://")) {
-    return await downloadUrlAsBytes(image);
-  }
-
-  // Assume raw base64
-  return Buffer.from(image, "base64").buffer;
-};
-
-const extractImageFromAiResponse = (response: unknown): string | null => {
-  if (!response || typeof response !== "object") {
-    return null;
-  }
-
-  const record = response as Record<string, unknown>;
-
-  if (typeof record.image === "string") {
-    return record.image;
-  }
-
-  const { result } = record;
-  if (result && typeof result === "object") {
-    const resultRecord = result as Record<string, unknown>;
-    if (typeof resultRecord.image === "string") {
-      return resultRecord.image;
-    }
-    if (Array.isArray(resultRecord.data) && resultRecord.data[0]) {
-      const first = resultRecord.data[0] as Record<string, unknown>;
-      if (typeof first.b64_json === "string") {
-        return first.b64_json;
-      }
-      if (typeof first.url === "string") {
-        return first.url;
-      }
-      if (typeof first.image === "string") {
-        return first.image;
-      }
-    }
-  }
-
-  if (Array.isArray(record.data) && record.data[0]) {
-    const first = record.data[0] as Record<string, unknown>;
-    if (typeof first.b64_json === "string") {
-      return first.b64_json;
-    }
-    if (typeof first.url === "string") {
-      return first.url;
-    }
-  }
-
-  return null;
-};
-
-const generateOneBackgroundImage = async (options: {
-  index: number;
-  prompt: string;
-  referenceContentType?: string;
-  referenceImageBase64?: string;
-  total: number;
-}): Promise<ArrayBuffer> => {
-  const basePrompt = [
-    options.prompt.trim(),
-    "Subtle atmospheric background for an announcement graphic — understated, soft, and unobtrusive so overlaid text can read clearly.",
-    "No text, letters, words, logos, watermarks, captions, or UI elements anywhere in the image.",
-    "Avoid busy detail, harsh contrast, and dominant focal subjects; favor calm negative space and gentle depth.",
-    "High quality, 16:9 composition.",
-  ].join(" ");
-
-  const variationHint =
-    options.total > 1
-      ? ` Variation ${options.index + 1}: a subtle alternative with the same quiet mood and palette direction.`
-      : "";
-
-  const input: Record<string, unknown> = {
-    aspect_ratio: ANNOUNCEMENT_ASPECT_RATIO,
-    n: 1,
-    prompt: `${basePrompt}${variationHint}`,
-    quality: "high",
-    resolution: "2k",
-    response_format: "b64_json",
-  };
-
-  if (options.referenceImageBase64) {
-    // Cloudflare schema for xai/grok-imagine-image-quality expects
-    // image: { url, type? } (or images: [{ url, type? }]) — not bare strings.
-    // Bare strings trigger AI Gateway 7003 "User Input Error".
-    const dataUri = `data:${options.referenceContentType || "image/jpeg"};base64,${options.referenceImageBase64}`;
-    input.image = {
-      type: "image_url",
-      url: dataUri,
-    };
-    input.prompt = `${basePrompt} Use the reference image as style and subject context.${variationHint}`;
-  }
-
-  const response = await runAiGateway(IMAGE_MODEL, input);
-  const imagePayload = extractImageFromAiResponse(response);
-
-  if (!imagePayload) {
-    throw new Error("AI Gateway image generation returned no image payload.");
-  }
-
-  return await resolveImagePayload(imagePayload);
-};
-
-const generateBackgroundImages = async (options: {
-  count: number;
-  prompt: string;
-  referenceContentType?: string;
-  referenceImageBase64?: string;
-}): Promise<ArrayBuffer[]> => {
-  const tasks = Array.from({ length: options.count }, (_, index) =>
-    generateOneBackgroundImage({
-      index,
-      prompt: options.prompt,
-      referenceContentType: options.referenceContentType,
-      referenceImageBase64: options.referenceImageBase64,
-      total: options.count,
-    })
-  );
-
-  return await Promise.all(tasks);
 };
 
 const layoutSystemPrompt = [
@@ -694,6 +646,7 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       content,
       createdAt: timestamp,
       exportObjectKey: null,
+      generationJob: null,
       height: ANNOUNCEMENT_HEIGHT,
       id,
       legacyHtml: null,
@@ -750,6 +703,10 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
     return await saveDraft(draft);
   });
 
+/**
+ * Enqueue async AI background generation (HTTP path stays thin).
+ * Consumer: `processAnnouncementImageGen` via OOS_ANNOUNCEMENT_IMAGE_GEN.
+ */
 export const generateBackgrounds = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
   .validator((data: GenerateBackgroundsInput) => data)
@@ -761,64 +718,78 @@ export const generateBackgrounds = createServerFn({ method: "POST" })
       throw new Error("A background prompt is required to generate images.");
     }
 
-    const count = Math.min(
-      MAX_VARIATIONS_PER_REQUEST,
-      Math.max(1, data.count ?? DEFAULT_VARIATION_COUNT)
-    );
+    if (isGenerationJobActive(draft.generationJob)) {
+      throw new Error(
+        "Background generation is already in progress for this announcement."
+      );
+    }
 
-    draft.backgroundPrompt = prompt;
+    // Ignore client-supplied count — always one variation per generate.
+    const count = VARIATIONS_PER_REQUEST;
 
-    let referenceImageBase64: string | undefined;
-    let referenceContentType: string | undefined;
+    const useSelectedAsContext = data.useSelectedAsContext !== false;
     let parentVariationId: string | null = null;
+    let referenceObjectKey: string | null = null;
 
-    if (data.useSelectedAsContext !== false && draft.selectedVariationId) {
+    if (useSelectedAsContext && draft.selectedVariationId) {
       const selected = draft.variations.find(
         (variation) => variation.id === draft.selectedVariationId
       );
 
       if (selected) {
-        const asset = await readAssetBase64(selected.objectKey);
-        referenceImageBase64 = asset.base64;
-        referenceContentType = asset.contentType;
         parentVariationId = selected.id;
+        referenceObjectKey = selected.objectKey;
       }
     }
 
-    const images = await generateBackgroundImages({
-      count,
+    const jobId = uuidv4();
+    const timestamp = nowIso();
+    draft.backgroundPrompt = prompt;
+    draft.generationJob = {
+      completedCount: 0,
+      error: null,
+      id: jobId,
       prompt,
-      referenceContentType,
-      referenceImageBase64,
-    });
+      requestedCount: count,
+      startedAt: null,
+      status: "queued",
+      updatedAt: timestamp,
+      useSelectedAsContext: Boolean(referenceObjectKey),
+    };
+    markDirtyIfApproved(draft);
+    const saved = await saveDraft(draft);
 
-    const created = await Promise.all(
-      images.map(async (bytes) => {
-        const variationId = uuidv4();
-        const objectKey = backgroundKey(draft.id, variationId);
-        await putImageBytes(objectKey, bytes);
-        const variation: AnnouncementVariation = {
-          createdAt: nowIso(),
-          id: variationId,
-          libraryFilename: null,
-          libraryImageId: null,
-          objectKey,
-          parentVariationId,
-          prompt,
-          source: "generated",
-        };
-        return variation;
-      })
-    );
+    const message: AnnouncementImageGenQueueMessage = {
+      announcementId: draft.id,
+      count,
+      jobId,
+      parentVariationId,
+      prompt,
+      referenceObjectKey,
+    };
 
-    draft.variations = [...created, ...draft.variations];
-
-    if (!draft.selectedVariationId && created[0]) {
-      draft.selectedVariationId = created[0].id;
+    try {
+      await getImageGenQueue().send(message, { contentType: "json" });
+    } catch (error) {
+      saved.generationJob = {
+        completedCount: 0,
+        error: formatAiError(error),
+        id: jobId,
+        prompt,
+        requestedCount: count,
+        startedAt: null,
+        status: "failed",
+        updatedAt: nowIso(),
+        useSelectedAsContext: Boolean(referenceObjectKey),
+      };
+      await saveDraft(saved);
+      throw new Error(
+        `Could not enqueue background generation: ${formatAiError(error)}`,
+        { cause: error }
+      );
     }
 
-    markDirtyIfApproved(draft);
-    return await saveDraft(draft);
+    return saved;
   });
 
 export const addLibraryImageAsVariation = createServerFn({ method: "POST" })
@@ -844,6 +815,20 @@ export const addLibraryImageAsVariation = createServerFn({ method: "POST" })
       custom.filename?.trim() ||
       libraryObjectKey.split("/").pop() ||
       "library-image";
+
+    if (
+      libraryImageId &&
+      draft.variations.some(
+        (variation) =>
+          variation.source === "library" &&
+          variation.libraryImageId === libraryImageId
+      )
+    ) {
+      throw new Error(
+        "This library image is already in the announcement variation library."
+      );
+    }
+
     const contentType =
       libraryObject.httpMetadata?.contentType ||
       custom.contentType ||
