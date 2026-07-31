@@ -23,7 +23,7 @@ import {
 } from "~/lib/announcement-overlay-html";
 import {
   ANNOUNCEMENT_ROLE_ATTR,
-  buildDesignPresetHtml,
+  buildDesignPresetProject,
 } from "~/lib/announcement-style-library";
 import {
   ANNOUNCEMENT_HEIGHT,
@@ -560,7 +560,7 @@ export const loadDocumentIntoEditor = (
 };
 
 /**
- * Replace the editor canvas with a design-preset layout HTML fragment.
+ * Replace the editor canvas with a design-preset GrapesJS project.
  * Photo stays on Body via syncBackgroundOnBody (caller should re-sync after).
  * Returns project JSON (persist) + ephemeral export HTML.
  */
@@ -569,13 +569,13 @@ export const applyDesignPresetToEditor = (
   packId: string,
   content: AnnouncementContent
 ): ApplyStylePackHandleResult | null => {
-  const presetHtml = buildDesignPresetHtml(packId, content);
+  const presetProject = buildDesignPresetProject(packId, content);
 
-  if (!presetHtml) {
+  if (!presetProject) {
     return null;
   }
 
-  loadHtmlIntoEditor(editor, presetHtml);
+  editor.loadProjectData(presetProject);
   const snapshot = serializeProjectDocument(editor);
 
   return { ...snapshot, packId };

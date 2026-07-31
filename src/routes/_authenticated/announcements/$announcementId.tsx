@@ -131,7 +131,7 @@ import {
   sanitizeProjectData,
 } from "~/lib/announcement-overlay-html";
 import {
-  buildDesignPresetHtml,
+  buildDesignPresetProject,
   getStylePack,
   listStylePacks,
 } from "~/lib/announcement-style-library";
@@ -186,6 +186,30 @@ const formatProjectJson = (data: GrapesProjectData | null): string => {
   } catch {
     return "{}";
   }
+};
+
+/**
+ * Resolve the canvas project for an announcement draft:
+ * stored projectData → else legacy HTML migrate (null) → else default preset JSON.
+ */
+const resolveCanvasProject = (
+  draft: Pick<
+    AnnouncementDraft,
+    "appliedStyleId" | "content" | "legacyHtml" | "projectData"
+  >
+): GrapesProjectData | null => {
+  if (draft.projectData) {
+    return draft.projectData;
+  }
+
+  if (draft.legacyHtml?.trim()) {
+    return null;
+  }
+
+  return buildDesignPresetProject(
+    draft.appliedStyleId ?? "classic-bottom",
+    draft.content
+  );
 };
 
 const renderSortIcon = (sortDirection: false | "asc" | "desc") => {
@@ -1165,6 +1189,8 @@ const AnnouncementEditor = ({
   const [backgroundPrompt, setBackgroundPrompt] = useState(
     initial.backgroundPrompt
   );
+  const initialCanvasProject = resolveCanvasProject(initial);
+
   const {
     canRedo,
     canUndo,
@@ -1174,35 +1200,22 @@ const AnnouncementEditor = ({
     reset: resetProjectHistory,
     setProjectData,
     undo: undoProjectHistory,
-  } = useHtmlHistory(initial.projectData);
+  } = useHtmlHistory(initialCanvasProject);
   /** Ephemeral HTML for JPG export + view-only advanced panel — never persisted. */
   const [exportHtml, setExportHtml] = useState("");
   /**
-   * One-shot seed for legacy migration, empty new drafts (default preset),
-   * and AI HTML (until JSON builders). Not used by the advanced JSON editor.
+   * One-shot HTML seed for legacy R2 drafts only (migrate → project JSON).
+   * New drafts and presets use project JSON directly.
    */
-  const [seedHtml, setSeedHtml] = useState<string | null>(() => {
-    if (initial.projectData) {
-      return null;
-    }
-
-    if (initial.legacyHtml?.trim()) {
-      return initial.legacyHtml;
-    }
-
-    return (
-      buildDesignPresetHtml(
-        initial.appliedStyleId ?? "classic-bottom",
-        initial.content
-      ) ?? null
-    );
-  });
+  const [seedHtml, setSeedHtml] = useState<string | null>(() =>
+    initial.projectData ? null : (initial.legacyHtml?.trim() ?? null)
+  );
   const [seedRevision, setSeedRevision] = useState(0);
   const [styleNotes, setStyleNotes] = useState("");
   const [markupOpen, setMarkupOpen] = useState(false);
   /** Local draft of project JSON while the advanced editor is open/dirty. */
   const [projectJsonDraft, setProjectJsonDraft] = useState(() =>
-    formatProjectJson(initial.projectData)
+    formatProjectJson(initialCanvasProject)
   );
   const [projectJsonDirty, setProjectJsonDirty] = useState(false);
   const [variationCount, setVariationCount] = useState(2);
@@ -1292,24 +1305,15 @@ const AnnouncementEditor = ({
     // Reset undo stack / seed only when opening a different announcement.
     if (lastHydratedIdRef.current !== initial.id) {
       lastHydratedIdRef.current = initial.id;
-      resetProjectHistory(initial.projectData);
+      const nextProject = resolveCanvasProject(initial);
+
+      resetProjectHistory(nextProject);
       setExportHtml("");
-      setProjectJsonDraft(formatProjectJson(initial.projectData));
+      setProjectJsonDraft(formatProjectJson(nextProject));
       setProjectJsonDirty(false);
-
-      if (initial.projectData) {
-        setSeedHtml(null);
-      } else if (initial.legacyHtml?.trim()) {
-        setSeedHtml(initial.legacyHtml);
-      } else {
-        setSeedHtml(
-          buildDesignPresetHtml(
-            initial.appliedStyleId ?? "classic-bottom",
-            initial.content
-          )
-        );
-      }
-
+      setSeedHtml(
+        initial.projectData ? null : (initial.legacyHtml?.trim() ?? null)
+      );
       setSeedRevision((revision) => revision + 1);
     }
   }, [initial, resetProjectHistory]);
