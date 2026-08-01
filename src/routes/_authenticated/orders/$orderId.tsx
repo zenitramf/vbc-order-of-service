@@ -1,4 +1,6 @@
 import {
+  CodeIcon,
+  CopyIcon,
   DownloadSimpleIcon,
   FloppyDiskIcon,
   PaperPlaneTiltIcon,
@@ -10,6 +12,7 @@ import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { HtmlCodeEditor } from "~/components/html-code-editor";
 import { OrderTemplateEditor } from "~/components/order-template-editor";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -20,6 +23,14 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
 import {
   Empty,
   EmptyContent,
@@ -131,6 +142,10 @@ const OrderRoute = () => {
   const [isPublishing, setIsPublishing] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
+  const [isLoadingCraftMyPdfJson, setIsLoadingCraftMyPdfJson] =
+    React.useState(false);
+  const [craftMyPdfDialogOpen, setCraftMyPdfDialogOpen] = React.useState(false);
+  const [craftMyPdfJson, setCraftMyPdfJson] = React.useState("");
   const [emailDelivery, setEmailDelivery] =
     React.useState<OrderEmailDeliveryRecord | null>(initialEmailDelivery);
   const [title, setTitle] = React.useState(order?.title ?? "");
@@ -336,31 +351,53 @@ const OrderRoute = () => {
     !hasServiceDateConflict &&
     !isPublishing;
 
-  const handleCopyCraftMyPdfData = async () => {
-    if (!canPublish) {
+  const handleOpenCraftMyPdfJson = async () => {
+    if (!currentOrderId) {
       return;
     }
 
-    const saveSucceeded = await handleSave();
+    setIsLoadingCraftMyPdfJson(true);
+    setFormError(null);
 
-    if (!saveSucceeded) {
+    try {
+      if (!hasServiceDateConflict) {
+        const saveSucceeded = await handleSave();
+
+        if (!saveSucceeded) {
+          return;
+        }
+      }
+
+      const result = await postOrderToCraftMyPdfFn({
+        data: { dryRun: true, orderId: currentOrderId },
+      });
+      setCraftMyPdfJson(JSON.stringify(result.requestBody, null, 2));
+      setCraftMyPdfDialogOpen(true);
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to load CraftMyPDF JSON. Please try again."
+      );
+      setFormError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsLoadingCraftMyPdfJson(false);
+    }
+  };
+
+  const handleCopyCraftMyPdfJson = async () => {
+    if (!craftMyPdfJson) {
       return;
     }
 
     try {
-      const result = await postOrderToCraftMyPdfFn({
-        data: { dryRun: true, orderId: currentOrderId },
-      });
-      await copyTextToClipboard(
-        JSON.stringify(result.requestBody.data, null, 2)
-      );
-      toast.success("CraftMyPDF data copied to clipboard.");
+      await copyTextToClipboard(craftMyPdfJson);
+      toast.success("CraftMyPDF JSON copied to clipboard.");
     } catch (error) {
       const errorMessage = getErrorMessage(
         error,
-        "Unable to copy CraftMyPDF data. Please try again."
+        "Unable to copy CraftMyPDF JSON. Please try again."
       );
-      setFormError(errorMessage);
       toast.error(errorMessage);
     }
   };
@@ -466,17 +503,8 @@ const OrderRoute = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1>
-              <button
-                type="button"
-                className="font-heading text-left text-3xl font-semibold tracking-tight disabled:cursor-default"
-                disabled={!canPublish}
-                onDoubleClick={() => {
-                  void handleCopyCraftMyPdfData();
-                }}
-              >
-                Edit Order of Service
-              </button>
+            <h1 className="font-heading text-3xl font-semibold tracking-tight">
+              Edit Order of Service
             </h1>
             <Badge variant={status === "Published" ? "default" : "secondary"}>
               {status}
@@ -497,6 +525,24 @@ const OrderRoute = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            aria-label="View CraftMyPDF JSON"
+            disabled={isLoadingCraftMyPdfJson || isSaving || isPublishing}
+            onClick={() => {
+              void handleOpenCraftMyPdfJson();
+            }}
+            size="icon"
+            title="View CraftMyPDF JSON"
+            type="button"
+            variant="outline"
+          >
+            <CodeIcon />
+            <span className="sr-only">
+              {isLoadingCraftMyPdfJson
+                ? "Loading CraftMyPDF JSON"
+                : "View CraftMyPDF JSON"}
+            </span>
+          </Button>
           <Button
             disabled={hasServiceDateConflict || isSaving || isPublishing}
             onClick={handleSave}
@@ -654,6 +700,50 @@ const OrderRoute = () => {
         teams={teams}
         value={{ ...orderJson, name: title }}
       />
+
+      <Dialog
+        onOpenChange={setCraftMyPdfDialogOpen}
+        open={craftMyPdfDialogOpen}
+      >
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>CraftMyPDF request JSON</DialogTitle>
+            <DialogDescription>
+              Read-only preview of the payload that will be sent to CraftMyPDF
+              when this order is published.
+            </DialogDescription>
+          </DialogHeader>
+          {/* Mount only when open so CodeMirror lays out at full height. */}
+          {craftMyPdfDialogOpen ? (
+            <HtmlCodeEditor
+              language="json"
+              minHeight="28rem"
+              readOnly
+              value={craftMyPdfJson}
+            />
+          ) : null}
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                void handleCopyCraftMyPdfJson();
+              }}
+              type="button"
+              variant="outline"
+            >
+              <CopyIcon data-icon="inline-start" />
+              Copy
+            </Button>
+            <Button
+              onClick={() => {
+                setCraftMyPdfDialogOpen(false);
+              }}
+              type="button"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
