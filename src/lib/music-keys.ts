@@ -33,3 +33,18 @@ export const isSupportedMusicKey = (value: string): boolean => {
       option.value === normalized || option.aliases.includes(normalized)
   );
 };
+
+/** Human-readable label for a stored music key value, or the raw value if unknown. */
+export const getMusicKeyLabel = (value: string): string => {
+  const normalized = value.trim();
+  if (!normalized) {
+    return "";
+  }
+
+  const option = MUSIC_KEY_OPTIONS.find(
+    (entry) =>
+      entry.value === normalized || entry.aliases.includes(normalized)
+  );
+
+  return option?.label ?? normalized;
+};

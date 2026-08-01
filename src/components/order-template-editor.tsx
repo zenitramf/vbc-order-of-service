@@ -108,6 +108,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { getMusicKeyLabel } from "~/lib/music-keys";
 import type {
   HymnOption,
   OrderActivity,
@@ -401,8 +402,27 @@ const ActivityForm = ({
                     <ComboboxLabel>{group.value}</ComboboxLabel>
                     <ComboboxCollection>
                       {(hymn) => (
-                        <ComboboxItem key={hymn.value} value={hymn}>
-                          {hymn.label}
+                        <ComboboxItem
+                          className="items-start py-2"
+                          key={hymn.value}
+                          value={hymn}
+                        >
+                          <span className="flex min-w-0 flex-1 items-start justify-between gap-2">
+                            <span className="flex min-w-0 flex-col gap-0.5">
+                              <span className="truncate">{hymn.label}</span>
+                              <span className="text-muted-foreground text-xs font-normal">
+                                Last played: {hymn.lastPlayed || "Never"}
+                              </span>
+                            </span>
+                            {hymn.musicKey.trim() ? (
+                              <Badge
+                                className="mt-0.5 shrink-0"
+                                variant="secondary"
+                              >
+                                {getMusicKeyLabel(hymn.musicKey)}
+                              </Badge>
+                            ) : null}
+                          </span>
                         </ComboboxItem>
                       )}
                     </ComboboxCollection>
