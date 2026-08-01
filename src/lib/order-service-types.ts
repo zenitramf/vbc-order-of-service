@@ -206,7 +206,6 @@ export interface CraftMyPdfOrderPayloadHymn {
   hymnNumber: string;
   id: string;
   lastPlayed: string;
-  lyricsMarkdown: string;
   musicKey: string;
   name: string;
   sourceId: string;
@@ -221,6 +220,7 @@ export interface CraftMyPdfOrderPayloadActivity extends OrderActivity {
 export interface CraftMyPdfOrderPayloadSegment {
   activities: CraftMyPdfOrderPayloadActivity[];
   id: string;
+  teamAssignments: TeamAssignment[];
   typeName: string;
 }
 

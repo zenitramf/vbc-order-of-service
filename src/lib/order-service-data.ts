@@ -607,12 +607,14 @@ const buildCraftMyPdfOrderPayload = async (
             : undefined;
 
           if (hymn) {
-            payloadActivity.hymn = hymn;
+            const { lyricsMarkdown: _lyricsMarkdown, ...hymnForPayload } = hymn;
+            payloadActivity.hymn = hymnForPayload;
           }
 
           return payloadActivity;
         }),
         id: segment.id,
+        teamAssignments: segment.teamAssignments ?? [],
         typeName: segment.typeName,
       })),
     },
