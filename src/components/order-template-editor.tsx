@@ -538,6 +538,7 @@ interface ActivityColumnsOptions {
   activityTypeNames: Map<string, string>;
   allowHymnSelection: boolean;
   hymnHasLyrics: Map<string, boolean>;
+  hymnLabels: Map<string, string>;
   onManage: (activityId: string) => void;
   onRemove: (activityId: string) => void;
 }
@@ -546,6 +547,7 @@ const createActivityColumns = ({
   activityTypeNames,
   allowHymnSelection,
   hymnHasLyrics,
+  hymnLabels,
   onManage,
   onRemove,
 }: ActivityColumnsOptions): ColumnDef<OrderActivity>[] => [
@@ -557,27 +559,41 @@ const createActivityColumns = ({
   {
     accessorKey: "activityName",
     cell: ({ row }) => {
-      const needsHymn = activityNeedsHymn(row.original, allowHymnSelection);
+      const activity = row.original;
+      const needsHymn = activityNeedsHymn(activity, allowHymnSelection);
       const needsLyrics = activityNeedsLyrics(
-        row.original,
+        activity,
         allowHymnSelection,
         hymnHasLyrics
       );
+      const selectedHymnLabel =
+        allowHymnSelection &&
+        activity.activityType === "hymn" &&
+        activity.hymnId
+          ? (hymnLabels.get(activity.hymnId) ?? null)
+          : null;
 
       return (
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{row.original.activityName}</span>
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0">
+            <span className="font-medium">{activity.activityName}</span>
+            {selectedHymnLabel ? (
+              <p className="truncate text-muted-foreground text-xs">
+                {selectedHymnLabel}
+              </p>
+            ) : null}
+          </div>
           {needsHymn ? (
             <WarningCircleIcon
               aria-label="Needs a hymn"
-              className="size-4 text-destructive"
+              className="mt-0.5 size-4 shrink-0 text-destructive"
             />
           ) : null}
           {needsLyrics ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex">
+                  <span className="mt-0.5 inline-flex shrink-0">
                     <WarningCircleIcon
                       aria-label="Lyrics need to be added"
                       className="size-4 text-amber-600 dark:text-amber-400"
@@ -751,16 +767,28 @@ const SegmentActivitiesTable = ({
     [hymnOptions]
   );
 
+  const hymnLabels = React.useMemo(
+    () => new Map(hymnOptions.map((hymn) => [hymn.id, hymn.label])),
+    [hymnOptions]
+  );
+
   const columns = React.useMemo(
     () =>
       createActivityColumns({
         activityTypeNames,
         allowHymnSelection,
         hymnHasLyrics,
+        hymnLabels,
         onManage: setManageActivityId,
         onRemove,
       }),
-    [activityTypeNames, allowHymnSelection, hymnHasLyrics, onRemove]
+    [
+      activityTypeNames,
+      allowHymnSelection,
+      hymnHasLyrics,
+      hymnLabels,
+      onRemove,
+    ]
   );
 
   const table = useReactTable({
