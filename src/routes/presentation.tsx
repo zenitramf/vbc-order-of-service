@@ -15,22 +15,9 @@ import { seo } from "~/utils/seo";
 /** How long each image slide stays on screen before advancing. */
 const SLIDE_INTERVAL_MS = 20_000;
 
-const slideMediaUrl = (slide: PresentationSlide): string => {
-  if (slide.imageUrl) {
-    return slide.imageUrl;
-  }
-
-  // Uploaded silence-phone media and announcement exports share this proxy.
-  if (
-    slide.kind === "silence_phone" ||
-    slide.id === SILENCE_PHONE_SLIDE_ID ||
-    slide.exportObjectKey
-  ) {
-    return presentationAssetUrl(slide.id);
-  }
-
-  return "";
-};
+const slideMediaUrl = (slide: PresentationSlide): string =>
+  // Announcement exports and silence-phone media share this public proxy.
+  presentationAssetUrl(slide.id);
 
 const isVideoSlide = (slide: PresentationSlide | undefined): boolean =>
   slide?.mediaKind === "video";

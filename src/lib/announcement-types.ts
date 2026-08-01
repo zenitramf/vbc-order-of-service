@@ -212,15 +212,8 @@ export interface AnnouncementSummary {
   variationCount: number;
 }
 
-/** Well-known system slide always appended at the end of the public deck. */
+/** Well-known system slide appended last on the public deck when media is set. */
 export const SILENCE_PHONE_SLIDE_ID = "silence-phone" as const;
-
-/**
- * Temporary Unsplash stand-in when no silence-phone media is uploaded.
- * Dark, quiet interior — text is overlaid by the presentation player.
- */
-export const SILENCE_PHONE_PLACEHOLDER_URL =
-  "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1920&h=1080&q=80";
 
 /** R2 prefix for the silence-phone system slide media (image or short video). */
 export const SILENCE_PHONE_R2_PREFIX = "presentation/silence-phone/" as const;
@@ -235,19 +228,13 @@ export type PresentationMediaKind = "image" | "video";
 
 /**
  * Slide metadata for the unauthenticated presentation deck.
- * Announcement (and uploaded silence-phone) bytes load via
- * `/api/presentation-asset` (binary). Placeholder silence-phone uses `imageUrl`.
+ * Announcement and silence-phone bytes load via `/api/presentation-asset`.
+ * Silence-phone is omitted from the deck until media is uploaded.
  */
 export interface PresentationSlide {
-  /** R2 object key for the approved JPG export (null for system slides). */
+  /** R2 object key for the media (export JPEG or silence-phone object). */
   exportObjectKey: string | null;
   id: string;
-  /**
-   * Absolute image URL for external/placeholder slides (Unsplash fallback).
-   * Uploaded silence-phone media leaves this undefined and uses
-   * `presentationAssetUrl(SILENCE_PHONE_SLIDE_ID)`.
-   */
-  imageUrl?: string;
   kind: PresentationSlideKind;
   /** Defaults to `"image"` when omitted (all announcement exports are JPEGs). */
   mediaKind?: PresentationMediaKind;
@@ -278,8 +265,11 @@ export interface UploadSilencePhoneMediaInput {
 
 /** Deck-editor view of the silence-phone system slide (fixed last row). */
 export interface SilencePhoneEditorState {
-  /** Absolute or proxy URL for the thumbnail / preview. */
-  mediaUrl: string;
+  /**
+   * Public proxy URL for the thumbnail when media is uploaded; `null` when the
+   * system slide is not configured (and is omitted from the live deck).
+   */
+  mediaUrl: string | null;
   settings: SilencePhoneMediaSettings | null;
 }
 

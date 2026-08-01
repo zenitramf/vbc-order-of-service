@@ -26,6 +26,7 @@ import {
   MegaphoneIcon,
   TrashIcon,
   UploadSimpleIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -257,6 +258,104 @@ interface SilencePhoneFooterRowProps {
   silencePhone: SilencePhoneEditorState;
 }
 
+const silencePhonePreviewUrl = (
+  silencePhone: SilencePhoneEditorState
+): string | null => {
+  const { mediaUrl, settings } = silencePhone;
+
+  if (!settings || !mediaUrl) {
+    return null;
+  }
+
+  // Bust browser cache after replace so the 56px thumb updates immediately.
+  const separator = mediaUrl.includes("?") ? "&" : "?";
+  return `${mediaUrl}${separator}v=${encodeURIComponent(settings.updatedAt)}`;
+};
+
+const silencePhoneHelpText = (
+  settings: SilencePhoneEditorState["settings"]
+): string => {
+  if (!settings) {
+    return "No media uploaded — this slide is hidden on the live deck. Upload an image (20s dwell) or a short video (advance on end).";
+  }
+
+  const timing =
+    settings.mediaKind === "video"
+      ? "Live deck advances when the video ends."
+      : "Live deck shows this image for 20 seconds.";
+
+  return `${settings.filename} · ${formatBytes(settings.sizeBytes)}. ${timing}`;
+};
+
+const SilencePhonePreview = ({
+  isMissing,
+  isVideo,
+  previewUrl,
+}: {
+  isMissing: boolean;
+  isVideo: boolean;
+  previewUrl: string | null;
+}) => (
+  <div
+    className={cn(
+      "flex size-14 items-center justify-center overflow-hidden rounded-md border bg-muted",
+      isMissing && "border-amber-500/60"
+    )}
+  >
+    {isMissing ? (
+      <WarningCircleIcon
+        aria-hidden="true"
+        className="size-7 text-amber-600 dark:text-amber-400"
+        weight="fill"
+      />
+    ) : null}
+    {previewUrl && isVideo ? (
+      <video
+        className="size-full object-cover"
+        muted
+        playsInline
+        preload="metadata"
+        src={previewUrl}
+      />
+    ) : null}
+    {previewUrl && !isVideo ? (
+      <img
+        alt=""
+        className="size-full object-cover"
+        decoding="async"
+        height={56}
+        src={previewUrl}
+        width={56}
+      />
+    ) : null}
+  </div>
+);
+
+const SilencePhoneStatusBadges = ({
+  settings,
+}: {
+  settings: SilencePhoneEditorState["settings"];
+}) => (
+  <div className="flex flex-wrap items-center gap-2">
+    <span className="font-medium">Please silence your phone</span>
+    <Badge variant="secondary">Always last</Badge>
+    <Badge variant="outline">System slide</Badge>
+    {settings ? (
+      <Badge variant="outline">
+        {settings.mediaKind === "video" ? "Video" : "Image"}
+      </Badge>
+    ) : (
+      <Badge
+        className="border-amber-600/40 text-amber-800 dark:text-amber-300"
+        variant="outline"
+      >
+        <WarningCircleIcon aria-hidden="true" className="size-3.5" />
+        Needs media
+      </Badge>
+    )}
+  </div>
+);
+
 const SilencePhoneFooterRow = ({
   canEdit,
   onChanged,
@@ -269,19 +368,18 @@ const SilencePhoneFooterRow = ({
   const [isUploading, setIsUploading] = React.useState(false);
   const [isClearing, setIsClearing] = React.useState(false);
 
-  const { mediaUrl, settings } = silencePhone;
+  const { settings } = silencePhone;
+  const isMissing = !settings;
+  const previewUrl = silencePhonePreviewUrl(silencePhone);
   const isVideo = settings?.mediaKind === "video";
-  // Bust browser cache after replace so the 56px thumb updates immediately.
-  const previewUrl = settings
-    ? `${mediaUrl}${mediaUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(settings.updatedAt)}`
-    : mediaUrl;
 
   const handleUpload = async (file: File) => {
     const contentType = file.type.trim().toLowerCase();
-    const isImage = contentType.startsWith("image/");
-    const isVideoFile = contentType.startsWith("video/");
 
-    if (!isImage && !isVideoFile) {
+    if (
+      !contentType.startsWith("image/") &&
+      !contentType.startsWith("video/")
+    ) {
       toast.error("Choose a JPEG/PNG/WebP image or an MP4/WebM video.");
       return;
     }
@@ -324,9 +422,8 @@ const SilencePhoneFooterRow = ({
     setIsClearing(true);
 
     try {
-      const next = await clearFn();
-      onChanged(next);
-      toast.success("Reverted to the default silence-phone image.");
+      onChanged(await clearFn());
+      toast.success("Silence-phone media removed. Slide hidden on live deck.");
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -339,7 +436,13 @@ const SilencePhoneFooterRow = ({
   };
 
   return (
-    <TableRow className="bg-muted/40" data-slide={SILENCE_PHONE_SLIDE_ID}>
+    <TableRow
+      className={cn(
+        "bg-muted/40",
+        isMissing && "bg-amber-50/80 dark:bg-amber-950/30"
+      )}
+      data-slide={SILENCE_PHONE_SLIDE_ID}
+    >
       <TableCell>
         <span
           aria-label="Fixed position — always last"
@@ -353,48 +456,23 @@ const SilencePhoneFooterRow = ({
         <span className="tabular-nums text-muted-foreground">{position}</span>
       </TableCell>
       <TableCell>
-        <div className="size-14 overflow-hidden rounded-md border bg-muted">
-          {isVideo ? (
-            <video
-              className="size-full object-cover"
-              muted
-              playsInline
-              preload="metadata"
-              src={previewUrl}
-            />
-          ) : (
-            <img
-              alt=""
-              className="size-full object-cover"
-              decoding="async"
-              height={56}
-              src={previewUrl}
-              width={56}
-            />
-          )}
-        </div>
+        <SilencePhonePreview
+          isMissing={isMissing}
+          isVideo={Boolean(isVideo)}
+          previewUrl={previewUrl}
+        />
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">Please silence your phone</span>
-          <Badge variant="secondary">Always last</Badge>
-          <Badge variant="outline">System slide</Badge>
-          {settings ? (
-            <Badge variant="outline">
-              {settings.mediaKind === "video" ? "Video" : "Image"}
-            </Badge>
-          ) : (
-            <Badge variant="outline">Default image</Badge>
+        <SilencePhoneStatusBadges settings={settings} />
+        <p
+          className={cn(
+            "mt-1 text-xs",
+            isMissing
+              ? "font-medium text-amber-800 dark:text-amber-300"
+              : "text-muted-foreground"
           )}
-        </div>
-        <p className="mt-1 text-muted-foreground text-xs">
-          {settings
-            ? `${settings.filename} · ${formatBytes(settings.sizeBytes)}. ${
-                settings.mediaKind === "video"
-                  ? "Live deck advances when the video ends."
-                  : "Live deck shows this image for 20 seconds."
-              }`
-            : "Using the built-in placeholder. Upload an image (20s dwell) or a short video (advance on end)."}
+        >
+          {silencePhoneHelpText(settings)}
         </p>
         {canEdit ? (
           <div className="mt-2 flex flex-wrap gap-2">
@@ -417,7 +495,7 @@ const SilencePhoneFooterRow = ({
               onClick={() => fileInputRef.current?.click()}
               size="sm"
               type="button"
-              variant="outline"
+              variant={isMissing ? "default" : "outline"}
             >
               <UploadSimpleIcon data-icon="inline-start" />
               {isUploading ? "Uploading…" : "Upload image or video"}
@@ -433,7 +511,7 @@ const SilencePhoneFooterRow = ({
                 variant="ghost"
               >
                 <TrashIcon data-icon="inline-start" />
-                {isClearing ? "Clearing…" : "Use default"}
+                {isClearing ? "Clearing…" : "Remove media"}
               </Button>
             ) : null}
           </div>
@@ -457,7 +535,8 @@ interface PresentationDeckEditorProps {
 
 /**
  * Drag-to-place deck order editor. Local reordering only until explicit Save.
- * The silence-phone system slide is always shown last and is not reorderable.
+ * The silence-phone system slide is always last when media is set; without
+ * media it is omitted from the live deck and flagged in this editor.
  */
 export const PresentationDeckEditor = ({
   canEditSilencePhone = false,
@@ -569,7 +648,8 @@ export const PresentationDeckEditor = ({
           <p className="text-muted-foreground">
             Order announcements for the public display. Drag rows to place them.
             Changes are not applied until you save. The silence-phone slide is
-            always last.
+            last when media is uploaded; without media it is hidden on the live
+            deck.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -627,8 +707,8 @@ export const PresentationDeckEditor = ({
                 <EmptyTitle>No presentations on the deck</EmptyTitle>
                 <EmptyDescription>
                   Approve an announcement, export it, then enable “Show in
-                  presentation deck” on its editor page. The silence-phone slide
-                  still plays alone at the end of the live display.
+                  presentation deck” on its editor page. Upload silence-phone
+                  media below if you want that system slide on the live display.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>

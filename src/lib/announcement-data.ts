@@ -45,7 +45,6 @@ import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
   SILENCE_PHONE_MAX_BYTES,
-  SILENCE_PHONE_PLACEHOLDER_URL,
   SILENCE_PHONE_R2_PREFIX,
   SILENCE_PHONE_SLIDE_ID,
 } from "~/lib/announcement-types";
@@ -187,25 +186,25 @@ const loadSilencePhoneMedia = async (
 };
 
 const buildSilencePhoneSlide = (
+  settings: SilencePhoneMediaSettings
+): PresentationSlide => ({
+  exportObjectKey: settings.objectKey,
+  id: SILENCE_PHONE_SLIDE_ID,
+  kind: "silence_phone",
+  mediaKind: settings.mediaKind,
+  name: "Please silence your phone",
+});
+
+const silencePhoneEditorState = (
   settings: SilencePhoneMediaSettings | null
-): PresentationSlide => {
-  if (settings) {
-    return {
-      exportObjectKey: settings.objectKey,
-      id: SILENCE_PHONE_SLIDE_ID,
-      kind: "silence_phone",
-      mediaKind: settings.mediaKind,
-      name: "Please silence your phone",
-    };
+): SilencePhoneEditorState => {
+  if (!settings) {
+    return { mediaUrl: null, settings: null };
   }
 
   return {
-    exportObjectKey: null,
-    id: SILENCE_PHONE_SLIDE_ID,
-    imageUrl: SILENCE_PHONE_PLACEHOLDER_URL,
-    kind: "silence_phone",
-    mediaKind: "image",
-    name: "Please silence your phone",
+    mediaUrl: `/api/presentation-asset?id=${encodeURIComponent(SILENCE_PHONE_SLIDE_ID)}`,
+    settings,
   };
 };
 
@@ -1314,8 +1313,8 @@ export const savePresentationDeckOrder = createServerFn({ method: "POST" })
 /**
  * Public (unauthenticated) list of approved announcements opted into the
  * presentation deck, ordered by D1 settings, with the silence-phone system
- * slide always last. Returns metadata only — browsers load announcement JPEGs
- * (and uploaded silence-phone media) via `/api/presentation-asset` (binary).
+ * slide last only when media is uploaded. Returns metadata only — browsers load
+ * media via `/api/presentation-asset` (binary).
  */
 export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
   async (): Promise<PresentationSlide[]> => {
@@ -1335,8 +1334,10 @@ export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
       return slide ? [slide] : [];
     });
 
-    // Always last — never stored in deck order settings.
-    slides.push(buildSilencePhoneSlide(silenceMedia));
+    // Only when media is uploaded — never stored in deck order settings.
+    if (silenceMedia) {
+      slides.push(buildSilencePhoneSlide(silenceMedia));
+    }
 
     return slides;
   }
@@ -1347,21 +1348,10 @@ export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
  */
 export const getSilencePhoneMedia = createServerFn({ method: "GET" })
   .middleware([requireSessionMiddleware])
-  .handler(async (): Promise<SilencePhoneEditorState> => {
-    const settings = await loadSilencePhoneMedia(getAppDb());
-
-    if (settings) {
-      return {
-        mediaUrl: `/api/presentation-asset?id=${encodeURIComponent(SILENCE_PHONE_SLIDE_ID)}`,
-        settings,
-      };
-    }
-
-    return {
-      mediaUrl: SILENCE_PHONE_PLACEHOLDER_URL,
-      settings: null,
-    };
-  });
+  .handler(
+    async (): Promise<SilencePhoneEditorState> =>
+      silencePhoneEditorState(await loadSilencePhoneMedia(getAppDb()))
+  );
 
 /**
  * Replace the silence-phone system slide media (JPEG/PNG/WebP image or MP4/WebM
@@ -1447,14 +1437,12 @@ export const uploadSilencePhoneMedia = createServerFn({ method: "POST" })
         target: appSettings.key,
       });
 
-    return {
-      mediaUrl: `/api/presentation-asset?id=${encodeURIComponent(SILENCE_PHONE_SLIDE_ID)}`,
-      settings,
-    };
+    return silencePhoneEditorState(settings);
   });
 
 /**
- * Remove uploaded silence-phone media and fall back to the Unsplash placeholder.
+ * Remove uploaded silence-phone media. The system slide is omitted from the
+ * live deck until new media is uploaded.
  */
 export const clearSilencePhoneMedia = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
@@ -1480,10 +1468,7 @@ export const clearSilencePhoneMedia = createServerFn({ method: "POST" })
         target: appSettings.key,
       });
 
-    return {
-      mediaUrl: SILENCE_PHONE_PLACEHOLDER_URL,
-      settings: null,
-    };
+    return silencePhoneEditorState(null);
   });
 
 export const deleteAnnouncement = createServerFn({ method: "POST" })
