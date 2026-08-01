@@ -6,7 +6,6 @@ import { listPresentationDeck } from "~/lib/announcement-data";
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
-  SILENCE_PHONE_SLIDE_ID,
 } from "~/lib/announcement-types";
 import type { PresentationSlide } from "~/lib/announcement-types";
 import { presentationAssetUrl } from "~/lib/r2-asset-url";
@@ -189,9 +188,6 @@ const PresentationDeck = () => {
           const isNext =
             mediaUrls.length > 1 &&
             slideIndex === (index + 1) % mediaUrls.length;
-          const isSilence =
-            slide?.kind === "silence_phone" ||
-            slide?.id === SILENCE_PHONE_SLIDE_ID;
           const video = isVideoSlide(slide);
 
           return (
@@ -259,16 +255,6 @@ const PresentationDeck = () => {
                 />
               ) : null}
               {url ? null : <div className="absolute inset-0 bg-black" />}
-              {isSilence ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/55 px-16">
-                  <p
-                    className="text-center font-semibold tracking-wide text-white"
-                    style={{ fontSize: 72, lineHeight: 1.2 }}
-                  >
-                    Please silence your phone
-                  </p>
-                </div>
-              ) : null}
             </div>
           );
         })}
