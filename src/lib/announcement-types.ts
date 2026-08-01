@@ -216,29 +216,41 @@ export interface AnnouncementSummary {
 export const SILENCE_PHONE_SLIDE_ID = "silence-phone" as const;
 
 /**
- * Temporary Unsplash stand-in until the silence-phone asset is stored in R2.
+ * Temporary Unsplash stand-in when no silence-phone media is uploaded.
  * Dark, quiet interior — text is overlaid by the presentation player.
  */
 export const SILENCE_PHONE_PLACEHOLDER_URL =
   "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1920&h=1080&q=80";
 
+/** R2 prefix for the silence-phone system slide media (image or short video). */
+export const SILENCE_PHONE_R2_PREFIX = "presentation/silence-phone/" as const;
+
+/** Max upload size for silence-phone media (images or short loop videos). */
+export const SILENCE_PHONE_MAX_BYTES = 40 * 1024 * 1024;
+
 export type PresentationSlideKind = "announcement" | "silence_phone";
+
+/** How the slide media is rendered and timed on the public player. */
+export type PresentationMediaKind = "image" | "video";
 
 /**
  * Slide metadata for the unauthenticated presentation deck.
- * Announcement image bytes load via `/api/presentation-asset` (binary).
- * System slides (e.g. silence phone) use `imageUrl` until R2 hosts them.
+ * Announcement (and uploaded silence-phone) bytes load via
+ * `/api/presentation-asset` (binary). Placeholder silence-phone uses `imageUrl`.
  */
 export interface PresentationSlide {
   /** R2 object key for the approved JPG export (null for system slides). */
   exportObjectKey: string | null;
   id: string;
   /**
-   * Absolute image URL for system/placeholder slides (Unsplash for now).
-   * Announcement slides leave this undefined and use `presentationAssetUrl(id)`.
+   * Absolute image URL for external/placeholder slides (Unsplash fallback).
+   * Uploaded silence-phone media leaves this undefined and uses
+   * `presentationAssetUrl(SILENCE_PHONE_SLIDE_ID)`.
    */
   imageUrl?: string;
   kind: PresentationSlideKind;
+  /** Defaults to `"image"` when omitted (all announcement exports are JPEGs). */
+  mediaKind?: PresentationMediaKind;
   name: string;
 }
 
@@ -246,6 +258,29 @@ export interface PresentationSlide {
 export interface PresentationDeckOrderSettings {
   /** Announcement ids in display order (silence-phone is never stored). */
   orderedIds: string[];
+}
+
+/** D1 `app_settings` payload for the silence-phone system slide media. */
+export interface SilencePhoneMediaSettings {
+  contentType: string;
+  filename: string;
+  mediaKind: PresentationMediaKind;
+  objectKey: string;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
+export interface UploadSilencePhoneMediaInput {
+  base64: string;
+  contentType: string;
+  filename: string;
+}
+
+/** Deck-editor view of the silence-phone system slide (fixed last row). */
+export interface SilencePhoneEditorState {
+  /** Absolute or proxy URL for the thumbnail / preview. */
+  mediaUrl: string;
+  settings: SilencePhoneMediaSettings | null;
 }
 
 /** One announcement row in the deck editor (reorderable). */

@@ -24,6 +24,8 @@ import {
   FloppyDiskIcon,
   LockSimpleIcon,
   MegaphoneIcon,
+  TrashIcon,
+  UploadSimpleIcon,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -61,14 +63,44 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
-import { savePresentationDeckOrder } from "~/lib/announcement-data";
-import type { PresentationDeckEditorSlide } from "~/lib/announcement-types";
 import {
-  SILENCE_PHONE_PLACEHOLDER_URL,
+  clearSilencePhoneMedia,
+  savePresentationDeckOrder,
+  uploadSilencePhoneMedia,
+} from "~/lib/announcement-data";
+import type {
+  PresentationDeckEditorSlide,
+  SilencePhoneEditorState,
+} from "~/lib/announcement-types";
+import {
+  SILENCE_PHONE_MAX_BYTES,
   SILENCE_PHONE_SLIDE_ID,
 } from "~/lib/announcement-types";
 import { presentationAssetUrl } from "~/lib/r2-asset-url";
 import { cn } from "~/lib/utils";
+
+const fileToBase64 = async (file: File): Promise<string> => {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+
+  for (const byte of bytes) {
+    binary += String.fromCodePoint(byte);
+  }
+
+  return window.btoa(binary);
+};
+
+const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 const formatWhen = (value: string | null) => {
   if (!value) {
@@ -218,49 +250,207 @@ const SortableDeckRow = ({ row }: SortableDeckRowProps) => {
   );
 };
 
-const SilencePhoneFooterRow = ({ position }: { position: number }) => (
-  <TableRow className="bg-muted/40" data-slide={SILENCE_PHONE_SLIDE_ID}>
-    <TableCell>
-      <span
-        aria-label="Fixed position — always last"
-        className="flex items-center text-muted-foreground"
-        title="Always last"
-      >
-        <LockSimpleIcon aria-hidden="true" className="size-4" />
-      </span>
-    </TableCell>
-    <TableCell>
-      <span className="tabular-nums text-muted-foreground">{position}</span>
-    </TableCell>
-    <TableCell>
-      <div className="size-14 overflow-hidden rounded-md border bg-muted">
-        <img
-          alt=""
-          className="size-full object-cover"
-          decoding="async"
-          height={56}
-          src={SILENCE_PHONE_PLACEHOLDER_URL}
-          width={56}
-        />
-      </div>
-    </TableCell>
-    <TableCell>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium">Please silence your phone</span>
-        <Badge variant="secondary">Always last</Badge>
-        <Badge variant="outline">System slide</Badge>
-      </div>
-      <p className="mt-1 text-muted-foreground text-xs">
-        Placeholder image (Unsplash). Will move to R2 later.
-      </p>
-    </TableCell>
-    <TableCell>
-      <span className="text-muted-foreground text-sm">—</span>
-    </TableCell>
-  </TableRow>
-);
+interface SilencePhoneFooterRowProps {
+  canEdit: boolean;
+  onChanged: (state: SilencePhoneEditorState) => void;
+  position: number;
+  silencePhone: SilencePhoneEditorState;
+}
+
+const SilencePhoneFooterRow = ({
+  canEdit,
+  onChanged,
+  position,
+  silencePhone,
+}: SilencePhoneFooterRowProps) => {
+  const uploadFn = useServerFn(uploadSilencePhoneMedia);
+  const clearFn = useServerFn(clearSilencePhoneMedia);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [isClearing, setIsClearing] = React.useState(false);
+
+  const { mediaUrl, settings } = silencePhone;
+  const isVideo = settings?.mediaKind === "video";
+  // Bust browser cache after replace so the 56px thumb updates immediately.
+  const previewUrl = settings
+    ? `${mediaUrl}${mediaUrl.includes("?") ? "&" : "?"}v=${encodeURIComponent(settings.updatedAt)}`
+    : mediaUrl;
+
+  const handleUpload = async (file: File) => {
+    const contentType = file.type.trim().toLowerCase();
+    const isImage = contentType.startsWith("image/");
+    const isVideoFile = contentType.startsWith("video/");
+
+    if (!isImage && !isVideoFile) {
+      toast.error("Choose a JPEG/PNG/WebP image or an MP4/WebM video.");
+      return;
+    }
+
+    if (file.size > SILENCE_PHONE_MAX_BYTES) {
+      toast.error(
+        `File is too large (max ${Math.floor(SILENCE_PHONE_MAX_BYTES / (1024 * 1024))} MB).`
+      );
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const next = await uploadFn({
+        data: {
+          base64: await fileToBase64(file),
+          contentType: contentType || "application/octet-stream",
+          filename: file.name,
+        },
+      });
+      onChanged(next);
+      toast.success(
+        next.settings?.mediaKind === "video"
+          ? "Silence-phone video uploaded."
+          : "Silence-phone image uploaded."
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not upload silence-phone media."
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleClear = async () => {
+    setIsClearing(true);
+
+    try {
+      const next = await clearFn();
+      onChanged(next);
+      toast.success("Reverted to the default silence-phone image.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not clear silence-phone media."
+      );
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
+  return (
+    <TableRow className="bg-muted/40" data-slide={SILENCE_PHONE_SLIDE_ID}>
+      <TableCell>
+        <span
+          aria-label="Fixed position — always last"
+          className="flex items-center text-muted-foreground"
+          title="Always last"
+        >
+          <LockSimpleIcon aria-hidden="true" className="size-4" />
+        </span>
+      </TableCell>
+      <TableCell>
+        <span className="tabular-nums text-muted-foreground">{position}</span>
+      </TableCell>
+      <TableCell>
+        <div className="size-14 overflow-hidden rounded-md border bg-muted">
+          {isVideo ? (
+            <video
+              className="size-full object-cover"
+              muted
+              playsInline
+              preload="metadata"
+              src={previewUrl}
+            />
+          ) : (
+            <img
+              alt=""
+              className="size-full object-cover"
+              decoding="async"
+              height={56}
+              src={previewUrl}
+              width={56}
+            />
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium">Please silence your phone</span>
+          <Badge variant="secondary">Always last</Badge>
+          <Badge variant="outline">System slide</Badge>
+          {settings ? (
+            <Badge variant="outline">
+              {settings.mediaKind === "video" ? "Video" : "Image"}
+            </Badge>
+          ) : (
+            <Badge variant="outline">Default image</Badge>
+          )}
+        </div>
+        <p className="mt-1 text-muted-foreground text-xs">
+          {settings
+            ? `${settings.filename} · ${formatBytes(settings.sizeBytes)}. ${
+                settings.mediaKind === "video"
+                  ? "Live deck advances when the video ends."
+                  : "Live deck shows this image for 20 seconds."
+              }`
+            : "Using the built-in placeholder. Upload an image (20s dwell) or a short video (advance on end)."}
+        </p>
+        {canEdit ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+
+                if (file) {
+                  void handleUpload(file);
+                }
+              }}
+              ref={fileInputRef}
+              type="file"
+            />
+            <Button
+              disabled={isUploading || isClearing}
+              onClick={() => fileInputRef.current?.click()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <UploadSimpleIcon data-icon="inline-start" />
+              {isUploading ? "Uploading…" : "Upload image or video"}
+            </Button>
+            {settings ? (
+              <Button
+                disabled={isUploading || isClearing}
+                onClick={() => {
+                  void handleClear();
+                }}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <TrashIcon data-icon="inline-start" />
+                {isClearing ? "Clearing…" : "Use default"}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </TableCell>
+      <TableCell>
+        <span className="text-muted-foreground text-sm">
+          {settings ? formatWhen(settings.updatedAt) : "—"}
+        </span>
+      </TableCell>
+    </TableRow>
+  );
+};
 
 interface PresentationDeckEditorProps {
+  canEditSilencePhone?: boolean;
+  initialSilencePhone: SilencePhoneEditorState;
   initialSlides: PresentationDeckEditorSlide[];
   onSaved?: (slides: PresentationDeckEditorSlide[]) => void;
 }
@@ -270,18 +460,25 @@ interface PresentationDeckEditorProps {
  * The silence-phone system slide is always shown last and is not reorderable.
  */
 export const PresentationDeckEditor = ({
+  canEditSilencePhone = false,
+  initialSilencePhone,
   initialSlides,
   onSaved,
 }: PresentationDeckEditorProps) => {
   const saveOrderFn = useServerFn(savePresentationDeckOrder);
   const [slides, setSlides] = React.useState(initialSlides);
   const [savedSlides, setSavedSlides] = React.useState(initialSlides);
+  const [silencePhone, setSilencePhone] = React.useState(initialSilencePhone);
   const [isSaving, setIsSaving] = React.useState(false);
 
   React.useEffect(() => {
     setSlides(initialSlides);
     setSavedSlides(initialSlides);
   }, [initialSlides]);
+
+  React.useEffect(() => {
+    setSilencePhone(initialSilencePhone);
+  }, [initialSilencePhone]);
 
   const isDirty = !slidesEqual(slides, savedSlides);
 
@@ -477,7 +674,12 @@ export const PresentationDeckEditor = ({
                     ))}
                   </SortableContext>
                 ) : null}
-                <SilencePhoneFooterRow position={silencePosition} />
+                <SilencePhoneFooterRow
+                  canEdit={canEditSilencePhone}
+                  onChanged={setSilencePhone}
+                  position={silencePosition}
+                  silencePhone={silencePhone}
+                />
               </TableBody>
             </Table>
           </DndContext>

@@ -28,9 +28,13 @@ import type {
   GenerateBackgroundsInput,
   PresentationDeckEditorSlide,
   PresentationDeckOrderSettings,
+  PresentationMediaKind,
   PresentationSlide,
   SaveAnnouncementInput,
   SavePresentationDeckOrderInput,
+  SilencePhoneEditorState,
+  SilencePhoneMediaSettings,
+  UploadSilencePhoneMediaInput,
   ClearVariationContextInput,
   RemoveAllVariationsInput,
   RemoveVariationInput,
@@ -40,7 +44,9 @@ import type {
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_WIDTH,
+  SILENCE_PHONE_MAX_BYTES,
   SILENCE_PHONE_PLACEHOLDER_URL,
+  SILENCE_PHONE_R2_PREFIX,
   SILENCE_PHONE_SLIDE_ID,
 } from "~/lib/announcement-types";
 import { requireSessionMiddleware } from "~/lib/auth.functions";
@@ -51,15 +57,156 @@ export { isMaterialSave } from "~/lib/announcement-material";
 const INDEX_KEY = "announcements/index.json";
 /** D1 `app_settings` key for presentation deck announcement order. */
 const PRESENTATION_DECK_ORDER_KEY = "presentationDeckOrder";
+/** D1 `app_settings` key for silence-phone system slide media metadata. */
+const SILENCE_PHONE_MEDIA_KEY = "silencePhoneMedia";
 /** Always generate a single background per request (UI no longer exposes count). */
 const VARIATIONS_PER_REQUEST = 1;
 
-const SILENCE_PHONE_SLIDE: PresentationSlide = {
-  exportObjectKey: null,
-  id: SILENCE_PHONE_SLIDE_ID,
-  imageUrl: SILENCE_PHONE_PLACEHOLDER_URL,
-  kind: "silence_phone",
-  name: "Please silence your phone",
+const SILENCE_PHONE_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
+
+const SILENCE_PHONE_VIDEO_TYPES = new Set(["video/mp4", "video/webm"]);
+
+const normalizeSilenceContentType = (contentType: string): string => {
+  const normalized = contentType.trim().toLowerCase() || "image/jpeg";
+
+  if (normalized === "image/jpg") {
+    return "image/jpeg";
+  }
+
+  return normalized;
+};
+
+const mediaKindForContentType = (
+  contentType: string
+): PresentationMediaKind | null => {
+  const normalized = normalizeSilenceContentType(contentType);
+
+  if (SILENCE_PHONE_IMAGE_TYPES.has(normalized)) {
+    return "image";
+  }
+
+  if (SILENCE_PHONE_VIDEO_TYPES.has(normalized)) {
+    return "video";
+  }
+
+  return null;
+};
+
+const extensionForSilenceContentType = (contentType: string): string => {
+  switch (normalizeSilenceContentType(contentType)) {
+    case "image/png": {
+      return "png";
+    }
+    case "image/webp": {
+      return "webp";
+    }
+    case "video/webm": {
+      return "webm";
+    }
+    case "video/mp4": {
+      return "mp4";
+    }
+    default: {
+      return "jpg";
+    }
+  }
+};
+
+const parseSilencePhoneMedia = (
+  raw: string | null | undefined
+): SilencePhoneMediaSettings | null => {
+  if (!raw?.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+
+    const record = parsed as Record<string, unknown>;
+    const objectKey =
+      typeof record.objectKey === "string" ? record.objectKey.trim() : "";
+    const contentType =
+      typeof record.contentType === "string"
+        ? normalizeSilenceContentType(record.contentType)
+        : "";
+    const filename =
+      typeof record.filename === "string" ? record.filename.trim() : "";
+    const mediaKind =
+      record.mediaKind === "image" || record.mediaKind === "video"
+        ? record.mediaKind
+        : mediaKindForContentType(contentType);
+    const sizeBytes =
+      typeof record.sizeBytes === "number" && Number.isFinite(record.sizeBytes)
+        ? record.sizeBytes
+        : 0;
+    const updatedAt =
+      typeof record.updatedAt === "string" ? record.updatedAt : "";
+
+    if (
+      !objectKey ||
+      !objectKey.startsWith(SILENCE_PHONE_R2_PREFIX) ||
+      !contentType ||
+      !filename ||
+      !mediaKind
+    ) {
+      return null;
+    }
+
+    return {
+      contentType,
+      filename,
+      mediaKind,
+      objectKey,
+      sizeBytes,
+      updatedAt: updatedAt || new Date(0).toISOString(),
+    };
+  } catch {
+    return null;
+  }
+};
+
+const loadSilencePhoneMedia = async (
+  db: AppDatabase
+): Promise<SilencePhoneMediaSettings | null> => {
+  const row = await db
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, SILENCE_PHONE_MEDIA_KEY))
+    .get();
+
+  return parseSilencePhoneMedia(row?.value);
+};
+
+const buildSilencePhoneSlide = (
+  settings: SilencePhoneMediaSettings | null
+): PresentationSlide => {
+  if (settings) {
+    return {
+      exportObjectKey: settings.objectKey,
+      id: SILENCE_PHONE_SLIDE_ID,
+      kind: "silence_phone",
+      mediaKind: settings.mediaKind,
+      name: "Please silence your phone",
+    };
+  }
+
+  return {
+    exportObjectKey: null,
+    id: SILENCE_PHONE_SLIDE_ID,
+    imageUrl: SILENCE_PHONE_PLACEHOLDER_URL,
+    kind: "silence_phone",
+    mediaKind: "image",
+    name: "Please silence your phone",
+  };
 };
 
 const getBucket = (): R2Bucket => {
@@ -1024,14 +1171,13 @@ const orderEligibleDeckItems = (
     seen.add(id);
   }
 
+  const remainder = eligible.filter((item) => !seen.has(item.id));
   // oxlint-disable-next-line unicorn/no-array-sort -- ES2022 target lacks toSorted.
-  const remainder = eligible
-    .filter((item) => !seen.has(item.id))
-    .sort(
-      (a, b) =>
-        (Date.parse(a.approvedAt ?? a.createdAt) || 0) -
-        (Date.parse(b.approvedAt ?? b.createdAt) || 0)
-    );
+  remainder.sort(
+    (a, b) =>
+      (Date.parse(a.approvedAt ?? a.createdAt) || 0) -
+      (Date.parse(b.approvedAt ?? b.createdAt) || 0)
+  );
 
   return [...ordered, ...remainder];
 };
@@ -1169,13 +1315,15 @@ export const savePresentationDeckOrder = createServerFn({ method: "POST" })
  * Public (unauthenticated) list of approved announcements opted into the
  * presentation deck, ordered by D1 settings, with the silence-phone system
  * slide always last. Returns metadata only — browsers load announcement JPEGs
- * via `/api/presentation-asset` (binary), not base64 over this server function.
+ * (and uploaded silence-phone media) via `/api/presentation-asset` (binary).
  */
 export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
   async (): Promise<PresentationSlide[]> => {
-    const [index, order] = await Promise.all([
+    const db = getAppDb();
+    const [index, order, silenceMedia] = await Promise.all([
       readIndex(),
-      loadPresentationDeckOrder(getAppDb()),
+      loadPresentationDeckOrder(db),
+      loadSilencePhoneMedia(db),
     ]);
     const ordered = orderEligibleDeckItems(
       eligibleDeckSummaries(index),
@@ -1188,11 +1336,155 @@ export const listPresentationDeck = createServerFn({ method: "GET" }).handler(
     });
 
     // Always last — never stored in deck order settings.
-    slides.push(SILENCE_PHONE_SLIDE);
+    slides.push(buildSilencePhoneSlide(silenceMedia));
 
     return slides;
   }
 );
+
+/**
+ * Authenticated silence-phone media state for the deck editor (preview + upload).
+ */
+export const getSilencePhoneMedia = createServerFn({ method: "GET" })
+  .middleware([requireSessionMiddleware])
+  .handler(async (): Promise<SilencePhoneEditorState> => {
+    const settings = await loadSilencePhoneMedia(getAppDb());
+
+    if (settings) {
+      return {
+        mediaUrl: `/api/presentation-asset?id=${encodeURIComponent(SILENCE_PHONE_SLIDE_ID)}`,
+        settings,
+      };
+    }
+
+    return {
+      mediaUrl: SILENCE_PHONE_PLACEHOLDER_URL,
+      settings: null,
+    };
+  });
+
+/**
+ * Replace the silence-phone system slide media (JPEG/PNG/WebP image or MP4/WebM
+ * video). Stored in R2 under {@link SILENCE_PHONE_R2_PREFIX}; metadata in D1.
+ */
+export const uploadSilencePhoneMedia = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: UploadSilencePhoneMediaInput) => data)
+  .handler(async ({ data }): Promise<SilencePhoneEditorState> => {
+    const filename = data.filename.trim();
+    const contentType = normalizeSilenceContentType(data.contentType);
+    const mediaKind = mediaKindForContentType(contentType);
+
+    if (!filename) {
+      throw new Error("File name is required.");
+    }
+
+    if (!mediaKind) {
+      throw new Error(
+        "Only JPEG, PNG, WebP images or MP4/WebM videos are supported."
+      );
+    }
+
+    if (!data.base64.trim()) {
+      throw new Error("Media data is required.");
+    }
+
+    const bytes = Buffer.from(data.base64, "base64");
+
+    if (bytes.byteLength === 0) {
+      throw new Error("Media data is empty.");
+    }
+
+    if (bytes.byteLength > SILENCE_PHONE_MAX_BYTES) {
+      throw new Error(
+        `File is too large (max ${Math.floor(SILENCE_PHONE_MAX_BYTES / (1024 * 1024))} MB).`
+      );
+    }
+
+    const db = getAppDb();
+    const bucket = getBucket();
+    const previous = await loadSilencePhoneMedia(db);
+    const extension = extensionForSilenceContentType(contentType);
+    const objectKey = `${SILENCE_PHONE_R2_PREFIX}media.${extension}`;
+    const updatedAt = nowIso();
+
+    await bucket.put(objectKey, bytes, {
+      customMetadata: {
+        contentType,
+        filename,
+        mediaKind,
+        updatedAt,
+      },
+      httpMetadata: {
+        contentDisposition: `inline; filename="${filename.replaceAll('"', "'")}"`,
+        contentType,
+      },
+    });
+
+    // Drop the previous object when the extension (key) changed.
+    if (previous?.objectKey && previous.objectKey !== objectKey) {
+      await bucket.delete(previous.objectKey);
+    }
+
+    const settings: SilencePhoneMediaSettings = {
+      contentType,
+      filename,
+      mediaKind,
+      objectKey,
+      sizeBytes: bytes.byteLength,
+      updatedAt,
+    };
+
+    await db
+      .insert(appSettings)
+      .values({
+        key: SILENCE_PHONE_MEDIA_KEY,
+        updatedAt,
+        value: JSON.stringify(settings),
+      })
+      .onConflictDoUpdate({
+        set: { updatedAt, value: JSON.stringify(settings) },
+        target: appSettings.key,
+      });
+
+    return {
+      mediaUrl: `/api/presentation-asset?id=${encodeURIComponent(SILENCE_PHONE_SLIDE_ID)}`,
+      settings,
+    };
+  });
+
+/**
+ * Remove uploaded silence-phone media and fall back to the Unsplash placeholder.
+ */
+export const clearSilencePhoneMedia = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .handler(async (): Promise<SilencePhoneEditorState> => {
+    const db = getAppDb();
+    const previous = await loadSilencePhoneMedia(db);
+    const bucket = getBucket();
+    const updatedAt = nowIso();
+
+    if (previous?.objectKey) {
+      await bucket.delete(previous.objectKey);
+    }
+
+    await db
+      .insert(appSettings)
+      .values({
+        key: SILENCE_PHONE_MEDIA_KEY,
+        updatedAt,
+        value: "",
+      })
+      .onConflictDoUpdate({
+        set: { updatedAt, value: "" },
+        target: appSettings.key,
+      });
+
+    return {
+      mediaUrl: SILENCE_PHONE_PLACEHOLDER_URL,
+      settings: null,
+    };
+  });
 
 export const deleteAnnouncement = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])

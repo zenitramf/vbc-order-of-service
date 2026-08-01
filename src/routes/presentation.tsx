@@ -1,6 +1,6 @@
 // oxlint-disable no-use-before-define
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { listPresentationDeck } from "~/lib/announcement-data";
 import {
@@ -12,16 +12,28 @@ import type { PresentationSlide } from "~/lib/announcement-types";
 import { presentationAssetUrl } from "~/lib/r2-asset-url";
 import { seo } from "~/utils/seo";
 
-/** How long each approved slide stays on screen before advancing. */
+/** How long each image slide stays on screen before advancing. */
 const SLIDE_INTERVAL_MS = 20_000;
 
-const slideImageUrl = (slide: PresentationSlide): string => {
-  if (slide.kind === "silence_phone" || slide.imageUrl) {
-    return slide.imageUrl ?? "";
+const slideMediaUrl = (slide: PresentationSlide): string => {
+  if (slide.imageUrl) {
+    return slide.imageUrl;
   }
 
-  return presentationAssetUrl(slide.id);
+  // Uploaded silence-phone media and announcement exports share this proxy.
+  if (
+    slide.kind === "silence_phone" ||
+    slide.id === SILENCE_PHONE_SLIDE_ID ||
+    slide.exportObjectKey
+  ) {
+    return presentationAssetUrl(slide.id);
+  }
+
+  return "";
 };
+
+const isVideoSlide = (slide: PresentationSlide | undefined): boolean =>
+  slide?.mediaKind === "video";
 
 /**
  * Uniform scale so the fixed 1920×1080 stage fills the viewport without
@@ -51,17 +63,17 @@ const useStageScale = (): number => {
 
 /**
  * Production display surface for church screens at 1920×1080.
- * No chrome, captions, or controls — only the approved export images
- * (plus the fixed silence-phone system slide).
+ * No chrome, captions, or controls — only approved export images and the
+ * silence-phone system slide (image at 20s, video advances on ended).
  */
 const PresentationDeck = () => {
   const slides = Route.useLoaderData();
   const [index, setIndex] = useState(0);
   const scale = useStageScale();
+  const videoRefs = useRef<Map<number, HTMLVideoElement>>(new Map());
 
-  // Binary public URLs for announcements; absolute URL for system slides.
-  const imageUrls = useMemo(
-    () => slides.map((slide) => slideImageUrl(slide)),
+  const mediaUrls = useMemo(
+    () => slides.map((slide) => slideMediaUrl(slide)),
     [slides]
   );
 
@@ -69,36 +81,79 @@ const PresentationDeck = () => {
     setIndex(0);
   }, [slides]);
 
+  // Pause inactive videos so only the active slide produces frames.
   useEffect(() => {
-    if (slides.length <= 1) {
+    for (const [slideIndex, video] of videoRefs.current) {
+      if (slideIndex === index) {
+        continue;
+      }
+
+      video.pause();
+    }
+  }, [index]);
+
+  // Image slides: fixed 20s dwell. Video slides: play + advance on `ended`.
+  useEffect(() => {
+    if (slides.length === 0) {
       return;
     }
 
-    const timer = window.setInterval(() => {
-      setIndex((current) => (current + 1) % slides.length);
+    const active = slides[index];
+    const slideCount = slides.length;
+
+    if (isVideoSlide(active)) {
+      const video = videoRefs.current.get(index);
+
+      if (!video) {
+        return;
+      }
+
+      video.currentTime = 0;
+
+      const playActive = async () => {
+        try {
+          await video.play();
+        } catch {
+          // Autoplay can fail if not muted; silence videos are always muted.
+        }
+      };
+
+      void playActive();
+      return;
+    }
+
+    // Lone image stays put; multi-slide deck advances every 20s.
+    if (slideCount <= 1) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setIndex((current) => (current + 1) % slideCount);
     }, SLIDE_INTERVAL_MS);
 
     return () => {
-      window.clearInterval(timer);
+      window.clearTimeout(timer);
     };
-  }, [slides.length]);
+  }, [index, slides]);
 
-  // Warm the next slide so fades do not flash empty while the network catches up.
+  // Warm the next image so fades do not flash empty while the network catches up.
   useEffect(() => {
-    if (imageUrls.length <= 1) {
+    if (mediaUrls.length <= 1) {
       return;
     }
 
-    const nextUrl = imageUrls[(index + 1) % imageUrls.length];
+    const nextIndex = (index + 1) % mediaUrls.length;
+    const nextSlide = slides[nextIndex];
+    const nextUrl = mediaUrls[nextIndex];
 
-    if (!nextUrl) {
+    if (!nextUrl || isVideoSlide(nextSlide)) {
       return;
     }
 
     const image = new Image();
     image.decoding = "async";
     image.src = nextUrl;
-  }, [imageUrls, index]);
+  }, [mediaUrls, index, slides]);
 
   // Lock document to a black full-bleed stage (production displays).
   useEffect(() => {
@@ -141,15 +196,16 @@ const PresentationDeck = () => {
           width: ANNOUNCEMENT_WIDTH,
         }}
       >
-        {imageUrls.map((url, slideIndex) => {
+        {mediaUrls.map((url, slideIndex) => {
           const slide = slides[slideIndex];
           const isActive = slideIndex === index;
           const isNext =
-            imageUrls.length > 1 &&
-            slideIndex === (index + 1) % imageUrls.length;
+            mediaUrls.length > 1 &&
+            slideIndex === (index + 1) % mediaUrls.length;
           const isSilence =
             slide?.kind === "silence_phone" ||
             slide?.id === SILENCE_PHONE_SLIDE_ID;
+          const video = isVideoSlide(slide);
 
           return (
             <div
@@ -157,7 +213,52 @@ const PresentationDeck = () => {
               key={slide?.id ?? url}
               style={{ opacity: isActive ? 1 : 0 }}
             >
-              {url ? (
+              {url && video ? (
+                <video
+                  autoPlay={isActive}
+                  className="absolute inset-0 size-full object-fill"
+                  // Solo video loops in place; multi-slide advances on ended.
+                  loop={slides.length <= 1}
+                  muted
+                  onEnded={() => {
+                    if (isActive && slides.length > 1) {
+                      setIndex((current) => (current + 1) % slides.length);
+                    }
+                  }}
+                  onLoadedData={() => {
+                    if (!isActive) {
+                      return;
+                    }
+
+                    const element = videoRefs.current.get(slideIndex);
+
+                    if (!element) {
+                      return;
+                    }
+
+                    const playLoaded = async () => {
+                      try {
+                        await element.play();
+                      } catch {
+                        // muted autoplay should succeed on kiosk displays
+                      }
+                    };
+
+                    void playLoaded();
+                  }}
+                  playsInline
+                  preload={isActive || isNext ? "auto" : "metadata"}
+                  ref={(element) => {
+                    if (element) {
+                      videoRefs.current.set(slideIndex, element);
+                    } else {
+                      videoRefs.current.delete(slideIndex);
+                    }
+                  }}
+                  src={url}
+                />
+              ) : null}
+              {url && !video ? (
                 <img
                   alt=""
                   className="absolute inset-0 size-full object-fill"
@@ -169,9 +270,8 @@ const PresentationDeck = () => {
                   src={url}
                   width={ANNOUNCEMENT_WIDTH}
                 />
-              ) : (
-                <div className="absolute inset-0 bg-black" />
-              )}
+              ) : null}
+              {url ? null : <div className="absolute inset-0 bg-black" />}
               {isSilence ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/55 px-16">
                   <p

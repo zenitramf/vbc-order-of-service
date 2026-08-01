@@ -1,7 +1,12 @@
+import { SILENCE_PHONE_R2_PREFIX } from "~/lib/announcement-types";
 import { LIBRARY_R2_PREFIX } from "~/lib/image-library-types";
 
 /** R2 prefixes the authenticated asset proxy is allowed to serve. */
-const ALLOWED_R2_PREFIXES = ["announcements/", LIBRARY_R2_PREFIX] as const;
+const ALLOWED_R2_PREFIXES = [
+  "announcements/",
+  LIBRARY_R2_PREFIX,
+  SILENCE_PHONE_R2_PREFIX,
+] as const;
 
 /**
  * True when `objectKey` is a safe, allow-listed R2 key (no path traversal).

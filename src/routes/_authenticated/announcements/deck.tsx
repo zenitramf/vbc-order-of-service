@@ -2,13 +2,29 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { PresentationDeckEditor } from "~/components/presentation-deck-editor";
-import { getPresentationDeckEditor } from "~/lib/announcement-data";
+import { hasPermission } from "~/lib/admin-permissions";
+import {
+  getPresentationDeckEditor,
+  getSilencePhoneMedia,
+} from "~/lib/announcement-data";
 import { requirePermission } from "~/lib/route-guards";
 
 const PresentationDeckPage = () => {
-  const slides = Route.useLoaderData();
+  const { silencePhone, slides } = Route.useLoaderData();
+  const { permissions } = Route.useRouteContext();
+  const canEditSilencePhone = hasPermission(
+    permissions,
+    "announcements",
+    "update"
+  );
 
-  return <PresentationDeckEditor initialSlides={slides} />;
+  return (
+    <PresentationDeckEditor
+      canEditSilencePhone={canEditSilencePhone}
+      initialSilencePhone={silencePhone}
+      initialSlides={slides}
+    />
+  );
 };
 
 export const Route = createFileRoute("/_authenticated/announcements/deck")({
@@ -16,5 +32,12 @@ export const Route = createFileRoute("/_authenticated/announcements/deck")({
     requirePermission(context.permissions, "announcements", "view");
   },
   component: PresentationDeckPage,
-  loader: () => getPresentationDeckEditor(),
+  loader: async () => {
+    const [slides, silencePhone] = await Promise.all([
+      getPresentationDeckEditor(),
+      getSilencePhoneMedia(),
+    ]);
+
+    return { silencePhone, slides };
+  },
 });
