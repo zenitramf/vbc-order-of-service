@@ -181,6 +181,25 @@ const activityNeedsHymn = (
   allowHymnSelection: boolean
 ) => allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
 
+/** Selected hymn activity whose linked hymn has no lyrics yet. */
+const activityNeedsLyrics = (
+  activity: OrderActivity,
+  allowHymnSelection: boolean,
+  hymnHasLyrics: Map<string, boolean>
+) => {
+  if (
+    !(
+      allowHymnSelection &&
+      activity.activityType === "hymn" &&
+      activity.hymnId
+    )
+  ) {
+    return false;
+  }
+
+  return hymnHasLyrics.get(activity.hymnId) === false;
+};
+
 /** Whether any activity on the card still needs attention (e.g. a hymn). */
 const segmentActivitiesNeedAttention = (
   segment: ServiceTypeCard,
@@ -325,7 +344,7 @@ const ActivityForm = ({
                       className={cn(
                         "inline-flex",
                         selectedHymnNeedsLyrics
-                          ? "text-destructive"
+                          ? "text-amber-600 dark:text-amber-400"
                           : "text-muted-foreground hover:text-foreground"
                       )}
                       params={{ hymnId: selectedHymn.value }}
@@ -498,6 +517,7 @@ const DragHandleCell = () => {
 interface ActivityColumnsOptions {
   activityTypeNames: Map<string, string>;
   allowHymnSelection: boolean;
+  hymnHasLyrics: Map<string, boolean>;
   onManage: (activityId: string) => void;
   onRemove: (activityId: string) => void;
 }
@@ -505,6 +525,7 @@ interface ActivityColumnsOptions {
 const createActivityColumns = ({
   activityTypeNames,
   allowHymnSelection,
+  hymnHasLyrics,
   onManage,
   onRemove,
 }: ActivityColumnsOptions): ColumnDef<OrderActivity>[] => [
@@ -517,6 +538,11 @@ const createActivityColumns = ({
     accessorKey: "activityName",
     cell: ({ row }) => {
       const needsHymn = activityNeedsHymn(row.original, allowHymnSelection);
+      const needsLyrics = activityNeedsLyrics(
+        row.original,
+        allowHymnSelection,
+        hymnHasLyrics
+      );
 
       return (
         <div className="flex items-center gap-2">
@@ -526,6 +552,21 @@ const createActivityColumns = ({
               aria-label="Needs a hymn"
               className="size-4 text-destructive"
             />
+          ) : null}
+          {needsLyrics ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <WarningCircleIcon
+                      aria-label="Lyrics need to be added"
+                      className="size-4 text-amber-600 dark:text-amber-400"
+                    />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>Lyrics need to be added.</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           ) : null}
         </div>
       );
@@ -685,15 +726,21 @@ const SegmentActivitiesTable = ({
     [activityTypes]
   );
 
+  const hymnHasLyrics = React.useMemo(
+    () => new Map(hymnOptions.map((hymn) => [hymn.id, hymn.hasLyrics])),
+    [hymnOptions]
+  );
+
   const columns = React.useMemo(
     () =>
       createActivityColumns({
         activityTypeNames,
         allowHymnSelection,
+        hymnHasLyrics,
         onManage: setManageActivityId,
         onRemove,
       }),
-    [activityTypeNames, allowHymnSelection, onRemove]
+    [activityTypeNames, allowHymnSelection, hymnHasLyrics, onRemove]
   );
 
   const table = useReactTable({
