@@ -32,6 +32,8 @@ import {
 import type {
   CraftMyPdfOrderPayload,
   CraftMyPdfOrderPayloadActivity,
+  CraftMyPdfOrderPayloadTeamAssignment,
+  CraftMyPdfOrderPayloadTeamMember,
   CreateOrderInput,
   DashboardData,
   EmailSettingsRecord,
@@ -577,11 +579,59 @@ const assertHymnActivitiesHaveSelections = (order: OrderRecord): void => {
   }
 };
 
+const loadMembersById = async (
+  db: AppDatabase,
+  memberIds: string[]
+): Promise<Map<string, CraftMyPdfOrderPayloadTeamMember>> => {
+  if (memberIds.length === 0) {
+    return new Map();
+  }
+
+  const results = await db.all<Record<string, unknown>>(
+    sql`SELECT id, email, first_name, last_name, phone
+      FROM team_members
+      WHERE id IN (${sql.join(
+        memberIds.map((id) => sql`${id}`),
+        sql`, `
+      )})`
+  );
+
+  return new Map(
+    results.map((row) => {
+      const firstName = asString(row.first_name);
+      const lastName = asString(row.last_name);
+      const fullName = `${firstName} ${lastName}`.trim();
+      const member: CraftMyPdfOrderPayloadTeamMember = {
+        email: asString(row.email),
+        fullName,
+        id: asString(row.id),
+        phone: asString(row.phone),
+      };
+
+      return [member.id, member] as const;
+    })
+  );
+};
+
+const buildCraftMyPdfTeamAssignments = (
+  assignments: { memberIds: string[]; teamId: string }[] | undefined,
+  membersById: Map<string, CraftMyPdfOrderPayloadTeamMember>
+): CraftMyPdfOrderPayloadTeamAssignment[] =>
+  (assignments ?? []).map((assignment) => ({
+    members: assignment.memberIds.flatMap((memberId) => {
+      const member = membersById.get(memberId);
+
+      return member ? [member] : [];
+    }),
+    teamId: assignment.teamId,
+  }));
+
 const buildCraftMyPdfOrderPayload = async (
   db: AppDatabase,
   order: OrderRecord
 ): Promise<CraftMyPdfOrderPayload> => {
   const hymnIds = new Set<string>();
+  const memberIds = new Set<string>();
 
   for (const segment of order.order.service_type) {
     for (const activity of segment.activities) {
@@ -589,9 +639,18 @@ const buildCraftMyPdfOrderPayload = async (
         hymnIds.add(activity.hymnId);
       }
     }
+
+    for (const assignment of segment.teamAssignments ?? []) {
+      for (const memberId of assignment.memberIds) {
+        memberIds.add(memberId);
+      }
+    }
   }
 
-  const hymnsById = await loadHymnsById(db, [...hymnIds]);
+  const [hymnsById, membersById] = await Promise.all([
+    loadHymnsById(db, [...hymnIds]),
+    loadMembersById(db, [...memberIds]),
+  ]);
 
   return {
     generatedAt: nowIso(),
@@ -614,7 +673,10 @@ const buildCraftMyPdfOrderPayload = async (
           return payloadActivity;
         }),
         id: segment.id,
-        teamAssignments: segment.teamAssignments ?? [],
+        teamAssignments: buildCraftMyPdfTeamAssignments(
+          segment.teamAssignments,
+          membersById
+        ),
         typeName: segment.typeName,
       })),
     },

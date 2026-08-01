@@ -217,10 +217,22 @@ export interface CraftMyPdfOrderPayloadActivity extends OrderActivity {
   hymn?: CraftMyPdfOrderPayloadHymn;
 }
 
+export interface CraftMyPdfOrderPayloadTeamMember {
+  email: string;
+  fullName: string;
+  id: string;
+  phone: string;
+}
+
+export interface CraftMyPdfOrderPayloadTeamAssignment {
+  members: CraftMyPdfOrderPayloadTeamMember[];
+  teamId: string;
+}
+
 export interface CraftMyPdfOrderPayloadSegment {
   activities: CraftMyPdfOrderPayloadActivity[];
   id: string;
-  teamAssignments: TeamAssignment[];
+  teamAssignments: CraftMyPdfOrderPayloadTeamAssignment[];
   typeName: string;
 }
 
