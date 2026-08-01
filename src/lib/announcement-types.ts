@@ -219,7 +219,7 @@ export const SILENCE_PHONE_SLIDE_ID = "silence-phone" as const;
 export const SILENCE_PHONE_R2_PREFIX = "presentation/silence-phone/" as const;
 
 /** Max upload size for silence-phone media (images or short loop videos). */
-export const SILENCE_PHONE_MAX_BYTES = 40 * 1024 * 1024;
+export const SILENCE_PHONE_MAX_BYTES = 50 * 1024 * 1024;
 
 export type PresentationSlideKind = "announcement" | "silence_phone";
 
