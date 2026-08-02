@@ -660,6 +660,16 @@ const createMcpServer = (context: McpContext): McpServer => {
 };
 
 export const handleMcpRequest = async (request: Request): Promise<Response> => {
+  // Stateless Streamable HTTP: no standalone server→client SSE stream and no
+  // session termination. Per MCP spec, unsupported methods must be 405 so
+  // clients do not treat an empty/closed stream as a dropped SSE connection.
+  if (request.method === "GET" || request.method === "DELETE") {
+    return new Response("Method Not Allowed", {
+      headers: { Allow: "POST" },
+      status: 405,
+    });
+  }
+
   const caller = await getCaller(request);
 
   if (caller instanceof Response) {
