@@ -149,6 +149,18 @@ describe("stripRuntimePhotoBackgroundCss", () => {
     expect(stripped).toContain("linear-gradient");
     expect(stripped).toContain("1920px");
   });
+
+  it("removes same-origin /api/r2-asset background-image urls", () => {
+    const css = `
+#wrapper { background-image: url("/api/r2-asset?key=announcements/a/backgrounds/v1.jpg"); width: 1920px; }
+.scrim { background: linear-gradient(to top, rgba(0,0,0,0.5), transparent); }
+`;
+    const stripped = stripRuntimePhotoBackgroundCss(css);
+    expect(stripped).not.toContain("/api/r2-asset");
+    expect(stripped).not.toContain("background-image");
+    expect(stripped).toContain("linear-gradient");
+    expect(stripped).toContain("1920px");
+  });
 });
 
 describe("flattenStageMediaQueries", () => {
@@ -203,6 +215,20 @@ describe("prepareOverlayHtmlForRender", () => {
     expect(prepared).not.toContain("<body");
     expect(prepared).toContain('id="i1"');
     expect(prepared).toContain("Title");
+  });
+
+  it("does not keep same-origin photo urls in export HTML", () => {
+    const raw = `<div class="announcement-overlay">
+<style>
+#wrapper { background-image: url("/api/r2-asset?key=announcements/a/backgrounds/v1.jpg"); width: 1920px; }
+#i1{color:#f5e6c8}
+</style>
+<div id="i1">Title</div>
+</div>`;
+    const prepared = prepareOverlayHtmlForRender(raw);
+    expect(prepared).not.toContain("/api/r2-asset");
+    expect(prepared).toContain("Title");
+    expect(prepared).toContain("#i1{");
   });
 });
 
@@ -316,6 +342,39 @@ describe("GrapesJS project JSON helpers", () => {
     expect(JSON.stringify(sanitized)).toContain(PANEL_SCRIM_GRADIENT);
     expect(JSON.stringify(sanitized)).toContain("Title");
     expect(JSON.stringify(sanitized)).toContain("height");
+  });
+
+  it("strips same-origin /api/r2-asset photo urls from project JSON", () => {
+    const project = {
+      pages: [
+        {
+          frames: [
+            {
+              component: {
+                style: {
+                  "background-image":
+                    'url("/api/r2-asset?key=announcements/a/backgrounds/v1.jpg")',
+                  height: "1080px",
+                },
+                type: "wrapper",
+              },
+            },
+          ],
+        },
+      ],
+      styles: [
+        {
+          selectors: ["#wrapper"],
+          style: {
+            background: 'url("/api/r2-asset?key=announcements/b/bg.jpg")',
+          },
+        },
+      ],
+    } as GrapesProjectData;
+
+    const sanitized = sanitizeProjectData(project);
+    expect(JSON.stringify(sanitized)).not.toContain("/api/r2-asset");
+    expect(JSON.stringify(sanitized)).toContain("1080px");
   });
 
   it("returns stable keys for equal project snapshots", () => {

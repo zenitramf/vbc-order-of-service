@@ -45,9 +45,10 @@ export const stripRuntimePhotoBackgroundCss = (css: string): string => {
     return css;
   }
 
-  // Drop background-image declarations that reference remote/data URLs.
+  // Drop background-image declarations that reference remote/data/same-origin
+  // asset URLs (`/api/r2-asset?key=…` is what the live canvas actually paints).
   const withoutImages = css.replaceAll(
-    /background-image\s*:\s*url\(\s*(?<quote>["']?)(?:https?:|data:|blob:)[^)"']*\k<quote>\s*\)\s*;?/giu,
+    /background-image\s*:\s*url\(\s*(?<quote>["']?)(?:https?:|data:|blob:|\/)[^)"']*\k<quote>\s*\)\s*;?/giu,
     ""
   );
 
@@ -401,6 +402,11 @@ export const normalizeOverlayComponentsHtml = (html: string): string =>
     .replaceAll(/<\/body>/giu, "</div>")
     .trim();
 
+const sanitizeOverlayCss = (css: string): string =>
+  normalizeStylesheetBackgrounds(
+    flattenStageMediaQueries(stripRuntimePhotoBackgroundCss(css.trim()))
+  );
+
 /**
  * Split a stored overlay HTML string into components markup + CSS.
  * Supports legacy fully-inline markup and style-tag bundles from GrapesJS.
@@ -445,9 +451,7 @@ export const parseOverlayHtml = (
             )
           )
         ),
-        css: normalizeStylesheetBackgrounds(
-          flattenStageMediaQueries(cssParts.join("\n").trim())
-        ),
+        css: sanitizeOverlayCss(cssParts.join("\n")),
       };
     }
   }
@@ -458,9 +462,7 @@ export const parseOverlayHtml = (
         stripAnnouncementBackgroundHtml(withoutStyles)
       )
     ),
-    css: normalizeStylesheetBackgrounds(
-      flattenStageMediaQueries(cssParts.join("\n").trim())
-    ),
+    css: sanitizeOverlayCss(cssParts.join("\n")),
   };
 };
 
@@ -471,9 +473,7 @@ export const buildOverlayHtml = (components: string, css: string): string => {
       stripAnnouncementBackgroundHtml(components.trim())
     )
   );
-  const safeCss = normalizeStylesheetBackgrounds(
-    flattenStageMediaQueries(css.trim())
-  );
+  const safeCss = sanitizeOverlayCss(css);
 
   const styleBlock =
     safeCss.length > 0
@@ -506,7 +506,8 @@ export const prepareOverlayHtmlForRender = (raw: string): string => {
 
 // ── GrapesJS project JSON helpers ────────────────────────────────────────────
 
-const RUNTIME_PHOTO_URL_RE = /url\(\s*(?<quote>["']?)(?:https?:|data:|blob:)/iu;
+const RUNTIME_PHOTO_URL_RE =
+  /url\(\s*(?<quote>["']?)(?:https?:|data:|blob:|\/)/iu;
 
 const isRecord = (value: unknown): value is Record<string, JsonValue> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
