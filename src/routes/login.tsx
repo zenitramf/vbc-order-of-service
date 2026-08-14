@@ -16,8 +16,7 @@ import { Spinner } from "~/components/ui/spinner";
 import { cn } from "~/lib/utils";
 
 const HOME_PATH = "/";
-const TEMPORARY_LOGIN_IMAGE_URL =
-  "https://upload.wikimedia.org/wikipedia/commons/b/bf/Downtown_Fresno_Skyline_2021.jpg";
+const LOGIN_HERO_IMAGE_URL = "/login-hero.jpg";
 
 type LoginFormProps = ComponentProps<"form"> & {
   isSubmitting: boolean;
@@ -199,9 +198,9 @@ export const LoginPage = () => {
       </div>
       <div className="relative hidden bg-muted lg:block">
         <img
-          alt="Church sanctuary with warm light"
+          alt="Victory torch emblem"
           className="absolute inset-0 h-full w-full object-cover opacity-80"
-          src={TEMPORARY_LOGIN_IMAGE_URL}
+          src={LOGIN_HERO_IMAGE_URL}
         />
       </div>
     </div>
