@@ -126,6 +126,7 @@ import {
   selectVariation,
   setShowInPresentationDeck,
 } from "~/lib/announcement-data";
+import { announcementJpegCaptureOptions } from "~/lib/announcement-export";
 import {
   isUsableProjectData,
   prepareOverlayHtmlForRender,
@@ -2371,7 +2372,12 @@ const AnnouncementEditor = ({
 
     if (snapshot) {
       const flushed = snapshot as AnnouncementCanvasSnapshot;
-      setExportHtml(flushed.exportHtml);
+      // Paint the off-screen export surface before persist/capture — two
+      // microtasks are not a React commit, so stale overlay HTML would be
+      // cloned (previous variation / previous announcement).
+      flushSync(() => {
+        setExportHtml(flushed.exportHtml);
+      });
 
       if (canEdit) {
         await persist({ projectDataOverride: flushed.projectData });
@@ -2390,14 +2396,7 @@ const AnnouncementEditor = ({
       throw new Error("Export surface missing.");
     }
 
-    return await toJpeg(surface, {
-      backgroundColor: "#000000",
-      cacheBust: true,
-      height: ANNOUNCEMENT_HEIGHT,
-      pixelRatio: 1,
-      quality: 0.92,
-      width: ANNOUNCEMENT_WIDTH,
-    });
+    return await toJpeg(surface, announcementJpegCaptureOptions);
   };
 
   const onExport = async () => {
