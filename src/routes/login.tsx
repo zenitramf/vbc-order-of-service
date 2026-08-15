@@ -16,8 +16,7 @@ import { Spinner } from "~/components/ui/spinner";
 import { cn } from "~/lib/utils";
 
 const HOME_PATH = "/";
-const TEMPORARY_LOGIN_IMAGE_URL =
-  "https://upload.wikimedia.org/wikipedia/commons/b/bf/Downtown_Fresno_Skyline_2021.jpg";
+const LOGIN_HERO_IMAGE_URL = "/vbc_logo_portal_image.webp";
 
 type LoginFormProps = ComponentProps<"form"> & {
   isSubmitting: boolean;
@@ -40,7 +39,6 @@ const LoginForm = ({
       </div>
       <Field>
         <FieldLabel htmlFor="email">Email</FieldLabel>
-        {/* `webauthn` opts the field into passkey autofill (conditional UI). */}
         <Input
           autoCapitalize="none"
           autoComplete="username webauthn"
@@ -54,12 +52,6 @@ const LoginForm = ({
       <Field>
         <div className="flex items-center">
           <FieldLabel htmlFor="password">Password</FieldLabel>
-          {/*<button
-            className="ml-auto text-sm underline-offset-4 hover:underline"
-            type="button"
-          >
-            Forgot your password?
-          </button>*/}
         </div>
         <Input
           autoComplete="current-password webauthn"
@@ -98,10 +90,6 @@ interface ConditionalMediationCapable {
 export const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Conditional UI: if the browser supports it, preload passkeys so they surface
-  // in the email field's autofill dropdown. Selecting one signs the user in
-  // without a password. Errors (including the user ignoring the prompt) are
-  // swallowed — this is an enhancement layered on top of the password form.
   useEffect(() => {
     let cancelled = false;
 
@@ -199,9 +187,9 @@ export const LoginPage = () => {
       </div>
       <div className="relative hidden bg-muted lg:block">
         <img
-          alt="Church sanctuary with warm light"
+          alt="Victory torch emblem"
           className="absolute inset-0 h-full w-full object-cover opacity-80"
-          src={TEMPORARY_LOGIN_IMAGE_URL}
+          src={LOGIN_HERO_IMAGE_URL}
         />
       </div>
     </div>
