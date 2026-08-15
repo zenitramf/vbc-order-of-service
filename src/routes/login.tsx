@@ -188,7 +188,7 @@ export const LoginPage = () => {
       <div className="relative hidden bg-muted lg:block">
         <img
           alt="Victory torch emblem"
-          className="absolute inset-0 h-full w-full object-cover opacity-80"
+          className="absolute inset-0 h-full w-full object-[center_30%] object-cover opacity-80"
           src={LOGIN_HERO_IMAGE_URL}
         />
       </div>
