@@ -189,3 +189,41 @@ Oxlint + Oxfmt's linter will catch most issues automatically. Focus your attenti
 ---
 
 Most formatting and common issues are automatically fixed by Oxlint + Oxfmt. Run `npm exec -- ultracite fix` before committing to ensure compliance.
+
+---
+
+## Cursor Cloud specific instructions
+
+TanStack Start app on Cloudflare Workers (Vite dev server + local D1/R2/Queues via
+miniflare). Package manager is **pnpm** (single `pnpm-lock.yaml`). Standard scripts live
+in `package.json`; setup/run basics are in `README.md`. The startup update script runs
+`pnpm install` (its `postinstall` runs `wrangler types`).
+
+Non-obvious gotchas:
+
+- **Node version for lint/format.** The default on-PATH `node` (`/exec-daemon/node`) is
+  v22.14, which is too old for `ultracite` (oxlint/oxfmt) — their `.ts` config files
+  require Node `^20.19.0 || >=22.18.0`, so `pnpm check` / `pnpm fix` fail with
+  "Unknown file extension .ts". Use the pre-baked nvm Node before running them:
+  `nvm use 22.22.2` (then `pnpm check` / `pnpm fix`). Install/test/build/dev all work on
+  the default node too. `pnpm check` reports pre-existing lint/format findings in the repo
+  — those are not environment problems.
+- **Local D1 is not persisted and there is no runtime schema bootstrap.** After
+  `pnpm install`, run `pnpm run db:migrate:local` once to create and seed the local D1
+  (auth tables, roles, and 315 hymns) before `pnpm dev`; otherwise pages that read the DB
+  fail. Migrations are authored by Drizzle Kit but applied only by Wrangler (see README).
+  The dev server and the migrate command share the same local D1 at
+  `.wrangler/state/v3/d1/`. The orders table is named `orders_of_service`.
+- **Dev auth needs `.dev.vars`.** Better Auth reads `BETTER_AUTH_SECRET` (>= 32 chars) and
+  `BETTER_AUTH_URL` from a gitignored `.dev.vars`. For local dev create it with, e.g.:
+  `BETTER_AUTH_SECRET="<32+ char secret>"` and `BETTER_AUTH_URL="http://localhost:3000"`.
+  Optional features (email via Proton SMTP, PDF generation, AI announcement backgrounds)
+  need more secrets — see the fuller list in `worker-configuration.d.ts` — but they are not
+  required to run or exercise the core order-of-service flow.
+- **No public sign-up UI.** `/login` only signs in. Bootstrap the first user via the Better
+  Auth API (email/password is enabled), then log in at `/login`. `firstName`/`lastName` are
+  required and requests need an `Origin` header, e.g.:
+  `curl -X POST http://localhost:3000/api/auth/sign-up/email -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' -d '{"email":"you@example.com","password":"Password123!","name":"You","firstName":"You","lastName":"Name"}'`
+- **Dev server** runs on port `3000` (`pnpm dev`). The announcement image-gen consumer is a
+  separate Worker and is only needed for AI background generation (see the multi-Worker
+  section above).
