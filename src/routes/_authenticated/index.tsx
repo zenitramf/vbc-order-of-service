@@ -82,10 +82,10 @@ const UpcomingSundayCard = ({
       {order ? (
         <>
           <CardFooter>
-            <Button asChild>
+            <Button asChild className="h-11 px-6 text-base" size="lg" variant="cta">
               <Link params={{ orderId: order.id }} to="/orders/$orderId">
                 <PencilSimpleIcon data-icon="inline-start" />
-                Edit order of service
+                Modify Next Order of Service
               </Link>
             </Button>
           </CardFooter>
