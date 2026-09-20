@@ -1,9 +1,11 @@
 import {
+  CalendarBlankIcon,
   CodeIcon,
   CopyIcon,
   DownloadSimpleIcon,
   FloppyDiskIcon,
   PaperPlaneTiltIcon,
+  PencilSimpleIcon,
   PlusIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable complexity, no-use-before-define
@@ -31,6 +33,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyContent,
@@ -76,6 +87,11 @@ import {
 
 const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
+
+const formatFullDate = (value: string) =>
+  new Intl.DateTimeFormat("en", {
+    dateStyle: "full",
+  }).format(new Date(`${value}T00:00:00`));
 
 const getServiceDateConflictMessage = (serviceDate: string) =>
   `An order of service already exists for ${serviceDate}.`;
@@ -171,6 +187,14 @@ const OrderRoute = () => {
           existingOrder.serviceDate === serviceDate
       ),
     [order?.id, orders, serviceDate]
+  );
+
+  const selectedServiceTypeName = React.useMemo(
+    () =>
+      referenceData.serviceTypes.find(
+        (serviceType) => serviceType.id === serviceTypeId
+      )?.name ?? "Select service type",
+    [referenceData.serviceTypes, serviceTypeId]
   );
 
   const serviceDateErrorMessage = hasServiceDateConflict
@@ -504,7 +528,7 @@ const OrderRoute = () => {
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-heading text-3xl font-semibold tracking-tight">
-              Edit Order of Service
+              {title || "Untitled Order of Service"}
             </h1>
             <Badge variant={status === "Published" ? "default" : "secondary"}>
               {status}
@@ -518,6 +542,43 @@ const OrderRoute = () => {
                 Email: {emailStatusLabel}
               </Badge>
             ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {serviceDate ? (
+              <Badge className="gap-1.5" variant="outline">
+                <CalendarBlankIcon aria-hidden />
+                {formatFullDate(serviceDate)}
+              </Badge>
+            ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-xs font-medium transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  type="button"
+                >
+                  {selectedServiceTypeName}
+                  <PencilSimpleIcon aria-hidden />
+                  <span className="sr-only">Edit service type</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuLabel>Service type</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  onValueChange={setServiceTypeId}
+                  value={serviceTypeId}
+                >
+                  {referenceData.serviceTypes.map((serviceType) => (
+                    <DropdownMenuRadioItem
+                      key={serviceType.id}
+                      value={serviceType.id}
+                    >
+                      {serviceType.name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <p className="text-muted-foreground">
             Plan service cards, select hymns, and prepare the order for
@@ -623,72 +684,6 @@ const OrderRoute = () => {
           </CardContent>
         </Card>
       ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Service details</CardTitle>
-          <CardDescription>
-            Publishing generates a PDF, stores it in R2, and updates selected
-            hymn usage.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="order-title">Title</FieldLabel>
-              <Input
-                id="order-title"
-                onChange={(event) => setTitle(event.target.value)}
-                value={title}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="order-date">
-                Order of service date
-              </FieldLabel>
-              <Input
-                id="order-date"
-                onChange={(event) => {
-                  setFormError(null);
-                  setServiceDate(event.target.value);
-                }}
-                type="date"
-                value={serviceDate}
-              />
-              <FieldDescription>
-                Only one order of service can be scheduled per day.
-              </FieldDescription>
-              {serviceDateErrorMessage ? (
-                <FieldDescription className="text-destructive">
-                  {serviceDateErrorMessage}
-                </FieldDescription>
-              ) : null}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="service-type">Service type</FieldLabel>
-              <NativeSelect
-                className="w-full"
-                id="service-type"
-                onChange={(event) => setServiceTypeId(event.target.value)}
-                value={serviceTypeId}
-              >
-                {referenceData.serviceTypes.map((serviceType) => (
-                  <NativeSelectOption
-                    key={serviceType.id}
-                    value={serviceType.id}
-                  >
-                    {serviceType.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <FieldDescription>
-                Templates manage service types. Save a modified template when
-                you need a new reusable service type.
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
-        </CardContent>
-      </Card>
 
       <OrderTemplateEditor
         activityTypes={referenceData.activityTypes}
