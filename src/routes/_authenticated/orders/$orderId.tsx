@@ -61,6 +61,12 @@ import {
   NativeSelectOption,
 } from "~/components/ui/native-select";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
+import {
   getHymnOptions,
   getOrder,
   getOrderEmailDelivery,
@@ -92,6 +98,19 @@ const formatFullDate = (value: string) =>
   new Intl.DateTimeFormat("en", {
     dateStyle: "full",
   }).format(new Date(`${value}T00:00:00`));
+
+const formatTimestamp = (value: string): string => {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+};
 
 const getServiceDateConflictMessage = (serviceDate: string) =>
   `An order of service already exists for ${serviceDate}.`;
@@ -455,6 +474,7 @@ const OrderRoute = () => {
 
   const publishButtonLabel = isPublishing ? "Publishing…" : "Publish";
   const emailStatusLabel = emailDelivery?.status ?? "Not Sent";
+  const isEmailSent = emailDelivery?.status === "Sent";
   const sendEmailButtonLabel = isSendingEmail ? "Queueing…" : "Send Email";
   const downloadButtonLabel = isDownloading
     ? "Downloading…"
@@ -533,14 +553,36 @@ const OrderRoute = () => {
             <Badge variant={status === "Published" ? "default" : "secondary"}>
               {status}
             </Badge>
-            {status === "Published" ? (
-              <Badge
-                variant={
-                  emailDelivery?.status === "Sent" ? "default" : "outline"
-                }
-              >
-                Email: {emailStatusLabel}
-              </Badge>
+            {status === "Published" && isEmailSent && emailDelivery ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge className="cursor-default" variant="default">
+                      Email: {emailStatusLabel}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="flex max-w-xs flex-col items-stretch gap-1.5 py-2 text-left">
+                    <span className="font-medium">{emailDelivery.subject}</span>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-background/70">Queued</span>
+                      <span className="tabular-nums">
+                        {formatTimestamp(emailDelivery.queuedAt)}
+                      </span>
+                    </div>
+                    {emailDelivery.sentAt ? (
+                      <div className="flex justify-between gap-4">
+                        <span className="text-background/70">Sent</span>
+                        <span className="tabular-nums">
+                          {formatTimestamp(emailDelivery.sentAt)}
+                        </span>
+                      </div>
+                    ) : null}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null}
+            {status === "Published" && !isEmailSent ? (
+              <Badge variant="outline">Email: {emailStatusLabel}</Badge>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -650,13 +692,12 @@ const OrderRoute = () => {
         </div>
       </div>
 
-      {emailDelivery ? (
+      {emailDelivery && emailDelivery.status !== "Sent" ? (
         <Card>
           <CardHeader>
             <CardTitle>Email delivery log</CardTitle>
             <CardDescription>
-              Message with {emailDelivery.subject}{" "}
-              {emailDelivery.status === "Sent" ? "sent" : "queued"}.
+              Message with {emailDelivery.subject} queued.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-sm">
@@ -664,18 +705,18 @@ const OrderRoute = () => {
               <span className="font-medium">Status</span>
               <Badge
                 variant={
-                  emailDelivery.status === "Sent" ? "default" : "outline"
+                  emailDelivery.status === "Failed" ? "destructive" : "outline"
                 }
               >
                 {emailDelivery.status}
               </Badge>
             </div>
             <p className="text-muted-foreground">
-              Queued at {emailDelivery.queuedAt}
+              Queued at {formatTimestamp(emailDelivery.queuedAt)}
             </p>
             {emailDelivery.sentAt ? (
               <p className="text-muted-foreground">
-                Sent at {emailDelivery.sentAt}
+                Sent at {formatTimestamp(emailDelivery.sentAt)}
               </p>
             ) : null}
             {emailDelivery.errorMessage ? (
