@@ -21,8 +21,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   ArrowSquareOutIcon,
+  CheckIcon,
   DotsSixVerticalIcon,
   DotsThreeVerticalIcon,
+  PencilSimpleIcon,
   PlusIcon,
   TrashIcon,
   WarningCircleIcon,
@@ -38,12 +40,6 @@ import * as React from "react";
 import { v4 as uuidv4 } from "uuid";
 
 import { OrderTeamAssignment } from "~/components/order-team-assignment";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "~/components/ui/accordion";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -92,7 +88,6 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "~/components/ui/native-select";
-import { Separator } from "~/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -101,6 +96,7 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Textarea } from "~/components/ui/textarea";
 import {
   Tooltip,
@@ -155,6 +151,13 @@ const createSegment = (): ServiceTypeCard => ({
   typeName: "New Service Segment",
 });
 
+/**
+ * Higher-contrast styling for the segment tabs so the selected tab clearly
+ * stands out from the muted, unselected ones.
+ */
+const SEGMENT_TAB_TRIGGER_CLASS =
+  "data-active:bg-primary data-active:font-semibold data-active:text-primary-foreground data-active:shadow-sm hover:data-active:bg-primary/90 hover:data-active:text-primary-foreground dark:data-active:bg-primary dark:data-active:text-primary-foreground dark:hover:data-active:bg-primary/90 dark:hover:data-active:text-primary-foreground";
+
 const groupHymnOptionsBySource = (
   hymnOptions: HymnOption[]
 ): HymnComboboxGroup[] => {
@@ -189,11 +192,7 @@ const activityNeedsLyrics = (
   hymnHasLyrics: Map<string, boolean>
 ) => {
   if (
-    !(
-      allowHymnSelection &&
-      activity.activityType === "hymn" &&
-      activity.hymnId
-    )
+    !(allowHymnSelection && activity.activityType === "hymn" && activity.hymnId)
   ) {
     return false;
   }
@@ -782,13 +781,7 @@ const SegmentActivitiesTable = ({
         onManage: setManageActivityId,
         onRemove,
       }),
-    [
-      activityTypeNames,
-      allowHymnSelection,
-      hymnHasLyrics,
-      hymnLabels,
-      onRemove,
-    ]
+    [activityTypeNames, allowHymnSelection, hymnHasLyrics, hymnLabels, onRemove]
   );
 
   const table = useReactTable({
@@ -1284,6 +1277,7 @@ const SegmentEditor = ({
   teamMembers,
   teams,
 }: SegmentEditorProps) => {
+  const [isEditingName, setIsEditingName] = React.useState(false);
   const activitiesNeedAttention = segmentActivitiesNeedAttention(
     segment,
     allowHymnSelection
@@ -1300,38 +1294,82 @@ const SegmentEditor = ({
   return (
     <Card>
       <CardHeader>
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <FieldGroup className="flex-1">
-            <Field>
-              <FieldLabel htmlFor={`${segment.id}-type-name`}>
-                Service card name
-              </FieldLabel>
+        {isEditingName ? (
+          <Field className="flex-1">
+            <FieldLabel htmlFor={`${segment.id}-type-name`}>
+              Service card name
+            </FieldLabel>
+            <div className="flex items-center gap-2">
               <Input
+                autoFocus
                 id={`${segment.id}-type-name`}
                 onChange={(event) =>
-                  onUpdateSegment({ ...segment, typeName: event.target.value })
+                  onUpdateSegment({
+                    ...segment,
+                    typeName: event.target.value,
+                  })
                 }
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    setIsEditingName(false);
+                  }
+                }}
                 value={segment.typeName}
               />
-              <FieldDescription>
-                Examples: Sunday School, Sunday Main Service, Sunday Evening
-                Service.
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
-          <Button onClick={onRemove} type="button" variant="outline">
-            <TrashIcon data-icon="inline-start" />
-            Remove card
-          </Button>
-        </div>
+              <Button
+                aria-label="Save card name"
+                onClick={() => setIsEditingName(false)}
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <CheckIcon />
+                <span className="sr-only">Save card name</span>
+              </Button>
+            </div>
+            <FieldDescription>
+              Examples: Sunday School, Sunday Main Service, Sunday Evening
+              Service.
+            </FieldDescription>
+          </Field>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              {segment.typeName}
+              <Button
+                aria-label="Edit card name"
+                onClick={() => setIsEditingName(true)}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <PencilSimpleIcon />
+                <span className="sr-only">Edit card name</span>
+              </Button>
+            </CardTitle>
+            <Button
+              aria-label="Remove card"
+              onClick={onRemove}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <TrashIcon />
+              <span className="sr-only">Remove card</span>
+            </Button>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <Separator />
-        <Accordion defaultValue="activities" type="single">
-          <AccordionItem value="activities">
-            <AccordionTrigger>
-              <span className="flex items-center gap-2 text-base">
-                Order of Service Activities
+        <Tabs defaultValue="activities">
+          <TabsList>
+            <TabsTrigger
+              className={SEGMENT_TAB_TRIGGER_CLASS}
+              value="activities"
+            >
+              <span className="flex items-center gap-2">
+                {`${segment.typeName} activities`}
                 {activitiesNeedAttention ? (
                   <WarningCircleIcon
                     aria-label="Some activities need attention"
@@ -1339,72 +1377,14 @@ const SegmentEditor = ({
                   />
                 ) : null}
               </span>
-            </AccordionTrigger>
-            <AccordionContent className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <CardDescription>
-                  Drag rows to reorder activities, or click a row to edit it.
-                </CardDescription>
-                <Button
-                  onClick={onAddActivity}
-                  type="button"
-                  variant="secondary"
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Add activity
-                </Button>
-              </div>
-              <SegmentActivitiesTable
-                activities={segment.activities}
-                activityTypes={activityTypes}
-                allowHymnSelection={allowHymnSelection}
-                hymnOptions={hymnOptions}
-                onRemove={(activityId) =>
-                  onUpdateSegment({
-                    ...segment,
-                    activities: segment.activities.filter(
-                      (item) => item.id !== activityId
-                    ),
-                  })
-                }
-                onReorder={(activeId, overId) => {
-                  const oldIndex = segment.activities.findIndex(
-                    (item) => item.id === activeId
-                  );
-                  const newIndex = segment.activities.findIndex(
-                    (item) => item.id === overId
-                  );
-
-                  if (oldIndex === -1 || newIndex === -1) {
-                    return;
-                  }
-
-                  onUpdateSegment({
-                    ...segment,
-                    activities: arrayMove(
-                      segment.activities,
-                      oldIndex,
-                      newIndex
-                    ),
-                  });
-                }}
-                onUpdate={(updatedActivity) =>
-                  onUpdateSegment({
-                    ...segment,
-                    activities: segment.activities.map((item) =>
-                      item.id === updatedActivity.id ? updatedActivity : item
-                    ),
-                  })
-                }
-                segmentId={segment.id}
-              />
-            </AccordionContent>
-          </AccordionItem>
-          {showTeamAssignment ? (
-            <AccordionItem value="team-assignments">
-              <AccordionTrigger>
-                <span className="flex items-center gap-2 text-base">
-                  Team assignments
+            </TabsTrigger>
+            {showTeamAssignment ? (
+              <TabsTrigger
+                className={SEGMENT_TAB_TRIGGER_CLASS}
+                value="team-assignments"
+              >
+                <span className="flex items-center gap-2">
+                  {`${segment.typeName} team assignments`}
                   {teamsNeedAttention ? (
                     <WarningCircleIcon
                       aria-label="Required teams need members"
@@ -1412,19 +1392,72 @@ const SegmentEditor = ({
                     />
                   ) : null}
                 </span>
-              </AccordionTrigger>
-              <AccordionContent>
-                <OrderTeamAssignment
-                  headingHidden
-                  onUpdateSegment={onUpdateSegment}
-                  segment={segment}
-                  teamMembers={teamMembers}
-                  teams={teams}
-                />
-              </AccordionContent>
-            </AccordionItem>
+              </TabsTrigger>
+            ) : null}
+          </TabsList>
+          <TabsContent className="flex flex-col gap-4 pt-2" value="activities">
+            <div className="flex items-center justify-between gap-4">
+              <CardDescription>
+                Drag rows to reorder activities, or click a row to edit it.
+              </CardDescription>
+              <Button onClick={onAddActivity} type="button" variant="secondary">
+                <PlusIcon data-icon="inline-start" />
+                Add activity
+              </Button>
+            </div>
+            <SegmentActivitiesTable
+              activities={segment.activities}
+              activityTypes={activityTypes}
+              allowHymnSelection={allowHymnSelection}
+              hymnOptions={hymnOptions}
+              onRemove={(activityId) =>
+                onUpdateSegment({
+                  ...segment,
+                  activities: segment.activities.filter(
+                    (item) => item.id !== activityId
+                  ),
+                })
+              }
+              onReorder={(activeId, overId) => {
+                const oldIndex = segment.activities.findIndex(
+                  (item) => item.id === activeId
+                );
+                const newIndex = segment.activities.findIndex(
+                  (item) => item.id === overId
+                );
+
+                if (oldIndex === -1 || newIndex === -1) {
+                  return;
+                }
+
+                onUpdateSegment({
+                  ...segment,
+                  activities: arrayMove(segment.activities, oldIndex, newIndex),
+                });
+              }}
+              onUpdate={(updatedActivity) =>
+                onUpdateSegment({
+                  ...segment,
+                  activities: segment.activities.map((item) =>
+                    item.id === updatedActivity.id ? updatedActivity : item
+                  ),
+                })
+              }
+              segmentId={segment.id}
+            />
+          </TabsContent>
+          {showTeamAssignment ? (
+            <TabsContent className="pt-2" value="team-assignments">
+              <OrderTeamAssignment
+                headingHidden
+                onUpdateSegment={onUpdateSegment}
+                segment={segment}
+                teamMembers={teamMembers}
+                teams={teams}
+              />
+            </TabsContent>
           ) : null}
-        </Accordion>
+        </Tabs>
         {allowTeamDefinition && teams.length > 0 ? (
           <>
             <hr />
