@@ -1267,7 +1267,7 @@ const useGenerationJobPoll = (options: {
 
 /**
  * Poll draft while a layout job is queued/running.
- * On completed, caller applies the plan via GrapesJS (onLayoutComplete).
+ * On completed, caller renders the plan to overlay HTML (onLayoutComplete).
  */
 const useLayoutJobPoll = (options: {
   announcementId: string;
@@ -2785,9 +2785,9 @@ const AnnouncementEditor = ({
           <CardHeader>
             <CardTitle>Generate overlay with AI</CardTitle>
             <CardDescription>
-              Queues a layout plan on the image-gen worker, then applies it
-              through the GrapesJS editor API (presets, blocks, styles — not raw
-              HTML). Optional style notes steer composition and accents.
+              Queues a layout plan on the image-gen worker, then renders it to
+              overlay HTML (presets, blocks, styles — text only, never baked
+              into the image). Optional style notes steer composition and accents.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
