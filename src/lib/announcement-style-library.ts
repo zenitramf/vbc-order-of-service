@@ -55,7 +55,12 @@ export interface AnnouncementStylePack {
   id: string;
   name: string;
   preview: StylePackPreview;
-  /** Build a GrapesJS project JSON payload from draft content fields. */
+  /** Build the overlay component tree (stage children) from draft content. */
+  buildComponents: (content: AnnouncementContent) => ComponentDef[];
+  /**
+   * Build a GrapesJS project JSON payload from draft content fields.
+   * @deprecated Legacy path — the HTML overlay renderer uses buildComponents.
+   */
   buildProject: (content: AnnouncementContent) => GrapesProjectData;
 }
 
@@ -75,15 +80,12 @@ const GEORGIA_SERIF = "Georgia, 'Times New Roman', serif";
 
 type StyleMap = Record<string, string>;
 
-/** GrapesJS-compatible component definition (JSON-serializable). */
-interface ComponentDef {
+/** JSON-serializable overlay component definition (pure data, no GrapesJS). */
+export interface ComponentDef {
   attributes?: Record<string, string>;
   components?: ComponentDef[];
   content?: string;
-  /**
-   * Layer Manager label. Without this GrapesJS falls back to tagName/type
-   * (usually "Div" / "Text") — not `data-ann-role`.
-   */
+  /** Optional layer label (kept for legacy project-JSON compatibility). */
   name?: string;
   style?: StyleMap;
   tagName?: string;
@@ -309,9 +311,9 @@ const BOTTOM_SCRIM =
 
 // ── Layout builders ─────────────────────────────────────────────────────────
 
-const buildBottomBand = (content: AnnouncementContent): GrapesProjectData => {
+const buildBottomBand = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
-  return toProjectData([
+  return [
     divNode(
       {
         background: BOTTOM_SCRIM,
@@ -350,12 +352,12 @@ const buildBottomBand = (content: AnnouncementContent): GrapesProjectData => {
       undefined,
       "Text stack"
     ),
-  ]);
+  ];
 };
 
-const buildLowerLeft = (content: AnnouncementContent): GrapesProjectData => {
+const buildLowerLeft = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
-  return toProjectData([
+  return [
     divNode(
       {
         background:
@@ -411,12 +413,12 @@ const buildLowerLeft = (content: AnnouncementContent): GrapesProjectData => {
       undefined,
       "Text stack"
     ),
-  ]);
+  ];
 };
 
-const buildCenteredHero = (content: AnnouncementContent): GrapesProjectData => {
+const buildCenteredHero = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
-  return toProjectData([
+  return [
     divNode(
       {
         background:
@@ -472,12 +474,12 @@ const buildCenteredHero = (content: AnnouncementContent): GrapesProjectData => {
       undefined,
       "Text stack"
     ),
-  ]);
+  ];
 };
 
-const buildTopBanner = (content: AnnouncementContent): GrapesProjectData => {
+const buildTopBanner = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
-  return toProjectData([
+  return [
     divNode(
       {
         background:
@@ -517,12 +519,12 @@ const buildTopBanner = (content: AnnouncementContent): GrapesProjectData => {
       undefined,
       "Text stack"
     ),
-  ]);
+  ];
 };
 
-const buildLeftPanel = (content: AnnouncementContent): GrapesProjectData => {
+const buildLeftPanel = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
-  return toProjectData([
+  return [
     divNode(
       {
         background:
@@ -564,12 +566,12 @@ const buildLeftPanel = (content: AnnouncementContent): GrapesProjectData => {
       }),
       "panel"
     ),
-  ]);
+  ];
 };
 
-const buildRightPanel = (content: AnnouncementContent): GrapesProjectData => {
+const buildRightPanel = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
-  return toProjectData([
+  return [
     divNode(
       {
         background:
@@ -611,10 +613,10 @@ const buildRightPanel = (content: AnnouncementContent): GrapesProjectData => {
       }),
       "panel"
     ),
-  ]);
+  ];
 };
 
-const buildTwoPanel = (content: AnnouncementContent): GrapesProjectData => {
+const buildTwoPanel = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
   const topParts: ComponentDef[] = [];
 
@@ -714,7 +716,7 @@ const buildTwoPanel = (content: AnnouncementContent): GrapesProjectData => {
     );
   }
 
-  return toProjectData([
+  return [
     divNode(
       {
         background:
@@ -751,12 +753,12 @@ const buildTwoPanel = (content: AnnouncementContent): GrapesProjectData => {
       panelChildren,
       "panel"
     ),
-  ]);
+  ];
 };
 
-const buildCornerCard = (content: AnnouncementContent): GrapesProjectData => {
+const buildCornerCard = (content: AnnouncementContent): ComponentDef[] => {
   const c = resolveContent(content);
-  return toProjectData([
+  return [
     divNode(
       {
         background:
@@ -799,14 +801,16 @@ const buildCornerCard = (content: AnnouncementContent): GrapesProjectData => {
       }),
       "panel"
     ),
-  ]);
+  ];
 };
 
 // ── Seed library ────────────────────────────────────────────────────────────
 
 const STYLE_PACKS: AnnouncementStylePack[] = [
   {
-    buildProject: buildBottomBand,
+    buildComponents: buildBottomBand,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildBottomBand(content)),
     composition: "bottom-band",
     description:
       "Full-width bottom band with left-aligned serif title — the classic church announcement look.",
@@ -820,7 +824,9 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     },
   },
   {
-    buildProject: buildLowerLeft,
+    buildComponents: buildLowerLeft,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildLowerLeft(content)),
     composition: "lower-left",
     description:
       "Copy anchored lower-left with dual scrims — leaves the upper-right photo open.",
@@ -834,7 +840,9 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     },
   },
   {
-    buildProject: buildCenteredHero,
+    buildComponents: buildCenteredHero,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildCenteredHero(content)),
     composition: "centered",
     description:
       "Centered hero stack with soft top and bottom scrims — bold for single-message slides.",
@@ -848,7 +856,9 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     },
   },
   {
-    buildProject: buildTopBanner,
+    buildComponents: buildTopBanner,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildTopBanner(content)),
     composition: "top-banner",
     description:
       "Top-weighted banner with a deep top scrim — good when the subject sits low in the photo.",
@@ -862,7 +872,9 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     },
   },
   {
-    buildProject: buildLeftPanel,
+    buildComponents: buildLeftPanel,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildLeftPanel(content)),
     composition: "left-panel",
     description:
       "Cool left panel of type; right half stays mostly photo — dramatic split composition.",
@@ -876,7 +888,9 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     },
   },
   {
-    buildProject: buildRightPanel,
+    buildComponents: buildRightPanel,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildRightPanel(content)),
     composition: "right-panel",
     description:
       "Warm right-aligned panel with gold accents — mirrors left panel for opposite photo balance.",
@@ -890,7 +904,9 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     },
   },
   {
-    buildProject: buildTwoPanel,
+    buildComponents: buildTwoPanel,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildTwoPanel(content)),
     composition: "two-panel",
     description:
       "Two-zone layout: title up top and details below on a left column, open photo on the right.",
@@ -904,7 +920,9 @@ const STYLE_PACKS: AnnouncementStylePack[] = [
     },
   },
   {
-    buildProject: buildCornerCard,
+    buildComponents: buildCornerCard,
+    buildProject: (content: AnnouncementContent) =>
+      toProjectData(buildCornerCard(content)),
     composition: "corner-card",
     description:
       "Floating lower-left card with soft panel fill — editorial and easy to nudge on the canvas.",
@@ -925,8 +943,26 @@ export const getStylePack = (id: string): AnnouncementStylePack | null =>
   STYLE_PACKS.find((pack) => pack.id === id) ?? null;
 
 /**
+ * Build the overlay component tree (stage children) for a design preset.
+ * Returns null when the pack id is unknown. This is the HTML-overlay path.
+ */
+export const buildDesignPresetComponents = (
+  packId: string,
+  content: AnnouncementContent
+): ComponentDef[] | null => {
+  const pack = getStylePack(packId);
+
+  if (!pack) {
+    return null;
+  }
+
+  return pack.buildComponents(content);
+};
+
+/**
  * Build GrapesJS project JSON for a design preset using the given content.
  * Returns null when the pack id is unknown.
+ * @deprecated Legacy project-JSON path; prefer buildDesignPresetComponents.
  */
 export const buildDesignPresetProject = (
   packId: string,

@@ -182,8 +182,14 @@ export interface AnnouncementDraft {
   legacyHtml: string | null;
   name: string;
   /**
-   * GrapesJS project JSON — sole persistence format for the visual editor.
-   * Null until the first canvas save / client migration from legacyHtml.
+   * Overlay markup (self-contained HTML fragment) — the sole canvas
+   * persistence format. Text is HTML; the background photo is a separate
+   * layer (variation selection). Null until the first save / migration.
+   */
+  overlayHtml: string | null;
+  /**
+   * @deprecated Legacy GrapesJS project JSON. Read-only for one-shot migration
+   * into `overlayHtml`; never written by new saves.
    */
   projectData: GrapesProjectData | null;
   selectedVariationId: string | null;
@@ -307,7 +313,9 @@ export interface SaveAnnouncementInput {
   content?: Partial<AnnouncementContent>;
   id: string;
   name?: string;
-  /** GrapesJS project JSON — sole canvas persistence field. */
+  /** Overlay HTML — the sole canvas persistence field. Pass null to clear. */
+  overlayHtml?: string | null;
+  /** @deprecated Legacy project JSON; ignored by new saves. */
   projectData?: GrapesProjectData | null;
 }
 

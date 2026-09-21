@@ -6,33 +6,8 @@
 import type {
   AnnouncementContent,
   AnnouncementDraft,
-  GrapesProjectData,
   SaveAnnouncementInput,
 } from "~/lib/announcement-types";
-
-const projectDataFingerprint = (
-  projectData: GrapesProjectData | null | undefined
-): string => {
-  if (!projectData) {
-    return "";
-  }
-
-  try {
-    return JSON.stringify(projectData);
-  } catch {
-    return "";
-  }
-};
-
-const normalizeProjectData = (
-  value: unknown
-): GrapesProjectData | null => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  return value as GrapesProjectData;
-};
 
 const emptyContent = (
   partial?: Partial<AnnouncementContent>
@@ -91,11 +66,12 @@ export const isMaterialSave = (
     }
   }
 
-  if (data.projectData !== undefined) {
-    const next = normalizeProjectData(data.projectData);
-    if (
-      projectDataFingerprint(next) !== projectDataFingerprint(draft.projectData)
-    ) {
+  if (data.overlayHtml !== undefined) {
+    const next =
+      typeof data.overlayHtml === "string" && data.overlayHtml.trim()
+        ? data.overlayHtml
+        : "";
+    if (next !== (draft.overlayHtml ?? "")) {
       return true;
     }
   }
