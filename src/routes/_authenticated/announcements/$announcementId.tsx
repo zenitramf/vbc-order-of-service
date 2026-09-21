@@ -2288,6 +2288,50 @@ const AnnouncementEditor = ({
     }
   };
 
+  /**
+   * Regenerate the overlay HTML from the current content fields using the
+   * applied preset (or the default). This is the "Update layout" action — it
+   * re-flows edited/multi-line content into the chosen layout.
+   */
+  const applyContentToLayout = async () => {
+    if (!canEdit) {
+      return;
+    }
+
+    const packId = draft.appliedStyleId ?? "classic-bottom";
+    setApplyingStylePackId(packId);
+
+    try {
+      const nextHtml = buildDesignPresetHtml(packId, contentRef.current);
+
+      if (!nextHtml) {
+        toast.error("Could not build the layout from the current content.");
+        return;
+      }
+
+      commitOverlayHistory(nextHtml);
+
+      const next = await saveFn({
+        data: {
+          appliedStyleId: packId,
+          backgroundPrompt: backgroundPromptRef.current,
+          content: contentRef.current,
+          id: draftIdRef.current,
+          name: nameRef.current,
+          overlayHtml: nextHtml,
+        },
+      });
+      setDraft(next);
+      toast.success("Layout updated from the content fields.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not update the layout."
+      );
+    } finally {
+      setApplyingStylePackId(null);
+    }
+  };
+
   const captureExportJpeg = async (): Promise<string> => {
     if (!selectedVariation) {
       throw new Error("Select a background variation first.");
@@ -2619,11 +2663,34 @@ const AnnouncementEditor = ({
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Content fields</CardTitle>
-              <CardDescription>
-                Feed AI HTML generation and design presets. Values are not baked
-                into the background image — edit layout on the canvas above.
-              </CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <CardTitle>Content fields</CardTitle>
+                  <CardDescription>
+                    Multi-line supported (line breaks are kept). Edit the text,
+                    then Update layout to re-flow it into the chosen preset.
+                  </CardDescription>
+                </div>
+                <Button
+                  disabled={!canEdit || applyingStylePackId !== null}
+                  onClick={() => {
+                    void applyContentToLayout();
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  {applyingStylePackId ? (
+                    <CircleNotchIcon
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : (
+                    <MagicWandIcon data-icon="inline-start" />
+                  )}
+                  Update layout
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
@@ -2674,7 +2741,9 @@ const AnnouncementEditor = ({
                   onChange={(event) =>
                     updateContentField("tertiary", event.target.value)
                   }
-                  placeholder={"9am Sunday School\n10am Sunday Morning\n5pm Spanish Service"}
+                  placeholder={
+                    "9am Sunday School\n10am Sunday Morning\n5pm Spanish Service"
+                  }
                   rows={3}
                   value={content.tertiary}
                 />
