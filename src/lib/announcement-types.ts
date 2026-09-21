@@ -13,6 +13,12 @@ export const ANNOUNCEMENT_ASPECT_RATIO = "16:9" as const;
 export const ANNOUNCEMENT_IMAGE_MODEL = "google/nano-banana-2" as const;
 
 /**
+ * AI Gateway model for overlay HTML edits on `/announcements/{id}`.
+ * The image-gen worker calls `env.AI.run` with this id.
+ */
+export const ANNOUNCEMENT_LAYOUT_MODEL = "anthropic/claude-sonnet-5" as const;
+
+/**
  * nano-banana-2 resolution. Prefer `1K` to stay under the Workers 128MB isolate
  * limit; backgrounds are soft plates under text, not hero stills.
  * @see https://developers.cloudflare.com/ai/models/google/nano-banana-2/
@@ -107,13 +113,15 @@ export interface AnnouncementGenerationJob {
 }
 
 /**
- * Async AI layout (CanvasPlan) job. Plan is produced on the slim worker;
- * the client applies it via GrapesJS when status is completed.
+ * Async AI overlay edit. The slim worker revises the current HTML;
+ * the client applies `html` when status is completed.
  */
 export interface AnnouncementLayoutJob {
   error: string | null;
+  /** Revised overlay HTML when completed; null while queued/running/failed. */
+  html: string | null;
   id: string;
-  /** Validated plan when completed; null while queued/running/failed. */
+  /** @deprecated Legacy CanvasPlan jobs. New jobs leave this null. */
   plan: CanvasPlan | null;
   startedAt: string | null;
   status: AnnouncementGenerationStatus;
@@ -137,7 +145,7 @@ export interface AnnouncementBackgroundGenQueueMessage {
   type?: "background";
 }
 
-/** Queue message for AI layout (CanvasPlan) generation. */
+/** Queue message for AI overlay HTML revision. */
 export interface AnnouncementLayoutGenQueueMessage {
   announcementId: string;
   jobId: string;
@@ -170,8 +178,8 @@ export interface AnnouncementDraft {
   height: number;
   id: string;
   /**
-   * Async AI layout job (CanvasPlan). Null when never started.
-   * Client applies `plan` when status is completed.
+   * Async AI overlay edit. Null when never started.
+   * Client applies `html` when status is completed.
    */
   layoutJob: AnnouncementLayoutJob | null;
   /**
@@ -321,7 +329,7 @@ export interface SaveAnnouncementInput {
 
 /**
  * AI layout generation enqueue result.
- * Plan is applied client-side after `layoutJob` completes (poll draft).
+ * Revised HTML is applied client-side after `layoutJob` completes (poll draft).
  */
 export interface GenerateAnnouncementLayoutResult {
   draft: AnnouncementDraft;

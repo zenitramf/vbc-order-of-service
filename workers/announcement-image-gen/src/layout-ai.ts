@@ -1,393 +1,241 @@
 /**
- * Layout (CanvasPlan) generation via Workers AI / AI Gateway.
+ * Overlay HTML revision via Workers AI (Claude Sonnet 5).
  * Self-contained — does not import GrapesJS or TanStack.
  */
 
-import type { AnnouncementContent, CanvasPlanJson } from "./types";
-import {
-  ANNOUNCEMENT_HEIGHT,
-  ANNOUNCEMENT_WIDTH,
-  LAYOUT_MODEL,
-  LAYOUT_MODEL_FALLBACK,
-} from "./types";
+import type { AnnouncementContent } from "./types";
+import { ANNOUNCEMENT_HEIGHT, ANNOUNCEMENT_WIDTH, LAYOUT_MODEL } from "./types";
 
-const STYLE_PACK_META = [
-  {
-    composition: "bottom-band",
-    description: "Classic lower band with title and supporting lines.",
-    id: "classic-bottom",
-    name: "Classic bottom",
-  },
-  {
-    composition: "lower-left",
-    description: "Lower-left stacked text with soft scrim.",
-    id: "lower-left",
-    name: "Lower left",
-  },
-  {
-    composition: "centered",
-    description: "Centered hero title with ambient scrim.",
-    id: "centered-hero",
-    name: "Centered hero",
-  },
-  {
-    composition: "top-banner",
-    description: "Top banner strip with supporting copy below.",
-    id: "top-banner",
-    name: "Top banner",
-  },
-  {
-    composition: "left-panel",
-    description: "Left panel column with text stack.",
-    id: "left-panel",
-    name: "Left panel",
-  },
-  {
-    composition: "right-panel",
-    description: "Right panel column with text stack.",
-    id: "right-panel",
-    name: "Right panel",
-  },
-  {
-    composition: "two-panel",
-    description: "Split two-panel layout.",
-    id: "two-panel",
-    name: "Two panel",
-  },
-  {
-    composition: "corner-card",
-    description: "Floating lower-left card.",
-    id: "corner-card",
-    name: "Corner card",
-  },
-] as const;
+const OVERLAY_ROOT_STYLE = [
+  "box-sizing:border-box",
+  `width:${ANNOUNCEMENT_WIDTH}px`,
+  `height:${ANNOUNCEMENT_HEIGHT}px`,
+  "position:relative",
+  "overflow:hidden",
+  "background:transparent",
+].join(";");
 
-const BLOCK_IDS = [
-  "ann-heading",
-  "ann-title",
-  "ann-subtitle",
-  "ann-body",
-  "ann-text-box",
-  "ann-scrim",
-  "ann-scrim-top",
-  "ann-scrim-left",
-  "ann-scrim-right",
-  "ann-spacer",
-  "ann-div",
-  "ann-text",
-  "ann-link",
-] as const;
-
-/**
- * JSON Schema for xAI structured outputs (canvas_plan).
- * Kept in sync with src/lib/announcement-ai-plan.ts canvasPlanSchema.
- */
-const canvasPlanJsonSchema: Record<string, unknown> = {
-  $schema: "http://json-schema.org/draft-07/schema#",
-  additionalProperties: false,
-  properties: {
-    basePresetId: {
-      anyOf: [
-        {
-          enum: STYLE_PACK_META.map((pack) => pack.id),
-          type: "string",
-        },
-        { type: "null" },
-      ],
-    },
-    mode: { const: "rebuild", type: "string" },
-    ops: {
-      items: {
-        anyOf: [
-          {
-            additionalProperties: false,
-            properties: { op: { const: "clear", type: "string" } },
-            required: ["op"],
-            type: "object",
-          },
-          {
-            additionalProperties: false,
-            properties: {
-              op: { const: "applyPreset", type: "string" },
-              packId: {
-                enum: STYLE_PACK_META.map((pack) => pack.id),
-                type: "string",
-              },
-            },
-            required: ["op", "packId"],
-            type: "object",
-          },
-          {
-            additionalProperties: false,
-            properties: {
-              blockId: { enum: [...BLOCK_IDS], type: "string" },
-              content: { maxLength: 2000, type: "string" },
-              op: { const: "addBlock", type: "string" },
-              parentRole: { type: "string" },
-              role: { type: "string" },
-              style: {
-                additionalProperties: { type: "string" },
-                type: "object",
-              },
-            },
-            required: ["op", "blockId"],
-            type: "object",
-          },
-          {
-            additionalProperties: false,
-            properties: {
-              content: { maxLength: 2000, type: "string" },
-              index: { maximum: 20, minimum: 0, type: "integer" },
-              op: { const: "updateRole", type: "string" },
-              remove: { type: "boolean" },
-              role: { type: "string" },
-              style: {
-                additionalProperties: { type: "string" },
-                type: "object",
-              },
-            },
-            required: ["op", "role"],
-            type: "object",
-          },
-          {
-            additionalProperties: false,
-            properties: {
-              op: { const: "setStageStyle", type: "string" },
-              style: {
-                additionalProperties: { type: "string" },
-                type: "object",
-              },
-            },
-            required: ["op", "style"],
-            type: "object",
-          },
-        ],
-      },
-      maxItems: 40,
-      type: "array",
-    },
-    version: { const: 1, type: "integer" },
-  },
-  required: ["mode", "ops", "version"],
-  type: "object",
-};
+const LAYOUT_MAX_TOKENS = 8192;
 
 const layoutSystemPrompt = [
-  "You design church announcement overlays for a 1920×1080 canvas.",
-  "Your output is constrained to the canvas_plan JSON schema.",
-  "Prefer: applyPreset with a known packId from the provided list, then optional updateRole style tweaks.",
-  "updateRole.role MUST be one of: heading, title, subtitle, body, link, scrim-bottom, scrim-top, scrim-left, scrim-right, panel. Do NOT invent roles like 'scrim' or 'text'.",
-  "Style keys MUST be kebab-case CSS property names (font-size, font-family, line-height, text-align, white-space), never camelCase.",
-  "CRITICAL — LARGE FONTS: This overlay is shown full-screen on a 1920×1080 display and read from 20–50 feet away, so text MUST be very large. When you set font-size, use these MINIMUMS (px on the 1920×1080 canvas): title ≥ 110px (prefer 120–150px), subtitle ≥ 48px, heading ≥ 34px, body/tertiary ≥ 40px, link ≥ 40px. NEVER emit a font-size below these floors. It is far better to be too big than too small. If unsure, do NOT set font-size at all — leave the preset's own large defaults in place rather than shrinking them.",
-  "Never paint photographic backgrounds (the variation photo is applied separately on the Body).",
-  "Scrims/panels must use alpha linear-gradients fading to transparent (never solid opaque fills).",
-  "Use content fields exactly as provided for text (no copy rewrite unless style notes request polish). Preserve newlines in the text.",
-  "Do not emit HTML. Do not emit project JSON. Only CanvasPlan ops.",
+  "You edit church announcement overlay HTML for a 1920×1080 canvas shown full-screen and read from 20–50 feet away.",
+  "You receive the current overlay HTML. Modify that HTML. Do not redesign it unless the style notes ask for a new composition, or the HTML is empty.",
+  "Return only the HTML fragment. No markdown fences, no commentary.",
+  'ALL presentation must be inline style attributes. Do not emit <style>, <link>, stylesheets, or class-based CSS. The root may keep class="announcement-overlay" as a marker only.',
+  "Keep data-ann-role attributes when present. Keep existing wording unless style notes ask for a copy change. If a text node is empty, fill it from the content fields.",
+  "Do not include scripts, event handlers, or photographic backgrounds. No background-image:url(). The photo is a separate layer. The root background stays transparent.",
+  "Scrims and panels use alpha linear-gradients that fade to transparent, never solid opaque fills.",
+  "When you set font-size, use these minimums: title ≥ 110px, subtitle ≥ 48px, heading ≥ 34px, body ≥ 40px. Do not shrink type that is already at or above those floors.",
 ].join(" ");
 
-const buildLayoutUserPayload = (options: {
-  content: AnnouncementContent;
-  styleNotes?: string;
-}): string =>
-  JSON.stringify(
-    {
-      availableBlocks: BLOCK_IDS,
-      availablePresets: STYLE_PACK_META,
-      canvas: {
-        height: ANNOUNCEMENT_HEIGHT,
-        width: ANNOUNCEMENT_WIDTH,
-      },
-      content: options.content,
-      styleNotes:
-        options.styleNotes?.trim() ||
-        "Warm, reverent, modern church graphic. Bottom-weighted text with elegant serif title.",
-    },
-    null,
-    2
-  );
-
-const layoutRequestInput = (userPayload: string): Record<string, unknown> => ({
-  messages: [
-    { content: layoutSystemPrompt, role: "system" },
-    { content: userPayload, role: "user" },
-  ],
-  response_format: {
-    json_schema: {
-      name: "canvas_plan",
-      schema: canvasPlanJsonSchema,
-      strict: true,
-    },
-    type: "json_schema",
-  },
-  temperature: 0.4,
-});
-
-const parseJsonLoose = (raw: string): unknown => {
-  const trimmed = raw.trim();
-  const fenced =
-    /^```(?:json)?\s*(?<body>[\s\S]*?)```$/iu.exec(trimmed)?.groups?.body ??
-    trimmed;
-
-  try {
-    return JSON.parse(fenced.trim()) as unknown;
-  } catch {
-    const start = fenced.indexOf("{");
-    const end = fenced.lastIndexOf("}");
-
-    if (start !== -1 && end > start) {
-      return JSON.parse(fenced.slice(start, end + 1)) as unknown;
-    }
-
-    throw new Error("AI did not return valid JSON for canvas plan.");
-  }
-};
-
-const extractStructuredJson = (response: unknown): unknown => {
-  if (response === null || response === undefined) {
-    return null;
-  }
-
-  if (typeof response === "string") {
-    return parseJsonLoose(response);
-  }
-
-  if (typeof response !== "object" || Array.isArray(response)) {
-    return null;
-  }
-
-  const record = response as Record<string, unknown>;
-
-  if (record.response && typeof record.response === "object") {
-    return record.response;
-  }
-
-  if (typeof record.response === "string") {
-    return parseJsonLoose(record.response);
-  }
-
-  const { choices } = record;
-  if (Array.isArray(choices) && choices[0]) {
-    const choice = choices[0] as Record<string, unknown>;
-    const message = choice.message as Record<string, unknown> | undefined;
-    const content = message?.content ?? choice.text;
-
-    if (typeof content === "string") {
-      return parseJsonLoose(content);
-    }
-
-    if (content && typeof content === "object") {
-      return content;
-    }
-  }
-
-  if ("version" in record && "ops" in record) {
-    return record;
-  }
-
-  return null;
-};
-
-const coerceCanvasPlan = (raw: unknown): CanvasPlanJson => {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error("Invalid canvas plan from AI: not an object.");
-  }
-
-  const record = raw as Record<string, unknown>;
-
-  if (record.version !== 1) {
-    throw new Error("Invalid canvas plan from AI: version must be 1.");
-  }
-
-  if (record.mode !== "rebuild") {
-    throw new Error("Invalid canvas plan from AI: mode must be rebuild.");
-  }
-
-  if (!Array.isArray(record.ops)) {
-    throw new TypeError("Invalid canvas plan from AI: ops must be an array.");
-  }
-
-  const { basePresetId: rawBasePresetId, ops } = record;
-  let basePresetId: string | null | undefined;
-  if (typeof rawBasePresetId === "string") {
-    basePresetId = rawBasePresetId;
-  } else if (rawBasePresetId === null) {
-    basePresetId = null;
-  } else {
-    basePresetId = undefined;
-  }
-
-  return {
-    basePresetId,
-    mode: "rebuild",
-    ops: ops.slice(0, 40),
-    version: 1,
-  };
-};
+const EMPTY_OVERLAY = `<div class="announcement-overlay" style="${OVERLAY_ROOT_STYLE}"></div>`;
 
 export type RunAiGateway = (
   model: string,
   input: Record<string, unknown>
 ) => Promise<unknown>;
 
+const layoutRequestInput = (userPayload: string): Record<string, unknown> => ({
+  max_tokens: LAYOUT_MAX_TOKENS,
+  messages: [{ content: userPayload, role: "user" }],
+  system: layoutSystemPrompt,
+});
+
+const buildLayoutUserPayload = (options: {
+  content: AnnouncementContent;
+  html: string;
+  styleNotes?: string;
+}): string => {
+  const html = options.html.trim() || EMPTY_OVERLAY;
+
+  return [
+    "Style notes:",
+    options.styleNotes?.trim() ||
+      "Refine the current overlay. Do not change the composition.",
+    "",
+    "Content fields (use only to fill empty text):",
+    JSON.stringify(options.content),
+    "",
+    "Current overlay HTML:",
+    html,
+  ].join("\n");
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const textFromContent = (content: unknown): string => {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (!Array.isArray(content)) {
+    return "";
+  }
+
+  const parts: string[] = [];
+
+  for (const block of content) {
+    if (typeof block === "string") {
+      parts.push(block);
+      continue;
+    }
+
+    if (isRecord(block) && typeof block.text === "string") {
+      parts.push(block.text);
+    }
+  }
+
+  return parts.join("");
+};
+
+const extractModelText = (response: unknown): string => {
+  if (typeof response === "string") {
+    return response;
+  }
+
+  if (!isRecord(response)) {
+    return "";
+  }
+
+  if (typeof response.response === "string") {
+    return response.response;
+  }
+
+  const fromContent = textFromContent(response.content);
+
+  if (fromContent.trim()) {
+    return fromContent;
+  }
+
+  const { choices } = response;
+  const [firstChoice] = Array.isArray(choices) ? choices : [];
+
+  if (isRecord(firstChoice)) {
+    const message = isRecord(firstChoice.message) ? firstChoice.message : null;
+    const content = message?.content ?? firstChoice.text;
+    const text = textFromContent(content);
+
+    if (text.trim()) {
+      return text;
+    }
+  }
+
+  return "";
+};
+
+const assertNotTruncated = (response: unknown): void => {
+  if (!isRecord(response)) {
+    return;
+  }
+
+  const reason = response.stop_reason ?? response.stopReason;
+
+  if (reason === "max_tokens") {
+    throw new Error("AI overlay HTML was truncated. Try a shorter overlay.");
+  }
+};
+
+const unwrapFence = (raw: string): string => {
+  const trimmed = raw.trim();
+  const fenced =
+    /^```(?:html)?\s*(?<body>[\s\S]*?)```$/iu.exec(trimmed)?.groups?.body ??
+    trimmed;
+
+  return fenced.trim();
+};
+
+const stripUnsafeMarkup = (html: string): string =>
+  html
+    .replaceAll(/<script\b[^>]*>[\s\S]*?<\/script>/giu, "")
+    .replaceAll(/<style\b[^>]*>[\s\S]*?<\/style>/giu, "")
+    .replaceAll(/<link\b[^>]*>/giu, "")
+    .replaceAll(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/giu, "")
+    .replaceAll(/background-image\s*:\s*url\([^)]*\)\s*;?/giu, "");
+
+const extractOverlayHtml = (raw: string): string | null => {
+  const unwrapped = unwrapFence(raw);
+  const start = unwrapped.search(/<div\b/iu);
+
+  if (start === -1) {
+    return null;
+  }
+
+  const slice = unwrapped.slice(start);
+  const lastClose = slice.lastIndexOf("</div>");
+
+  if (lastClose === -1) {
+    return null;
+  }
+
+  const html = stripUnsafeMarkup(
+    slice.slice(0, lastClose + "</div>".length)
+  ).trim();
+
+  if (!html || !/style\s*=\s*["'][^"']+/iu.test(html)) {
+    return null;
+  }
+
+  if (/\bannouncement-overlay\b/iu.test(html)) {
+    return html;
+  }
+
+  return `<div class="announcement-overlay" style="${OVERLAY_ROOT_STYLE}">\n${html}\n</div>`;
+};
+
+const hasStylesheet = (raw: string): boolean => /<style\b|<link\b/iu.test(raw);
+
 /**
- * Generate a CanvasPlan via AI Gateway. Caller provides runAiGateway so this
- * module stays free of env/bindings.
+ * Revise the current overlay HTML. Styles are inline; stylesheets are stripped.
  */
-export const generateLayoutPlanWithAi = async (
+export const reviseOverlayHtmlWithAi = async (
   options: {
     content: AnnouncementContent;
+    html: string;
     styleNotes?: string;
   },
   runAiGateway: RunAiGateway
-): Promise<CanvasPlanJson> => {
-  const userPayload = buildLayoutUserPayload(options);
-  const input = layoutRequestInput(userPayload);
+): Promise<string> => {
+  const response = await runAiGateway(
+    LAYOUT_MODEL,
+    layoutRequestInput(buildLayoutUserPayload(options))
+  );
+  assertNotTruncated(response);
 
-  let response: unknown;
-  try {
-    response = await runAiGateway(LAYOUT_MODEL, input);
-  } catch (primaryError) {
-    try {
-      response = await runAiGateway(LAYOUT_MODEL_FALLBACK, input);
-    } catch {
-      throw primaryError instanceof Error
-        ? primaryError
-        : new Error(String(primaryError));
-    }
+  const firstText = extractModelText(response);
+  const needsInlineRepair = hasStylesheet(firstText);
+  const firstHtml = needsInlineRepair ? null : extractOverlayHtml(firstText);
+
+  if (firstHtml) {
+    return firstHtml;
   }
 
-  const structured = extractStructuredJson(response);
+  const repairPayload = needsInlineRepair
+    ? [
+        "Move every CSS rule into style attributes.",
+        "Delete every <style>, <link>, and <script> tag.",
+        "Return only the modified overlay HTML.",
+        "",
+        firstText.trim() || options.html,
+      ].join("\n")
+    : [
+        "The previous reply was not overlay HTML.",
+        "Return only the modified overlay HTML fragment, using inline styles.",
+        "",
+        firstText.trim() || options.html,
+      ].join("\n");
 
-  if (structured === null) {
-    throw new Error("AI Gateway returned empty layout plan.");
+  const repaired = await runAiGateway(
+    LAYOUT_MODEL,
+    layoutRequestInput(repairPayload)
+  );
+  assertNotTruncated(repaired);
+
+  const html = extractOverlayHtml(extractModelText(repaired));
+
+  if (!html) {
+    throw new Error("AI did not return overlay HTML.");
   }
 
-  try {
-    return coerceCanvasPlan(structured);
-  } catch (firstError) {
-    const repairPayload = JSON.stringify(
-      {
-        error:
-          firstError instanceof Error
-            ? firstError.message
-            : "Invalid canvas plan",
-        previous: structured,
-        task: "Return a corrected canvas_plan that satisfies the schema.",
-      },
-      null,
-      2
-    );
-
-    try {
-      const repaired = await runAiGateway(LAYOUT_MODEL, {
-        ...layoutRequestInput(repairPayload),
-        temperature: 0.2,
-      });
-      return coerceCanvasPlan(extractStructuredJson(repaired));
-    } catch {
-      throw firstError instanceof Error
-        ? firstError
-        : new Error(String(firstError));
-    }
-  }
+  return html;
 };

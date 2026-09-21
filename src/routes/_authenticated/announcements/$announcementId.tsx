@@ -133,6 +133,7 @@ import type {
 import {
   ANNOUNCEMENT_HEIGHT,
   ANNOUNCEMENT_IMAGE_MODEL,
+  ANNOUNCEMENT_LAYOUT_MODEL,
   ANNOUNCEMENT_WIDTH,
 } from "~/lib/announcement-types";
 import { listLibraryImages } from "~/lib/image-library-data";
@@ -1267,7 +1268,7 @@ const useGenerationJobPoll = (options: {
 
 /**
  * Poll draft while a layout job is queued/running.
- * On completed, caller renders the plan to overlay HTML (onLayoutComplete).
+ * On completed, caller applies the revised overlay HTML (onLayoutComplete).
  */
 const useLayoutJobPoll = (options: {
   announcementId: string;
@@ -1313,7 +1314,7 @@ const useLayoutJobPoll = (options: {
 
         const job = next.layoutJob;
 
-        if (job?.status === "completed" && job.plan) {
+        if (job?.status === "completed" && (job.html?.trim() || job.plan)) {
           if (appliedJobIdRef.current === job.id) {
             return;
           }
@@ -2061,29 +2062,33 @@ const AnnouncementEditor = ({
 
   const onLayoutComplete = useCallback(
     async (completedDraft: AnnouncementDraft) => {
-      const rawPlan = completedDraft.layoutJob?.plan;
+      const revisedHtml = completedDraft.layoutJob?.html?.trim();
+      let nextHtml = revisedHtml ?? "";
 
-      if (!rawPlan) {
-        toast.error("Layout job completed without a plan.");
-        return;
-      }
+      if (!nextHtml) {
+        const rawPlan = completedDraft.layoutJob?.plan;
 
-      let plan;
-      try {
-        plan = parseCanvasPlan(rawPlan);
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Layout plan from AI was invalid."
-        );
-        return;
+        if (!rawPlan) {
+          toast.error("Layout job completed without overlay HTML.");
+          return;
+        }
+
+        try {
+          nextHtml = renderCanvasPlanToHtml(
+            parseCanvasPlan(rawPlan),
+            contentRef.current
+          );
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Layout plan from AI was invalid."
+          );
+          return;
+        }
       }
 
       setDraft(completedDraft);
-
-      const nextHtml = renderCanvasPlanToHtml(plan, contentRef.current);
-
       commitOverlayHistory(nextHtml);
 
       try {
@@ -2094,12 +2099,11 @@ const AnnouncementEditor = ({
             id: draftIdRef.current,
             name: nameRef.current,
             overlayHtml: nextHtml,
-            ...(plan.basePresetId ? { appliedStyleId: plan.basePresetId } : {}),
           },
         });
         setDraft(next);
         toast.success(
-          "Overlay generated from the AI layout (text only — not baked into the image)."
+          "Overlay updated from the current HTML (text only — not baked into the image)."
         );
       } catch (error) {
         toast.error(
@@ -2785,9 +2789,12 @@ const AnnouncementEditor = ({
           <CardHeader>
             <CardTitle>Generate overlay with AI</CardTitle>
             <CardDescription>
-              Queues a layout plan on the image-gen worker, then renders it to
-              overlay HTML (presets, blocks, styles — text only, never baked
-              into the image). Optional style notes steer composition and accents.
+              Edits the current overlay HTML with{" "}
+              <span className="font-mono text-xs">
+                {ANNOUNCEMENT_LAYOUT_MODEL}
+              </span>
+              . Styles stay inline. Optional style notes steer the edit. Text is
+              not baked into the background image.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -2831,7 +2838,8 @@ const AnnouncementEditor = ({
             ) : null}
             {isActiveLayoutJob(draft.layoutJob) ? (
               <p className="text-muted-foreground text-sm">
-                Layout job {draft.layoutJob?.status}… polling for the plan.
+                Layout job {draft.layoutJob?.status}… polling for the updated
+                overlay.
               </p>
             ) : null}
           </CardContent>

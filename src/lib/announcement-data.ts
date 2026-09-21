@@ -417,6 +417,7 @@ const normalizeLayoutJob = (value: unknown): AnnouncementLayoutJob | null => {
 
   return {
     error: asNullableString(raw.error),
+    html: typeof raw.html === "string" && raw.html.trim() ? raw.html : null,
     id,
     plan: isLayoutPlan(raw.plan) ? raw.plan : null,
     startedAt: asNullableString(raw.startedAt),
@@ -989,8 +990,8 @@ export const removeAllVariations = createServerFn({ method: "POST" })
   });
 
 /**
- * Enqueue async AI layout generation (CanvasPlan) on the slim worker.
- * Client polls `layoutJob` and applies the plan with GrapesJS — never HTML seed.
+ * Enqueue async AI overlay revision on the slim worker.
+ * The worker edits the saved overlay HTML; the client applies `layoutJob.html`.
  */
 export const generateAnnouncementLayout = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])
@@ -998,15 +999,17 @@ export const generateAnnouncementLayout = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<GenerateAnnouncementLayoutResult> => {
     const draft = await loadDraft(data.id);
 
-    if (
-      !(
-        draft.content.title ||
-        draft.content.subtitle ||
-        draft.content.heading ||
-        draft.content.tertiary
-      )
-    ) {
-      throw new Error("Add title, subtitle, heading, or tertiary text first.");
+    const hasText = Boolean(
+      draft.content.title ||
+      draft.content.subtitle ||
+      draft.content.heading ||
+      draft.content.tertiary
+    );
+
+    if (!hasText && !draft.overlayHtml?.trim()) {
+      throw new Error(
+        "Add overlay HTML or title, subtitle, heading, or tertiary text first."
+      );
     }
 
     if (isLayoutJobActive(draft.layoutJob)) {
@@ -1021,6 +1024,7 @@ export const generateAnnouncementLayout = createServerFn({ method: "POST" })
 
     draft.layoutJob = {
       error: null,
+      html: null,
       id: jobId,
       plan: null,
       startedAt: null,
@@ -1028,7 +1032,7 @@ export const generateAnnouncementLayout = createServerFn({ method: "POST" })
       styleNotes,
       updatedAt: timestamp,
     };
-    // Enqueue alone does not change the canvas — demote only when plan is applied.
+    // Enqueue alone does not change the canvas — demote only when HTML is applied.
     const saved = await saveDraft(draft);
 
     const message: AnnouncementAiQueueMessage = {
@@ -1043,6 +1047,7 @@ export const generateAnnouncementLayout = createServerFn({ method: "POST" })
     } catch (error) {
       saved.layoutJob = {
         error: formatQueueError(error),
+        html: null,
         id: jobId,
         plan: null,
         startedAt: null,

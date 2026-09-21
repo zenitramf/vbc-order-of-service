@@ -12,9 +12,8 @@ export const ANNOUNCEMENT_IMAGE_MODEL = "google/nano-banana-2" as const;
 export const ANNOUNCEMENT_IMAGE_RESOLUTION = "1K" as const;
 export const ANNOUNCEMENT_IMAGE_REF_MAX_BYTES = 400 * 1024;
 
-/** Layout ops (CanvasPlan) via structured JSON schema output. */
-export const LAYOUT_MODEL = "xai/grok-4.5" as const;
-export const LAYOUT_MODEL_FALLBACK = "xai/grok-4.3" as const;
+/** Overlay HTML edits via Workers AI (Anthropic Messages). */
+export const LAYOUT_MODEL = "anthropic/claude-sonnet-5" as const;
 
 export type AnnouncementStatus = "draft" | "approved";
 
@@ -60,7 +59,10 @@ export interface CanvasPlanJson {
 
 export interface AnnouncementLayoutJob {
   error: string | null;
+  /** Revised overlay HTML when completed. Null while queued/running/failed. */
+  html: string | null;
   id: string;
+  /** @deprecated Legacy CanvasPlan jobs. New jobs leave this null. */
   plan: CanvasPlanJson | null;
   startedAt: string | null;
   status: AnnouncementGenerationStatus;
@@ -117,6 +119,7 @@ export interface AnnouncementDraft {
   layoutJob: AnnouncementLayoutJob | null;
   legacyHtml: string | null;
   name: string;
+  overlayHtml: string | null;
   projectData: GrapesProjectData | null;
   selectedVariationId: string | null;
   showInPresentationDeck: boolean;

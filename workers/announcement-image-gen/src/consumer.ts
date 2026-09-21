@@ -8,7 +8,7 @@ import { Buffer } from "node:buffer";
 
 import { env } from "cloudflare:workers";
 
-import { generateLayoutPlanWithAi } from "./layout-ai";
+import { reviseOverlayHtmlWithAi } from "./layout-ai";
 import type {
   AnnouncementAsset,
   AnnouncementBackgroundGenQueueMessage,
@@ -259,9 +259,7 @@ const isLayoutPlan = (value: unknown): value is CanvasPlanJson => {
   }
 
   const raw = value as Record<string, unknown>;
-  return (
-    raw.version === 1 && raw.mode === "rebuild" && Array.isArray(raw.ops)
-  );
+  return raw.version === 1 && raw.mode === "rebuild" && Array.isArray(raw.ops);
 };
 
 const normalizeLayoutJob = (value: unknown): AnnouncementLayoutJob | null => {
@@ -277,8 +275,11 @@ const normalizeLayoutJob = (value: unknown): AnnouncementLayoutJob | null => {
     return null;
   }
 
+  const rawHtml = (raw as { html?: unknown }).html;
+
   return {
     error: asNullableString(raw.error),
+    html: typeof rawHtml === "string" && rawHtml.trim() ? rawHtml : null,
     id,
     plan: isLayoutPlan(raw.plan) ? raw.plan : null,
     startedAt: asNullableString(raw.startedAt),
@@ -316,6 +317,10 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
     layoutJob: normalizeLayoutJob(raw.layoutJob),
     legacyHtml,
     name: asString(raw.name),
+    overlayHtml:
+      typeof raw.overlayHtml === "string" && raw.overlayHtml.trim()
+        ? raw.overlayHtml
+        : null,
     projectData,
     selectedVariationId: asNullableString(raw.selectedVariationId),
     showInPresentationDeck: Boolean(raw.showInPresentationDeck),
@@ -340,6 +345,7 @@ const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
   id: draft.id,
   layoutJob: draft.layoutJob,
   name: draft.name,
+  overlayHtml: draft.overlayHtml,
   projectData: draft.projectData,
   selectedVariationId: draft.selectedVariationId,
   showInPresentationDeck: draft.showInPresentationDeck,
@@ -723,16 +729,18 @@ const markJob = (
 const markLayoutJob = (
   draft: AnnouncementDraft,
   message: AnnouncementLayoutGenQueueMessage,
-  patch: Partial<AnnouncementLayoutJob> &
-    Pick<AnnouncementLayoutJob, "status">
+  patch: Partial<AnnouncementLayoutJob> & Pick<AnnouncementLayoutJob, "status">
 ): void => {
   draft.layoutJob = {
     error:
       patch.error === undefined
         ? (draft.layoutJob?.error ?? null)
         : patch.error,
+    html:
+      patch.html === undefined ? (draft.layoutJob?.html ?? null) : patch.html,
     id: message.jobId,
-    plan: patch.plan === undefined ? (draft.layoutJob?.plan ?? null) : patch.plan,
+    plan:
+      patch.plan === undefined ? (draft.layoutJob?.plan ?? null) : patch.plan,
     startedAt:
       patch.startedAt === undefined
         ? (draft.layoutJob?.startedAt ?? nowIso())
@@ -844,6 +852,7 @@ const markLayoutJobFailed = async (
 
   markLayoutJob(latest, message, {
     error: formatAiError(error),
+    html: null,
     plan: null,
     startedAt: currentJob.startedAt,
     status: "failed",
@@ -852,7 +861,7 @@ const markLayoutJobFailed = async (
 };
 
 /**
- * Queue consumer: generate a CanvasPlan via Grok and store it on layoutJob.
+ * Queue consumer: revise the current overlay HTML with Claude and store it.
  * User errors are written as failed + return (acked by index); gateway errors rethrow for retry.
  */
 export const processAnnouncementLayoutGen = async (
@@ -865,16 +874,20 @@ export const processAnnouncementLayoutGen = async (
     return;
   }
 
-  if (
-    !(
-      draft.content.title ||
-      draft.content.subtitle ||
-      draft.content.heading ||
-      draft.content.tertiary
-    )
-  ) {
+  const currentHtml =
+    draft.overlayHtml?.trim() || draft.legacyHtml?.trim() || "";
+  const hasText = Boolean(
+    draft.content.title ||
+    draft.content.subtitle ||
+    draft.content.heading ||
+    draft.content.tertiary
+  );
+
+  if (!hasText && !currentHtml) {
     markLayoutJob(draft, message, {
-      error: "Add title, subtitle, heading, or tertiary text first.",
+      error:
+        "Add overlay HTML or title, subtitle, heading, or tertiary text first.",
+      html: null,
       plan: null,
       startedAt: job.startedAt ?? nowIso(),
       status: "failed",
@@ -885,6 +898,7 @@ export const processAnnouncementLayoutGen = async (
 
   markLayoutJob(draft, message, {
     error: null,
+    html: null,
     plan: null,
     startedAt: job.startedAt ?? nowIso(),
     status: "running",
@@ -895,8 +909,8 @@ export const processAnnouncementLayoutGen = async (
   const { styleNotes } = message;
 
   try {
-    const plan = await generateLayoutPlanWithAi(
-      { content, styleNotes },
+    const html = await reviseOverlayHtmlWithAi(
+      { content, html: currentHtml, styleNotes },
       runAiGateway
     );
 
@@ -905,9 +919,12 @@ export const processAnnouncementLayoutGen = async (
       return;
     }
 
+    completed.overlayHtml = html;
+    markDirtyIfApproved(completed);
     markLayoutJob(completed, message, {
       error: null,
-      plan,
+      html,
+      plan: null,
       startedAt: completed.layoutJob.startedAt,
       status: "completed",
     });
