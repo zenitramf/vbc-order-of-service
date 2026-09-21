@@ -64,6 +64,14 @@ const ATTR_ESCAPES: Record<string, string> = {
 const escapeText = (value: string): string =>
   value.replaceAll(/[&<>]/gu, (ch) => HTML_TEXT_ESCAPES[ch] ?? ch);
 
+/**
+ * Convert a plain-text field to inline HTML: escape it, then turn newlines
+ * into `<br>` so a multi-line content field (e.g. a service-times list) keeps
+ * its line breaks in the overlay. `\r\n` and `\r` are normalized to `\n` first.
+ */
+export const textToInlineHtml = (value: string): string =>
+  escapeText(value).replaceAll(/\r\n?|\n/gu, "<br>");
+
 /** Escape an attribute value for a double-quoted attribute. */
 const escapeAttr = (value: string): string =>
   value.replaceAll(/[&"]/gu, (ch) => ATTR_ESCAPES[ch] ?? ch);
@@ -161,8 +169,11 @@ export const renderComponentDefToHtml = (
     inner = def.components.map(renderComponentDefToHtml).join("");
   } else if (typeof def.content === "string" && def.content.length > 0) {
     // Text roles may carry authored inline HTML (e.g. <br>, <em>); pass those
-    // through, but escape anything that is plain text so `<` is not lost.
-    inner = looksLikeHtml(def.content) ? def.content : escapeText(def.content);
+    // through. Plain text is escaped, and its newlines become <br> so a
+    // multi-line field keeps its line breaks.
+    inner = looksLikeHtml(def.content)
+      ? def.content
+      : textToInlineHtml(def.content);
   }
 
   return `${openTag}${inner}</${tag}>`;

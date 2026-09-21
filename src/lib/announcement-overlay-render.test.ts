@@ -6,6 +6,7 @@ import {
   legacyProjectDataToOverlayHtml,
   renderCanvasPlanToHtml,
   renderComponentDefToHtml,
+  textToInlineHtml,
 } from "~/lib/announcement-overlay-render";
 import { buildDesignPresetProject } from "~/lib/announcement-style-library";
 import type { AnnouncementContent } from "~/lib/announcement-types";
@@ -47,9 +48,7 @@ describe("renderComponentDefToHtml", () => {
 
   it("recurses into child components", () => {
     const html = renderComponentDefToHtml({
-      components: [
-        { content: "child", tagName: "span", type: "text" },
-      ],
+      components: [{ content: "child", tagName: "span", type: "text" }],
       tagName: "div",
     });
 
@@ -104,6 +103,46 @@ describe("renderCanvasPlanToHtml", () => {
     const html = renderCanvasPlanToHtml(plan, content);
     expect(html).toContain("announcement-overlay");
     expect(html).toContain("Overridden Title");
+  });
+});
+
+describe("textToInlineHtml", () => {
+  it("escapes text and converts newlines to <br>", () => {
+    expect(
+      textToInlineHtml(
+        "9am Sunday School\n10am Sunday Morning\n5pm Spanish Service"
+      )
+    ).toBe("9am Sunday School<br>10am Sunday Morning<br>5pm Spanish Service");
+  });
+
+  it("normalizes CRLF / CR to <br> and escapes markup chars", () => {
+    expect(textToInlineHtml("a\r\nb\rc <d>")).toBe("a<br>b<br>c &lt;d&gt;");
+  });
+});
+
+describe("multi-line content fields", () => {
+  it("renders newlines in a plain-text component as <br>", () => {
+    const html = renderComponentDefToHtml({
+      content: "line one\nline two\nline three",
+      tagName: "p",
+      type: "text",
+    });
+
+    expect(html).toBe("<p>line one<br>line two<br>line three</p>");
+  });
+
+  it("keeps a multi-line tertiary field's breaks through a preset", () => {
+    const html =
+      buildDesignPresetHtml("classic-bottom", {
+        heading: "THIS SUNDAY",
+        subtitle: "Starting October 4th",
+        tertiary: "9am Sunday School\n10am Sunday Morning\n5pm Spanish Service",
+        title: "New Service Times",
+      }) ?? "";
+
+    expect(html).toContain(
+      "9am Sunday School<br>10am Sunday Morning<br>5pm Spanish Service"
+    );
   });
 });
 
