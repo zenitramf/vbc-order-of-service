@@ -2628,45 +2628,54 @@ const AnnouncementEditor = ({
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-title">Title</Label>
-                <Input
+                <Textarea
+                  className="min-h-0 resize-y"
                   disabled={!canEdit}
                   id="content-title"
                   onChange={(event) =>
                     updateContentField("title", event.target.value)
                   }
+                  rows={2}
                   value={content.title}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-subtitle">Subtitle</Label>
-                <Input
+                <Textarea
+                  className="min-h-0 resize-y"
                   disabled={!canEdit}
                   id="content-subtitle"
                   onChange={(event) =>
                     updateContentField("subtitle", event.target.value)
                   }
+                  rows={2}
                   value={content.subtitle}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-heading">Heading</Label>
-                <Input
+                <Textarea
+                  className="min-h-0 resize-y"
                   disabled={!canEdit}
                   id="content-heading"
                   onChange={(event) =>
                     updateContentField("heading", event.target.value)
                   }
+                  rows={2}
                   value={content.heading}
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="content-tertiary">Tertiary information</Label>
-                <Input
+                <Textarea
+                  className="min-h-0 resize-y"
                   disabled={!canEdit}
                   id="content-tertiary"
                   onChange={(event) =>
                     updateContentField("tertiary", event.target.value)
                   }
+                  placeholder={"9am Sunday School\n10am Sunday Morning\n5pm Spanish Service"}
+                  rows={3}
                   value={content.tertiary}
                 />
               </div>
