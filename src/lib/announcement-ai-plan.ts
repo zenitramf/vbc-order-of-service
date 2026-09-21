@@ -92,7 +92,61 @@ const URL_IN_VALUE_RE = /url\s*\(/iu;
 const TAG_RE = /<\/?[a-z][\s\S]*>/iu;
 const GRADIENT_RE = /gradient\s*\(/iu;
 
+/**
+ * Normalize a CSS property name to kebab-case. Models frequently emit
+ * camelCase (fontSize, whiteSpace) which browsers ignore as inline styles and
+ * which would otherwise fail the kebab-case allow-list.
+ */
+const normalizeStyleKey = (key: string): string =>
+  key
+    .trim()
+    .replaceAll(/(?<lower>[a-z0-9])(?<upper>[A-Z])/gu, "$<lower>-$<upper>")
+    .toLowerCase();
+
 const styleMapSchema = z.record(z.string(), z.string());
+
+const STYLE_ROLE_SET = new Set<string>(ANNOUNCEMENT_STYLE_ROLES);
+
+/** Common off-spec role names models emit, mapped to a valid role. */
+const ROLE_ALIASES: Record<string, AnnouncementStyleRole> = {
+  caption: "body",
+  overlay: "scrim-bottom",
+  scrim: "scrim-bottom",
+  tertiary: "body",
+  text: "body",
+};
+
+/**
+ * Coerce a model-supplied role string to a valid AnnouncementStyleRole (via
+ * kebab-normalization + aliases), or null when it cannot be mapped.
+ */
+const coerceRole = (role: string | undefined): AnnouncementStyleRole | null => {
+  if (!role) {
+    return null;
+  }
+
+  const normalized = normalizeStyleKey(role);
+
+  if (STYLE_ROLE_SET.has(normalized)) {
+    return normalized as AnnouncementStyleRole;
+  }
+
+  return ROLE_ALIASES[normalized] ?? null;
+};
+
+const coerceParentRole = (
+  role: string | undefined
+): AnnouncementStyleRole | "wrapper" | null => {
+  if (!role) {
+    return null;
+  }
+
+  if (normalizeStyleKey(role) === "wrapper") {
+    return "wrapper";
+  }
+
+  return coerceRole(role);
+};
 
 const clearOpSchema = z.object({
   op: z.literal("clear"),
@@ -112,10 +166,10 @@ const addBlockOpSchema = z.object({
   ),
   content: z.string().max(2000).optional(),
   op: z.literal("addBlock"),
-  parentRole: z
-    .enum([...ANNOUNCEMENT_STYLE_ROLES, "wrapper"] as const)
-    .optional(),
-  role: z.enum(ANNOUNCEMENT_STYLE_ROLES).optional(),
+  // Roles are validated/coerced in the normalizer, not the schema, so one
+  // off-spec role (e.g. "scrim") does not reject the whole plan.
+  parentRole: z.string().optional(),
+  role: z.string().optional(),
   style: styleMapSchema.optional(),
 });
 
@@ -124,7 +178,7 @@ const updateRoleOpSchema = z.object({
   index: z.number().int().min(0).max(20).optional(),
   op: z.literal("updateRole"),
   remove: z.boolean().optional(),
-  role: z.enum(ANNOUNCEMENT_STYLE_ROLES),
+  role: z.string(),
   style: styleMapSchema.optional(),
 });
 
@@ -232,7 +286,7 @@ const sanitizeStyleMap = (
   const coerceBackgrounds = options.coerceBackgrounds === true;
 
   for (const [rawKey, rawValue] of Object.entries(style)) {
-    const key = rawKey.trim().toLowerCase();
+    const key = normalizeStyleKey(rawKey);
     const value = rawValue.trim();
 
     if (shouldSkipStyleKey(key, value, stage)) {
@@ -286,12 +340,14 @@ const normalizeAddBlockOp = (
     next.content = content;
   }
 
-  if (op.parentRole) {
-    next.parentRole = op.parentRole;
+  const parentRole = coerceParentRole(op.parentRole);
+  if (parentRole) {
+    next.parentRole = parentRole;
   }
 
-  if (op.role) {
-    next.role = op.role;
+  const role = coerceRole(op.role);
+  if (role) {
+    next.role = role;
   }
 
   if (style) {
@@ -304,6 +360,13 @@ const normalizeAddBlockOp = (
 const normalizeUpdateRoleOp = (
   op: Extract<CanvasOp, { op: "updateRole" }>
 ): CanvasOp | null => {
+  const role = coerceRole(op.role);
+
+  // Drop ops targeting a role we cannot map — better than rejecting the plan.
+  if (!role) {
+    return null;
+  }
+
   const style = sanitizeStyleMap(op.style, { coerceBackgrounds: true });
   const content = sanitizeContent(op.content);
 
@@ -313,7 +376,7 @@ const normalizeUpdateRoleOp = (
 
   const next: Extract<CanvasOp, { op: "updateRole" }> = {
     op: "updateRole",
-    role: op.role,
+    role,
   };
 
   if (content !== undefined) {

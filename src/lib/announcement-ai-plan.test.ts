@@ -94,8 +94,8 @@ describe("parseCanvasPlan", () => {
           op: "updateRole",
           role: "title",
           style: {
-            color: "#ffffff",
             background: 'url("https://evil.example/x.png")',
+            color: "#ffffff",
           },
         },
       ],
@@ -145,7 +145,7 @@ describe("parseCanvasPlan", () => {
         ops: [],
         version: 2,
       })
-    ).toThrow(/Invalid canvas plan/);
+    ).toThrow(/Invalid canvas plan/u);
   });
 
   it("rejects unknown pack ids", () => {
@@ -155,7 +155,7 @@ describe("parseCanvasPlan", () => {
         ops: [{ op: "applyPreset", packId: "not-a-pack" }],
         version: 1,
       })
-    ).toThrow(/Invalid canvas plan/);
+    ).toThrow(/Invalid canvas plan/u);
   });
 });
 
@@ -196,5 +196,84 @@ describe("extractStructuredJson", () => {
     });
 
     expect(value).toMatchObject({ mode: "rebuild", version: 1 });
+  });
+});
+
+describe("parseCanvasPlan — model drift tolerance", () => {
+  it("accepts the shape produced in prod (camelCase styles + off-spec roles) instead of throwing", () => {
+    // This is the exact style the layout model emitted that used to reject the
+    // whole plan and surface as a failing "Generate with AI" button.
+    const plan = parseCanvasPlan({
+      basePresetId: "classic-bottom",
+      mode: "rebuild",
+      ops: [
+        { op: "clear" },
+        { op: "applyPreset", packId: "classic-bottom" },
+        {
+          op: "updateRole",
+          role: "scrim",
+          style: {
+            background: "linear-gradient(to top, rgba(0,0,0,0.8), transparent)",
+          },
+        },
+        {
+          content: "New Service Times",
+          op: "updateRole",
+          role: "title",
+          style: {
+            color: "#fff",
+            fontFamily: "Georgia, serif",
+            fontSize: "72px",
+          },
+        },
+        {
+          content: "9am\n10am\n5pm",
+          op: "updateRole",
+          role: "body",
+          style: { fontSize: "26px", whiteSpace: "pre-line" },
+        },
+      ],
+      version: 1,
+    });
+
+    // 'scrim' is coerced to 'scrim-bottom'; camelCase keys become kebab-case.
+    const title = plan.ops.find(
+      (op) => op.op === "updateRole" && op.role === "title"
+    );
+    expect(title).toBeDefined();
+    if (title && title.op === "updateRole") {
+      expect(title.style?.["font-size"]).toBe("72px");
+      expect(title.style?.["font-family"]).toContain("Georgia");
+      expect(title.style?.fontSize).toBeUndefined();
+    }
+
+    const scrim = plan.ops.find(
+      (op) => op.op === "updateRole" && op.role === "scrim-bottom"
+    );
+    expect(scrim, "role 'scrim' should coerce to 'scrim-bottom'").toBeDefined();
+
+    const body = plan.ops.find(
+      (op) => op.op === "updateRole" && op.role === "body"
+    );
+    expect(body && body.op === "updateRole" && body.content).toBe(
+      "9am\n10am\n5pm"
+    );
+  });
+
+  it("drops an updateRole op whose role cannot be mapped", () => {
+    const plan = parseCanvasPlan({
+      mode: "rebuild",
+      ops: [
+        { op: "applyPreset", packId: "classic-bottom" },
+        { content: "x", op: "updateRole", role: "totally-unknown-role" },
+      ],
+      version: 1,
+    });
+
+    expect(
+      plan.ops.some(
+        (op) => op.op === "updateRole" && op.role === "totally-unknown-role"
+      )
+    ).toBe(false);
   });
 });

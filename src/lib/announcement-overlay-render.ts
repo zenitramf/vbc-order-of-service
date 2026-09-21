@@ -282,7 +282,7 @@ const coerceSubtreeBackgrounds = (def: AnnouncementComponentDef): void => {
 /** Find the first def in a tree matching a role attribute (depth-first). */
 const findByRole = (
   roots: AnnouncementComponentDef[],
-  role: AnnouncementStyleRole,
+  role: string,
   index: number
 ): AnnouncementComponentDef | null => {
   let seen = 0;
@@ -324,7 +324,7 @@ const findByRole = (
 
 const removeByRole = (
   roots: AnnouncementComponentDef[],
-  role: AnnouncementStyleRole,
+  role: string,
   index: number
 ): AnnouncementComponentDef[] => {
   let seen = 0;
@@ -397,7 +397,9 @@ const applyOpToTree = (
     case "addBlock": {
       const def = getAnnouncementBlockDef(op.blockId, {
         content: op.content,
-        role: op.role,
+        // Role is coerced to a valid AnnouncementStyleRole by the plan
+        // normalizer before it reaches here.
+        role: op.role as AnnouncementStyleRole | undefined,
         style: op.style,
       });
 

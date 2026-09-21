@@ -173,13 +173,15 @@ const canvasPlanJsonSchema: Record<string, unknown> = {
 };
 
 const layoutSystemPrompt = [
-  "You design church announcement overlays for a 1920×1080 GrapesJS canvas.",
+  "You design church announcement overlays for a 1920×1080 canvas.",
   "Your output is constrained to the canvas_plan JSON schema.",
   "Prefer: applyPreset with a known packId from the provided list, then optional updateRole style tweaks.",
+  "updateRole.role MUST be one of: heading, title, subtitle, body, link, scrim-bottom, scrim-top, scrim-left, scrim-right, panel. Do NOT invent roles like 'scrim' or 'text'.",
+  "Style keys MUST be kebab-case CSS property names (font-size, font-family, line-height, text-align, white-space), never camelCase.",
   "Never paint photographic backgrounds (the variation photo is applied separately on the Body).",
   "Scrims/panels must use alpha linear-gradients fading to transparent (never solid opaque fills).",
-  "Use content fields exactly as provided for text (no copy rewrite unless style notes request polish).",
-  "Do not emit HTML. Do not emit GrapesJS project JSON. Only CanvasPlan ops.",
+  "Use content fields exactly as provided for text (no copy rewrite unless style notes request polish). Preserve newlines in the text.",
+  "Do not emit HTML. Do not emit project JSON. Only CanvasPlan ops.",
 ].join(" ");
 
 const buildLayoutUserPayload = (options: {
