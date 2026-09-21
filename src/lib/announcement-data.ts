@@ -10,6 +10,8 @@ import type { AppDatabase } from "~/db/client";
 import { appSettings } from "~/db/schema";
 import type { CanvasPlan } from "~/lib/announcement-ai-plan";
 import { isMaterialSave } from "~/lib/announcement-material";
+import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
+import { legacyProjectDataToOverlayHtml } from "~/lib/announcement-overlay-render";
 import type {
   AddLibraryImageAsVariationInput,
   AnnouncementAiQueueMessage,
@@ -315,15 +317,20 @@ const emptyContent = (
 });
 
 /**
- * Shape stored on R2. Deliberately omits `html` / `legacyHtml` so old HTML is
- * stripped on the next save after client migration.
+ * Shape stored on R2. Deliberately omits `html` / `legacyHtml` / `projectData`
+ * so legacy HTML and GrapesJS project JSON are stripped on the next save after
+ * server-side migration to `overlayHtml`.
  */
-type AnnouncementDraftRecord = Omit<AnnouncementDraft, "legacyHtml">;
+type AnnouncementDraftRecord = Omit<
+  AnnouncementDraft,
+  "legacyHtml" | "projectData"
+>;
 
-/** Raw R2 payload may still include a legacy `html` string. */
-type AnnouncementDraftRaw = Partial<AnnouncementDraftRecord> & {
+/** Raw R2 payload may still include a legacy `html` string or `projectData`. */
+type AnnouncementDraftRaw = Partial<AnnouncementDraft> & {
   html?: unknown;
   layoutJob?: unknown;
+  overlayHtml?: unknown;
   projectData?: unknown;
   variations?: AnnouncementDraft["variations"];
 };
@@ -426,8 +433,22 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
       ? raw.html
       : null;
 
-  // Only surface legacy HTML when we still need it to migrate into projectData.
-  const legacyHtml = projectData ? null : legacyHtmlFromFile;
+  // Overlay HTML is the canonical canvas field. Prefer a stored overlayHtml;
+  // otherwise migrate a legacy GrapesJS project blob, then a legacy raw `html`
+  // string, into overlay HTML on read (server-side, one-shot).
+  const storedOverlayHtml =
+    typeof raw.overlayHtml === "string" && raw.overlayHtml.trim().length > 0
+      ? raw.overlayHtml
+      : null;
+  const overlayHtml =
+    storedOverlayHtml ??
+    (projectData ? legacyProjectDataToOverlayHtml(projectData) : null) ??
+    (legacyHtmlFromFile
+      ? prepareOverlayHtmlForRender(legacyHtmlFromFile)
+      : null);
+
+  // legacyHtml surfaces only when nothing else produced overlay HTML.
+  const legacyHtml = overlayHtml ? null : legacyHtmlFromFile;
   const contentPartial =
     raw.content && typeof raw.content === "object"
       ? (raw.content as Partial<AnnouncementContent>)
@@ -449,6 +470,7 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
     layoutJob: normalizeLayoutJob(raw.layoutJob),
     legacyHtml,
     name: asString(raw.name),
+    overlayHtml,
     projectData,
     selectedVariationId: asNullableString(raw.selectedVariationId),
     showInPresentationDeck: Boolean(raw.showInPresentationDeck),
@@ -461,7 +483,7 @@ const normalizeDraft = (raw: AnnouncementDraftRaw): AnnouncementDraft => {
   };
 };
 
-/** Persistable fields only — never write `html` or `legacyHtml` to R2. */
+/** Persistable fields only — never write `html`, `legacyHtml`, or legacy `projectData` to R2. */
 const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
   appliedStyleId: draft.appliedStyleId,
   approvedAt: draft.approvedAt,
@@ -474,7 +496,7 @@ const toDraftRecord = (draft: AnnouncementDraft): AnnouncementDraftRecord => ({
   id: draft.id,
   layoutJob: draft.layoutJob,
   name: draft.name,
-  projectData: draft.projectData,
+  overlayHtml: draft.overlayHtml,
   selectedVariationId: draft.selectedVariationId,
   showInPresentationDeck: draft.showInPresentationDeck,
   status: draft.status,
@@ -658,7 +680,8 @@ export const createAnnouncement = createServerFn({ method: "POST" })
       layoutJob: null,
       legacyHtml: null,
       name,
-      // Canvas is project JSON only — client applies default preset and saves.
+      // Canvas is overlay HTML only — client applies default preset and saves.
+      overlayHtml: null,
       projectData: null,
       selectedVariationId: null,
       showInPresentationDeck: false,
@@ -693,8 +716,14 @@ export const saveAnnouncement = createServerFn({ method: "POST" })
       draft.content = emptyContent(data.content);
     }
 
-    if (data.projectData !== undefined) {
-      draft.projectData = normalizeProjectData(data.projectData);
+    if (data.overlayHtml !== undefined) {
+      const next =
+        typeof data.overlayHtml === "string" && data.overlayHtml.trim()
+          ? data.overlayHtml
+          : null;
+      draft.overlayHtml = next;
+      // A new overlay supersedes any legacy project JSON.
+      draft.projectData = null;
     }
 
     if (data.backgroundPrompt !== undefined) {

@@ -31,19 +31,9 @@ import {
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { toJpeg } from "html-to-image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Ref } from "react";
-import { flushSync } from "react-dom";
 import { toast } from "sonner";
 
-import { GrapesjsAnnouncementEditor } from "~/components/grapesjs-announcement-editor";
-import type { GrapesjsAnnouncementEditorHandle } from "~/components/grapesjs-announcement-editor";
 import { HtmlCodeEditor } from "~/components/html-code-editor";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "~/components/ui/accordion";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -108,9 +98,9 @@ import {
 } from "~/components/ui/table";
 import { Textarea } from "~/components/ui/textarea";
 import {
-  HTML_HISTORY_MAX_SNAPSHOTS,
-  useHtmlHistory,
-} from "~/hooks/use-html-history";
+  OVERLAY_HISTORY_MAX_SNAPSHOTS,
+  useOverlayHistory,
+} from "~/hooks/use-overlay-history";
 import { parseCanvasPlan } from "~/lib/announcement-ai-plan";
 import {
   addLibraryImageAsVariation,
@@ -127,25 +117,18 @@ import {
   setShowInPresentationDeck,
 } from "~/lib/announcement-data";
 import { announcementJpegCaptureOptions } from "~/lib/announcement-export";
+import { prepareOverlayHtmlForRender } from "~/lib/announcement-overlay-html";
 import {
-  isUsableProjectData,
-  prepareOverlayHtmlForRender,
-  projectDataKey,
-  sanitizeProjectData,
-} from "~/lib/announcement-overlay-html";
-import {
-  buildDesignPresetProject,
-  getStylePack,
-  listStylePacks,
-} from "~/lib/announcement-style-library";
+  buildDesignPresetHtml,
+  renderCanvasPlanToHtml,
+} from "~/lib/announcement-overlay-render";
+import { getStylePack, listStylePacks } from "~/lib/announcement-style-library";
 import type {
-  AnnouncementCanvasSnapshot,
   AnnouncementContent,
   AnnouncementDraft,
   AnnouncementGenerationJob,
   AnnouncementLayoutJob,
   AnnouncementVariation,
-  GrapesProjectData,
 } from "~/lib/announcement-types";
 import {
   ANNOUNCEMENT_HEIGHT,
@@ -180,40 +163,22 @@ const formatCreatedAt = (value: string) =>
 const ensureAssetUrl = async (objectKey: string): Promise<string> =>
   await preloadImage(r2AssetUrl(objectKey));
 
-/** Pretty-print GrapesJS project JSON for the advanced editor. */
-const formatProjectJson = (data: GrapesProjectData | null): string => {
-  if (!data) {
-    return "null";
-  }
-
-  try {
-    return JSON.stringify(data, null, 2);
-  } catch {
-    return "{}";
-  }
-};
-
 /**
- * Resolve the canvas project for an announcement draft:
- * stored projectData → else legacy HTML migrate (null) → else default preset JSON.
+ * Resolve the overlay HTML for an announcement draft:
+ * stored overlayHtml → else a default preset rendered from content.
  */
-const resolveCanvasProject = (
-  draft: Pick<
-    AnnouncementDraft,
-    "appliedStyleId" | "content" | "legacyHtml" | "projectData"
-  >
-): GrapesProjectData | null => {
-  if (draft.projectData) {
-    return draft.projectData;
+const resolveOverlayHtml = (
+  draft: Pick<AnnouncementDraft, "appliedStyleId" | "content" | "overlayHtml">
+): string => {
+  if (draft.overlayHtml?.trim()) {
+    return draft.overlayHtml;
   }
 
-  if (draft.legacyHtml?.trim()) {
-    return null;
-  }
-
-  return buildDesignPresetProject(
-    draft.appliedStyleId ?? "classic-bottom",
-    draft.content
+  return (
+    buildDesignPresetHtml(
+      draft.appliedStyleId ?? "classic-bottom",
+      draft.content
+    ) ?? ""
   );
 };
 
@@ -422,24 +387,18 @@ const LiveCanvasEditor = ({
   appliedStyleId,
   applyingPackId,
   backgroundUrl,
-  editorRef,
   onApplyStylePack,
-  onProjectChange,
-  projectData,
+  onOverlayChange,
+  overlayHtml,
   readOnly = false,
-  seedHtml,
-  seedRevision,
 }: {
   appliedStyleId: string | null;
   applyingPackId: string | null;
   backgroundUrl: string | null;
-  editorRef?: Ref<GrapesjsAnnouncementEditorHandle>;
   onApplyStylePack: (packId: string) => void;
-  onProjectChange: (snapshot: AnnouncementCanvasSnapshot) => void;
-  projectData: GrapesProjectData | null;
+  onOverlayChange: (nextHtml: string) => void;
+  overlayHtml: string;
   readOnly?: boolean;
-  seedHtml: string | null;
-  seedRevision: number;
 }) => {
   const selectedPackId = applyingPackId ?? appliedStyleId;
   const selectedPack =
@@ -458,8 +417,8 @@ const LiveCanvasEditor = ({
             <CardTitle className="text-base">Announcements editor</CardTitle>
             <CardDescription className="text-xs">
               {readOnly
-                ? "Approved — unlock editing to change the canvas. Export still works."
-                : `Blocks, styles, layers, and traits. Background photo swaps with the selected variation. Auto-saves · up to ${HTML_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).`}
+                ? "Approved — unlock editing to change the overlay. Export still works."
+                : `Pick a preset or edit the overlay HTML directly. The background photo swaps with the selected variation. Auto-saves · up to ${OVERLAY_HISTORY_MAX_SNAPSHOTS} draft snapshots (Mod+Z / Mod+Y).`}
             </CardDescription>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -510,19 +469,90 @@ const LiveCanvasEditor = ({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col p-0 sm:p-0">
-        <GrapesjsAnnouncementEditor
-          ref={editorRef}
+      <CardContent className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+        <ScaledStagePreview
           backgroundUrl={backgroundUrl}
-          className="min-h-0 flex-1"
-          onProjectChange={onProjectChange}
-          projectData={projectData}
-          readOnly={readOnly}
-          seedHtml={seedHtml}
-          seedRevision={seedRevision}
+          overlayHtml={overlayHtml}
         />
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+          <Label
+            className="text-muted-foreground shrink-0 text-xs"
+            htmlFor="overlay-html-editor"
+          >
+            Overlay HTML {readOnly ? "(read-only)" : ""}
+          </Label>
+          <HtmlCodeEditor
+            className="min-h-0 flex-1"
+            id="overlay-html-editor"
+            language="html"
+            minHeight="12rem"
+            onChange={onOverlayChange}
+            readOnly={readOnly}
+            value={overlayHtml}
+          />
+        </div>
       </CardContent>
     </Card>
+  );
+};
+
+/**
+ * Live 16:9 preview of the announcement (background photo + overlay) scaled to
+ * fit its container. The inner stage renders at true 1920×1080 and is scaled
+ * with a CSS transform so the preview matches the exported JPEG exactly.
+ */
+const ScaledStagePreview = ({
+  backgroundUrl,
+  overlayHtml,
+}: {
+  backgroundUrl: string | null;
+  overlayHtml: string;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.3);
+
+  useEffect(() => {
+    const el = containerRef.current;
+
+    if (!el) {
+      return;
+    }
+
+    const recompute = () => {
+      const width = el.clientWidth;
+
+      if (width > 0) {
+        setScale(width / ANNOUNCEMENT_WIDTH);
+      }
+    };
+
+    recompute();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(recompute);
+    observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div
+      className="bg-muted/40 relative w-full shrink-0 overflow-hidden rounded-lg border"
+      ref={containerRef}
+      style={{ height: ANNOUNCEMENT_HEIGHT * scale }}
+    >
+      <div
+        className="absolute left-0 top-0 origin-top-left"
+        style={{ transform: `scale(${scale})` }}
+      >
+        <AnnouncementStage backgroundUrl={backgroundUrl} html={overlayHtml} />
+      </div>
+    </div>
   );
 };
 
@@ -1685,35 +1715,19 @@ const AnnouncementEditor = ({
   const [editUnlocked, setEditUnlocked] = useState(
     () => initial.status !== "approved"
   );
-  const initialCanvasProject = resolveCanvasProject(initial);
+  const initialOverlayHtml = resolveOverlayHtml(initial);
 
   const {
     canRedo,
     canUndo,
-    commit: commitProjectHistory,
-    projectData,
-    redo: redoProjectHistory,
-    reset: resetProjectHistory,
-    setProjectData,
-    undo: undoProjectHistory,
-  } = useHtmlHistory(initialCanvasProject);
-  /** Ephemeral HTML for JPG export + view-only advanced panel — never persisted. */
-  const [exportHtml, setExportHtml] = useState("");
-  /**
-   * One-shot HTML seed for legacy R2 drafts only (migrate → project JSON).
-   * New drafts and presets use project JSON directly.
-   */
-  const [seedHtml, setSeedHtml] = useState<string | null>(() =>
-    initial.projectData ? null : (initial.legacyHtml?.trim() ?? null)
-  );
-  const [seedRevision, setSeedRevision] = useState(0);
+    commit: commitOverlayHistory,
+    overlayHtml,
+    redo: redoOverlayHistory,
+    reset: resetOverlayHistory,
+    setOverlayHtml,
+    undo: undoOverlayHistory,
+  } = useOverlayHistory(initialOverlayHtml);
   const [styleNotes, setStyleNotes] = useState("");
-  const [markupOpen, setMarkupOpen] = useState(false);
-  /** Local draft of project JSON while the advanced editor is open/dirty. */
-  const [projectJsonDraft, setProjectJsonDraft] = useState(() =>
-    formatProjectJson(initialCanvasProject)
-  );
-  const [projectJsonDirty, setProjectJsonDirty] = useState(false);
   /** Fresh client-captured export (data URL); stored R2 export uses `r2AssetUrl`. */
   const [exportPreview, setExportPreview] = useState<string | null>(null);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -1732,29 +1746,19 @@ const AnnouncementEditor = ({
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [isRemovingAll, setIsRemovingAll] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
-  const grapesEditorRef = useRef<GrapesjsAnnouncementEditorHandle>(null);
-  const projectDataRef = useRef(projectData);
+  const overlayHtmlRef = useRef(overlayHtml);
   const nameRef = useRef(name);
   const contentRef = useRef(content);
   const backgroundPromptRef = useRef(backgroundPrompt);
   const draftIdRef = useRef(draft.id);
   const autoSaveInFlightRef = useRef(false);
-  const autoSaveLatestRef = useRef<GrapesProjectData | null>(null);
+  const autoSaveLatestRef = useRef<string | null>(null);
 
-  projectDataRef.current = projectData;
+  overlayHtmlRef.current = overlayHtml;
   nameRef.current = name;
   contentRef.current = content;
   backgroundPromptRef.current = backgroundPrompt;
   draftIdRef.current = draft.id;
-
-  // Keep advanced JSON editor in sync with canvas unless the user is mid-edit.
-  useEffect(() => {
-    if (projectJsonDirty) {
-      return;
-    }
-
-    setProjectJsonDraft(formatProjectJson(projectData));
-  }, [projectData, projectJsonDirty]);
 
   const storedExportUrl = draft.exportObjectKey
     ? r2AssetUrl(draft.exportObjectKey)
@@ -1814,30 +1818,21 @@ const AnnouncementEditor = ({
     setContent(initial.content);
     setBackgroundPrompt(initial.backgroundPrompt);
 
-    // Reset undo stack / seed only when opening a different announcement.
+    // Reset undo stack only when opening a different announcement.
     if (lastHydratedIdRef.current !== initial.id) {
       lastHydratedIdRef.current = initial.id;
       setEditUnlocked(initial.status !== "approved");
-      const nextProject = resolveCanvasProject(initial);
-
-      resetProjectHistory(nextProject);
-      setExportHtml("");
+      resetOverlayHistory(resolveOverlayHtml(initial));
       setExportPreview(null);
-      setProjectJsonDraft(formatProjectJson(nextProject));
-      setProjectJsonDirty(false);
-      setSeedHtml(
-        initial.projectData ? null : (initial.legacyHtml?.trim() ?? null)
-      );
-      setSeedRevision((revision) => revision + 1);
     } else if (initial.status === "draft") {
       // Server demoted after material save — allow editing without re-gate.
       setEditUnlocked(true);
     }
-  }, [initial, resetProjectHistory]);
+  }, [initial, resetOverlayHistory]);
 
   const applyDraft = (
     next: AnnouncementDraft,
-    options?: { resetProjectHistory?: boolean }
+    options?: { resetOverlayHistory?: boolean }
   ) => {
     setDraft(next);
     setName(next.name);
@@ -1849,17 +1844,17 @@ const AnnouncementEditor = ({
       setEditUnlocked(true);
     }
 
-    if (options?.resetProjectHistory) {
-      resetProjectHistory(next.projectData);
+    if (options?.resetOverlayHistory) {
+      resetOverlayHistory(resolveOverlayHtml(next));
     } else {
-      setProjectData(next.projectData);
+      setOverlayHtml(resolveOverlayHtml(next));
     }
   };
 
-  /** Persist project JSON only (no HTML); coalesces concurrent saves. */
-  const autoSaveProject = useCallback(
-    (nextProject: GrapesProjectData) => {
-      autoSaveLatestRef.current = nextProject;
+  /** Persist overlay HTML; coalesces concurrent saves. */
+  const autoSaveOverlay = useCallback(
+    (nextHtml: string) => {
+      autoSaveLatestRef.current = nextHtml;
 
       if (autoSaveInFlightRef.current) {
         return;
@@ -1884,7 +1879,7 @@ const AnnouncementEditor = ({
               content: contentRef.current,
               id: draftIdRef.current,
               name: nameRef.current,
-              projectData: toSave,
+              overlayHtml: toSave,
             },
           });
           setDraft(next);
@@ -1892,7 +1887,7 @@ const AnnouncementEditor = ({
           toast.error(
             error instanceof Error
               ? error.message
-              : "Could not auto-save canvas changes."
+              : "Could not auto-save overlay changes."
           );
         }
 
@@ -1909,96 +1904,50 @@ const AnnouncementEditor = ({
     [saveFn]
   );
 
-  const onCanvasProjectChange = useCallback(
-    (snapshot: AnnouncementCanvasSnapshot) => {
-      // Export HTML is in-memory only (JPG stage + view-only advanced panel).
-      setExportHtml(snapshot.exportHtml);
-
+  const onOverlayChange = useCallback(
+    (nextHtml: string) => {
       // Never autosave while an approved announcement is still locked.
       if (draft.status === "approved" && !editUnlocked) {
         return;
       }
 
-      if (
-        projectDataKey(snapshot.projectData) ===
-        projectDataKey(projectDataRef.current)
-      ) {
+      if ((nextHtml ?? "") === (overlayHtmlRef.current ?? "")) {
         return;
       }
 
-      commitProjectHistory(snapshot.projectData);
-      autoSaveProject(snapshot.projectData);
+      commitOverlayHistory(nextHtml);
+      autoSaveOverlay(nextHtml);
     },
-    [autoSaveProject, commitProjectHistory, draft.status, editUnlocked]
+    [autoSaveOverlay, commitOverlayHistory, draft.status, editUnlocked]
   );
-
-  /** Apply advanced JSON editor contents to the canvas and persist. */
-  const onApplyProjectJson = useCallback(() => {
-    if (!canEdit) {
-      return;
-    }
-
-    let parsed: unknown;
-
-    try {
-      parsed = JSON.parse(projectJsonDraft) as unknown;
-    } catch {
-      toast.error("Project JSON is not valid JSON.");
-      return;
-    }
-
-    if (!isUsableProjectData(parsed)) {
-      toast.error(
-        "Project JSON must be a GrapesJS project object (pages and/or styles)."
-      );
-      return;
-    }
-
-    const sanitized = sanitizeProjectData(parsed);
-
-    if (!sanitized) {
-      toast.error("Could not sanitize project JSON.");
-      return;
-    }
-
-    setProjectJsonDirty(false);
-    setProjectJsonDraft(formatProjectJson(sanitized));
-    commitProjectHistory(sanitized);
-    autoSaveProject(sanitized);
-    toast.success("Project JSON applied to the canvas.");
-  }, [autoSaveProject, canEdit, commitProjectHistory, projectJsonDraft]);
 
   const onUndoCanvas = useCallback(() => {
     if (!canEdit) {
       return;
     }
 
-    const restored = undoProjectHistory();
+    const restored = undoOverlayHistory();
 
     if (restored === null) {
       return;
     }
 
-    if (restored) {
-      autoSaveProject(restored);
-    }
-  }, [autoSaveProject, canEdit, undoProjectHistory]);
+    autoSaveOverlay(restored ?? "");
+  }, [autoSaveOverlay, canEdit, undoOverlayHistory]);
 
   const onRedoCanvas = useCallback(() => {
     if (!canEdit) {
       return;
     }
 
-    const restored = redoProjectHistory();
+    const restored = redoOverlayHistory();
 
     if (restored === null) {
       return;
     }
 
-    if (restored) {
-      autoSaveProject(restored);
-    }
-  }, [autoSaveProject, canEdit, redoProjectHistory]);
+    autoSaveOverlay(restored ?? "");
+  }, [autoSaveOverlay, canEdit, redoOverlayHistory]);
 
   useHotkey(
     "Mod+Z",
@@ -2028,16 +1977,16 @@ const AnnouncementEditor = ({
   const persist = async (overrides?: {
     contentOverride?: AnnouncementContent;
     nameOverride?: string;
-    projectDataOverride?: GrapesProjectData | null;
+    overlayHtmlOverride?: string | null;
     promptOverride?: string;
   }): Promise<AnnouncementDraft> => {
     setIsSaving(true);
 
     try {
-      const projectToSave =
-        overrides?.projectDataOverride === undefined
-          ? projectData
-          : overrides.projectDataOverride;
+      const overlayToSave =
+        overrides?.overlayHtmlOverride === undefined
+          ? overlayHtml
+          : overrides.overlayHtmlOverride;
 
       const next = await saveFn({
         data: {
@@ -2045,7 +1994,7 @@ const AnnouncementEditor = ({
           content: overrides?.contentOverride ?? content,
           id: draft.id,
           name: overrides?.nameOverride ?? name,
-          projectData: projectToSave,
+          overlayHtml: overlayToSave,
         },
       });
       applyDraft(next);
@@ -2133,18 +2082,9 @@ const AnnouncementEditor = ({
 
       setDraft(completedDraft);
 
-      const snapshot = grapesEditorRef.current?.applyAiPlan(
-        plan,
-        contentRef.current
-      );
+      const nextHtml = renderCanvasPlanToHtml(plan, contentRef.current);
 
-      if (!snapshot) {
-        toast.error("Editor is not ready. Try again in a moment.");
-        return;
-      }
-
-      setExportHtml(snapshot.exportHtml);
-      commitProjectHistory(snapshot.projectData);
+      commitOverlayHistory(nextHtml);
 
       try {
         const next = await saveFn({
@@ -2153,13 +2093,13 @@ const AnnouncementEditor = ({
             content: contentRef.current,
             id: draftIdRef.current,
             name: nameRef.current,
-            projectData: snapshot.projectData,
+            overlayHtml: nextHtml,
             ...(plan.basePresetId ? { appliedStyleId: plan.basePresetId } : {}),
           },
         });
         setDraft(next);
         toast.success(
-          "Overlay generated via GrapesJS API (text only — not baked into the image)."
+          "Overlay generated from the AI layout (text only — not baked into the image)."
         );
       } catch (error) {
         toast.error(
@@ -2169,7 +2109,7 @@ const AnnouncementEditor = ({
         );
       }
     },
-    [commitProjectHistory, saveFn]
+    [commitOverlayHistory, saveFn]
   );
 
   useLayoutJobPoll({
@@ -2313,19 +2253,14 @@ const AnnouncementEditor = ({
     setApplyingStylePackId(packId);
 
     try {
-      const result = grapesEditorRef.current?.applyStylePack(
-        packId,
-        contentRef.current
-      );
+      const nextHtml = buildDesignPresetHtml(packId, contentRef.current);
 
-      if (!result) {
-        toast.error("Editor is not ready. Try again in a moment.");
+      if (!nextHtml) {
+        toast.error("Design preset not found.");
         return;
       }
 
-      // Update history + ephemeral export HTML; persist project JSON only.
-      setExportHtml(result.exportHtml);
-      commitProjectHistory(result.projectData);
+      commitOverlayHistory(nextHtml);
 
       const next = await saveFn({
         data: {
@@ -2334,13 +2269,13 @@ const AnnouncementEditor = ({
           content: contentRef.current,
           id: draftIdRef.current,
           name: nameRef.current,
-          projectData: result.projectData,
+          overlayHtml: nextHtml,
         },
       });
       setDraft(next);
 
       toast.success(
-        `Loaded “${pack.name}” layout — refine on the canvas as needed.`
+        `Loaded “${pack.name}” layout — refine the overlay HTML as needed.`
       );
     } catch (error) {
       toast.error(
@@ -2364,25 +2299,9 @@ const AnnouncementEditor = ({
 
     await ensureAssetUrl(selectedVariation.objectKey);
 
-    // Flush live canvas: project JSON for persistence, HTML only in memory.
-    let snapshot: AnnouncementCanvasSnapshot | null = null;
-    flushSync(() => {
-      snapshot = grapesEditorRef.current?.flush() ?? null;
-    });
-
-    if (snapshot) {
-      const flushed = snapshot as AnnouncementCanvasSnapshot;
-      // Paint the off-screen export surface before persist/capture — two
-      // microtasks are not a React commit, so stale overlay HTML would be
-      // cloned (previous variation / previous announcement).
-      flushSync(() => {
-        setExportHtml(flushed.exportHtml);
-      });
-
-      if (canEdit) {
-        await persist({ projectDataOverride: flushed.projectData });
-      }
-    } else if (canEdit) {
+    // Persist the current overlay before capture so the stored draft matches
+    // the exported JPEG.
+    if (canEdit) {
       await persist();
     }
 
@@ -2435,18 +2354,7 @@ const AnnouncementEditor = ({
 
     try {
       if (canEdit) {
-        let snapshot: AnnouncementCanvasSnapshot | null = null;
-        flushSync(() => {
-          snapshot = grapesEditorRef.current?.flush() ?? null;
-        });
-
-        if (snapshot) {
-          const flushed = snapshot as AnnouncementCanvasSnapshot;
-          setExportHtml(flushed.exportHtml);
-          await persist({ projectDataOverride: flushed.projectData });
-        } else {
-          await persist();
-        }
+        await persist();
       }
 
       const next = await approveFn({
@@ -2697,15 +2605,12 @@ const AnnouncementEditor = ({
           appliedStyleId={draft.appliedStyleId}
           applyingPackId={applyingStylePackId}
           backgroundUrl={selectedBackgroundUrl}
-          editorRef={grapesEditorRef}
           onApplyStylePack={(packId) => {
             void onApplyStylePack(packId);
           }}
-          onProjectChange={onCanvasProjectChange}
-          projectData={projectData}
+          onOverlayChange={onOverlayChange}
+          overlayHtml={overlayHtml ?? ""}
           readOnly={isEditLocked}
-          seedHtml={seedHtml}
-          seedRevision={seedRevision}
         />
       </div>
 
@@ -2876,94 +2781,6 @@ const AnnouncementEditor = ({
           selectingId={selectingId}
           variations={draft.variations}
         />
-
-        <Accordion
-          collapsible
-          onValueChange={(value) => {
-            const open = value === "project-json";
-            setMarkupOpen(open);
-
-            if (open) {
-              setProjectJsonDraft(formatProjectJson(projectDataRef.current));
-              setProjectJsonDirty(false);
-            }
-          }}
-          type="single"
-          value={markupOpen ? "project-json" : ""}
-        >
-          <AccordionItem value="project-json">
-            <AccordionTrigger>
-              <span className="flex flex-col items-start gap-1">
-                <span className="text-base">Project JSON (advanced)</span>
-                <span className="text-muted-foreground text-sm font-normal">
-                  GrapesJS project data is the source of truth. Export HTML
-                  below is view-only (used for JPG capture).
-                </span>
-              </span>
-            </AccordionTrigger>
-            <AccordionContent className="h-auto">
-              {/* Mount only when open so CodeMirror lays out at full height. */}
-              {markupOpen ? (
-                <div className="flex min-h-72 flex-col gap-4 pt-1">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Label htmlFor="project-json">Project JSON</Label>
-                      <Button
-                        disabled={!canEdit || !projectJsonDirty}
-                        onClick={onApplyProjectJson}
-                        size="sm"
-                        type="button"
-                        variant="secondary"
-                      >
-                        Apply to canvas
-                      </Button>
-                    </div>
-                    {canEdit ? null : (
-                      <p className="text-muted-foreground text-xs">
-                        Unlock editing to change project JSON on an approved
-                        announcement.
-                      </p>
-                    )}
-                    <HtmlCodeEditor
-                      id="project-json"
-                      language="json"
-                      minHeight="18rem"
-                      onChange={(nextJson) => {
-                        if (!canEdit) {
-                          return;
-                        }
-
-                        setProjectJsonDraft(nextJson);
-                        setProjectJsonDirty(true);
-                      }}
-                      readOnly={!canEdit}
-                      value={projectJsonDraft}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="export-html-preview">
-                      Export HTML (view only)
-                    </Label>
-                    <p className="text-muted-foreground text-xs">
-                      Derived from the live canvas for JPG export. Not editable
-                      and not stored on the draft.
-                    </p>
-                    <HtmlCodeEditor
-                      id="export-html-preview"
-                      language="html"
-                      minHeight="12rem"
-                      readOnly
-                      value={
-                        exportHtml ||
-                        "<!-- Export HTML appears after the canvas loads -->"
-                      }
-                    />
-                  </div>
-                </div>
-              ) : null}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
       </div>
 
       <Dialog onOpenChange={setExportDialogOpen} open={exportDialogOpen}>
@@ -3023,7 +2840,7 @@ const AnnouncementEditor = ({
         <div ref={exportRef}>
           <AnnouncementStage
             backgroundUrl={selectedBackgroundUrl}
-            html={exportHtml}
+            html={overlayHtml ?? ""}
           />
         </div>
       </div>

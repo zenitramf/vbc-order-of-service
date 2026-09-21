@@ -24,7 +24,8 @@ const baseDraft = (): AnnouncementDraft => ({
   layoutJob: null,
   legacyHtml: null,
   name: "Sunday",
-  projectData: { pages: [{ frames: [] }] },
+  overlayHtml: "<div class=\"announcement-overlay\"><h1>Title</h1></div>",
+  projectData: null,
   selectedVariationId: "v1",
   showInPresentationDeck: false,
   status: "approved",
@@ -41,17 +42,17 @@ describe("isMaterialSave", () => {
       content: draft.content,
       id: draft.id,
       name: draft.name,
-      projectData: draft.projectData,
+      overlayHtml: draft.overlayHtml,
     };
 
     expect(isMaterialSave(draft, data)).toBe(false);
   });
 
-  it("returns true when project JSON changes", () => {
+  it("returns true when overlay HTML changes", () => {
     const draft = baseDraft();
     const data: SaveAnnouncementInput = {
       id: draft.id,
-      projectData: { pages: [{ frames: [{ component: { type: "text" } }] }] },
+      overlayHtml: "<div class=\"announcement-overlay\"><h1>Changed</h1></div>",
     };
 
     expect(isMaterialSave(draft, data)).toBe(true);
