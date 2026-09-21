@@ -213,6 +213,69 @@ export const canvasPlanJsonSchema = z.toJSONSchema(canvasPlanSchema, {
 const isClearPaint = (value: string): boolean =>
   value === "transparent" || value === "none";
 
+/**
+ * Per-role minimum font-size (px on the 1920×1080 canvas). Announcement
+ * overlays are shown full-screen and read from 20–50 feet away, so the AI is
+ * not allowed to shrink text below these floors even if its prompt slips.
+ * Keep these in sync with the "LARGE FONTS" rule in the layout system prompt
+ * (workers/announcement-image-gen/src/layout-ai.ts).
+ */
+const MIN_FONT_SIZE_PX: Partial<Record<AnnouncementStyleRole, number>> = {
+  body: 40,
+  heading: 34,
+  link: 40,
+  subtitle: 48,
+  title: 110,
+};
+
+const FONT_SIZE_PX_RE = /^(?<num>\d+(?:\.\d+)?)px$/iu;
+
+/**
+ * Inherent role of each text-bearing block template, so an addBlock op with no
+ * explicit role still gets floored (e.g. an `ann-title` block is a title).
+ * Non-text blocks (scrims, spacer, div) are absent — they carry no font-size.
+ */
+const BLOCK_DEFAULT_ROLE: Partial<
+  Record<AnnouncementBlockId, AnnouncementStyleRole>
+> = {
+  "ann-body": "body",
+  "ann-heading": "heading",
+  "ann-link": "link",
+  "ann-subtitle": "subtitle",
+  "ann-title": "title",
+};
+
+/**
+ * Clamp a role's `font-size` up to its minimum. Only px values are floored;
+ * relative units (em/%/vw) and clamp()/calc() are left untouched. Mutates
+ * `style` in place and is a no-op when the role has no floor or no font-size.
+ */
+const enforceFontFloor = (
+  style: Record<string, string>,
+  role: AnnouncementStyleRole | undefined
+): void => {
+  if (!role) {
+    return;
+  }
+
+  const floor = MIN_FONT_SIZE_PX[role];
+  const raw = style["font-size"];
+
+  if (floor === undefined || raw === undefined) {
+    return;
+  }
+
+  const match = FONT_SIZE_PX_RE.exec(raw.trim());
+
+  if (!match?.groups) {
+    return;
+  }
+
+  if (Number.parseFloat(match.groups.num) < floor) {
+    style["font-size"] = `${floor}px`;
+  }
+};
+
 const isPlainText = (value: string): boolean => !TAG_RE.test(value);
 
 const shouldSkipStyleKey = (
@@ -275,7 +338,11 @@ const coerceBackgroundEntry = (
 
 const sanitizeStyleMap = (
   style: Record<string, string> | undefined,
-  options: { coerceBackgrounds?: boolean; stage?: boolean } = {}
+  options: {
+    coerceBackgrounds?: boolean;
+    stage?: boolean;
+    role?: AnnouncementStyleRole;
+  } = {}
 ): Record<string, string> | undefined => {
   if (!style) {
     return undefined;
@@ -299,6 +366,8 @@ const sanitizeStyleMap = (
 
     result[key] = value;
   }
+
+  enforceFontFloor(result, options.role);
 
   return Object.keys(result).length > 0 ? result : undefined;
 };
@@ -329,7 +398,15 @@ const normalizeAddBlockOp = (
     return null;
   }
 
-  const style = sanitizeStyleMap(op.style, { coerceBackgrounds: true });
+  const parentRole = coerceParentRole(op.parentRole);
+  const role = coerceRole(op.role);
+  // Floor by the explicit role when given, else the block's inherent role
+  // (e.g. an ann-title block is a title even with no role override).
+  const effectiveRole = role ?? BLOCK_DEFAULT_ROLE[op.blockId];
+  const style = sanitizeStyleMap(op.style, {
+    coerceBackgrounds: true,
+    role: effectiveRole,
+  });
   const content = sanitizeContent(op.content);
   const next: Extract<CanvasOp, { op: "addBlock" }> = {
     blockId: op.blockId,
@@ -340,12 +417,10 @@ const normalizeAddBlockOp = (
     next.content = content;
   }
 
-  const parentRole = coerceParentRole(op.parentRole);
   if (parentRole) {
     next.parentRole = parentRole;
   }
 
-  const role = coerceRole(op.role);
   if (role) {
     next.role = role;
   }
@@ -367,7 +442,10 @@ const normalizeUpdateRoleOp = (
     return null;
   }
 
-  const style = sanitizeStyleMap(op.style, { coerceBackgrounds: true });
+  const style = sanitizeStyleMap(op.style, {
+    coerceBackgrounds: true,
+    role,
+  });
   const content = sanitizeContent(op.content);
 
   if (!op.remove && content === undefined && !style) {

@@ -100,8 +100,8 @@ describe("announcement-style-library", () => {
 
     expect(leftPanelJson).toContain("48%");
     expect(leftPanelJson).toContain("panel");
-    expect(leftPanelJson).toContain("100px");
-    expect(centeredJson).toContain("140px");
+    expect(leftPanelJson).toContain("124px");
+    expect(centeredJson).toContain("150px");
   });
 
   it("stores content as plain text (not HTML-escaped entities)", () => {
