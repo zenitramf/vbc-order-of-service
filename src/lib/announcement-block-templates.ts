@@ -67,7 +67,7 @@ const BLOCK_TEMPLATES: Record<AnnouncementBlockId, AnnouncementBlockTemplate> =
         style: {
           color: "#ffffff",
           "font-family": "system-ui, sans-serif",
-          "font-size": "40px",
+          "font-size": "52px",
           "line-height": "1.35",
           margin: "0",
           "max-width": "1400px",
@@ -102,7 +102,7 @@ const BLOCK_TEMPLATES: Record<AnnouncementBlockId, AnnouncementBlockTemplate> =
         style: {
           color: "#ffffff",
           "font-family": "system-ui, sans-serif",
-          "font-size": "42px",
+          "font-size": "46px",
           "letter-spacing": "0.28em",
           margin: "0 0 16px 0",
           "text-shadow": "0 3px 16px rgba(0,0,0,0.5)",
@@ -121,7 +121,7 @@ const BLOCK_TEMPLATES: Record<AnnouncementBlockId, AnnouncementBlockTemplate> =
         content: "Link text",
         style: {
           color: "#fbbf24",
-          "font-size": "40px",
+          "font-size": "52px",
         },
         type: "link",
       },
@@ -236,7 +236,7 @@ const BLOCK_TEMPLATES: Record<AnnouncementBlockId, AnnouncementBlockTemplate> =
         style: {
           color: "#ffffff",
           "font-family": "Georgia, 'Times New Roman', serif",
-          "font-size": "58px",
+          "font-size": "66px",
           "font-weight": "400",
           "line-height": "1.2",
           margin: "0 0 32px 0",
@@ -254,7 +254,7 @@ const BLOCK_TEMPLATES: Record<AnnouncementBlockId, AnnouncementBlockTemplate> =
         content: "Insert your text here",
         style: {
           color: "#ffffff",
-          "font-size": "40px",
+          "font-size": "52px",
           padding: "8px",
         },
         type: "text",
@@ -274,7 +274,7 @@ const BLOCK_TEMPLATES: Record<AnnouncementBlockId, AnnouncementBlockTemplate> =
             name: "tertiary",
             style: {
               color: "#ffffff",
-              "font-size": "40px",
+              "font-size": "52px",
               margin: "0",
             },
             type: "text",

@@ -178,6 +178,7 @@ const layoutSystemPrompt = [
   "Prefer: applyPreset with a known packId from the provided list, then optional updateRole style tweaks.",
   "updateRole.role MUST be one of: heading, title, subtitle, body, link, scrim-bottom, scrim-top, scrim-left, scrim-right, panel. Do NOT invent roles like 'scrim' or 'text'.",
   "Style keys MUST be kebab-case CSS property names (font-size, font-family, line-height, text-align, white-space), never camelCase.",
+  "CRITICAL — LARGE FONTS: This overlay is shown full-screen on a 1920×1080 display and read from 20–50 feet away, so text MUST be very large. When you set font-size, use these MINIMUMS (px on the 1920×1080 canvas): title ≥ 110px (prefer 120–150px), subtitle ≥ 48px, heading ≥ 34px, body/tertiary ≥ 40px, link ≥ 40px. NEVER emit a font-size below these floors. It is far better to be too big than too small. If unsure, do NOT set font-size at all — leave the preset's own large defaults in place rather than shrinking them.",
   "Never paint photographic backgrounds (the variation photo is applied separately on the Body).",
   "Scrims/panels must use alpha linear-gradients fading to transparent (never solid opaque fills).",
   "Use content fields exactly as provided for text (no copy rewrite unless style notes request polish). Preserve newlines in the text.",

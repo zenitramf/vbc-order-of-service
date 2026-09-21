@@ -290,21 +290,23 @@ const toProjectData = (components: ComponentDef[]): GrapesProjectData => {
   };
 };
 
-// Shared type recipes — sized for living-room / sanctuary TV screens at 1920×1080.
-const HEADING_CLASSIC = `font-size:42px;letter-spacing:0.28em;text-transform:uppercase;opacity:0.92;font-family:${SYSTEM_SANS};color:#ffffff;text-shadow:0 3px 16px rgba(0,0,0,0.5);`;
-const TITLE_CLASSIC = `font-size:132px;line-height:1.02;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 6px 32px rgba(0,0,0,0.5);`;
-const SUBTITLE_CLASSIC = `font-size:58px;line-height:1.2;font-weight:400;font-family:${GEORGIA_SERIF};color:#ffffff;opacity:0.95;`;
-const BODY_CLASSIC = `font-size:40px;line-height:1.35;opacity:0.9;font-family:${SYSTEM_SANS};color:#ffffff;max-width:1400px;`;
+// Shared type recipes — sized for a full-screen 1920×1080 slide read from
+// 20–50 ft away (sanctuary / lobby TV). Keep the per-role minimums in
+// src/lib/announcement-ai-plan.ts (MIN_FONT_SIZE_PX) at or below these.
+const HEADING_CLASSIC = `font-size:46px;letter-spacing:0.28em;text-transform:uppercase;opacity:0.92;font-family:${SYSTEM_SANS};color:#ffffff;text-shadow:0 3px 16px rgba(0,0,0,0.5);`;
+const TITLE_CLASSIC = `font-size:140px;line-height:1.02;font-weight:700;font-family:${GEORGIA_SERIF};color:#ffffff;text-shadow:0 6px 32px rgba(0,0,0,0.5);`;
+const SUBTITLE_CLASSIC = `font-size:66px;line-height:1.2;font-weight:400;font-family:${GEORGIA_SERIF};color:#ffffff;opacity:0.95;`;
+const BODY_CLASSIC = `font-size:52px;line-height:1.35;opacity:0.9;font-family:${SYSTEM_SANS};color:#ffffff;max-width:1400px;`;
 
-const HEADING_MODERN = `font-size:36px;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#a5b4fc;text-shadow:0 2px 12px rgba(0,0,0,0.4);`;
-const TITLE_MODERN = `font-size:120px;line-height:1.0;font-weight:700;letter-spacing:-0.02em;font-family:${SYSTEM_SANS};color:#f8fafc;text-shadow:0 4px 24px rgba(0,0,0,0.45);`;
-const SUBTITLE_MODERN = `font-size:52px;line-height:1.25;font-weight:400;font-family:${SYSTEM_SANS};color:#f1f5f9;opacity:0.92;`;
-const BODY_MODERN = `font-size:40px;line-height:1.4;font-family:${SYSTEM_SANS};color:#e2e8f0;opacity:0.92;max-width:1000px;`;
+const HEADING_MODERN = `font-size:40px;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#a5b4fc;text-shadow:0 2px 12px rgba(0,0,0,0.4);`;
+const TITLE_MODERN = `font-size:132px;line-height:1.0;font-weight:700;letter-spacing:-0.02em;font-family:${SYSTEM_SANS};color:#f8fafc;text-shadow:0 4px 24px rgba(0,0,0,0.45);`;
+const SUBTITLE_MODERN = `font-size:60px;line-height:1.25;font-weight:400;font-family:${SYSTEM_SANS};color:#f1f5f9;opacity:0.92;`;
+const BODY_MODERN = `font-size:50px;line-height:1.4;font-family:${SYSTEM_SANS};color:#e2e8f0;opacity:0.92;max-width:1000px;`;
 
-const HEADING_GOLD = `font-size:40px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#fbbf24;text-shadow:0 3px 16px rgba(0,0,0,0.55);`;
-const TITLE_GOLD = `font-size:124px;line-height:1.02;font-weight:700;font-family:${GEORGIA_SERIF};color:#fffbeb;text-shadow:0 6px 28px rgba(0,0,0,0.55);`;
-const SUBTITLE_GOLD = `font-size:54px;line-height:1.2;font-weight:400;font-family:${GEORGIA_SERIF};color:#fde68a;opacity:0.95;`;
-const BODY_GOLD = `font-size:40px;line-height:1.35;font-family:${SYSTEM_SANS};color:#fef3c7;opacity:0.92;max-width:780px;`;
+const HEADING_GOLD = `font-size:44px;letter-spacing:0.28em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#fbbf24;text-shadow:0 3px 16px rgba(0,0,0,0.55);`;
+const TITLE_GOLD = `font-size:132px;line-height:1.02;font-weight:700;font-family:${GEORGIA_SERIF};color:#fffbeb;text-shadow:0 6px 28px rgba(0,0,0,0.55);`;
+const SUBTITLE_GOLD = `font-size:62px;line-height:1.2;font-weight:400;font-family:${GEORGIA_SERIF};color:#fde68a;opacity:0.95;`;
+const BODY_GOLD = `font-size:50px;line-height:1.35;font-family:${SYSTEM_SANS};color:#fef3c7;opacity:0.92;max-width:780px;`;
 
 const BOTTOM_SCRIM =
   "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.22) 42%, transparent 78%)";
@@ -408,7 +410,7 @@ const buildLowerLeft = (content: AnnouncementContent): ComponentDef[] => {
         bodyStyle: `${BODY_CLASSIC}max-width:1000px;`,
         headingStyle: HEADING_CLASSIC,
         subtitleStyle: SUBTITLE_CLASSIC,
-        titleStyle: `${TITLE_CLASSIC}font-size:120px;`,
+        titleStyle: `${TITLE_CLASSIC}font-size:140px;`,
       }),
       undefined,
       "Text stack"
@@ -469,7 +471,7 @@ const buildCenteredHero = (content: AnnouncementContent): ComponentDef[] => {
         bodyStyle: `${BODY_MODERN}max-width:1100px;`,
         headingStyle: HEADING_MODERN,
         subtitleStyle: `${SUBTITLE_MODERN}max-width:1200px;`,
-        titleStyle: `${TITLE_MODERN}font-size:140px;max-width:1600px;`,
+        titleStyle: `${TITLE_MODERN}font-size:150px;max-width:1600px;`,
       }),
       undefined,
       "Text stack"
@@ -514,7 +516,7 @@ const buildTopBanner = (content: AnnouncementContent): ComponentDef[] => {
         bodyStyle: BODY_CLASSIC,
         headingStyle: HEADING_CLASSIC,
         subtitleStyle: SUBTITLE_CLASSIC,
-        titleStyle: `${TITLE_CLASSIC}font-size:124px;`,
+        titleStyle: `${TITLE_CLASSIC}font-size:140px;`,
       }),
       undefined,
       "Text stack"
@@ -559,10 +561,10 @@ const buildLeftPanel = (content: AnnouncementContent): ComponentDef[] => {
       },
       textStack(c, {
         align: "left",
-        bodyStyle: `font-size:38px;line-height:1.35;font-family:${SYSTEM_SANS};color:#bae6fd;opacity:0.92;max-width:720px;`,
-        headingStyle: `font-size:34px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#7dd3fc;text-shadow:0 3px 14px rgba(2,6,23,0.65);`,
-        subtitleStyle: `font-size:48px;line-height:1.25;font-family:${SYSTEM_SANS};color:#e0f2fe;opacity:0.95;`,
-        titleStyle: `font-size:100px;line-height:1.02;font-weight:700;letter-spacing:-0.015em;font-family:${SYSTEM_SANS};color:#f0f9ff;text-shadow:0 6px 28px rgba(2,6,23,0.7);`,
+        bodyStyle: `font-size:50px;line-height:1.35;font-family:${SYSTEM_SANS};color:#bae6fd;opacity:0.92;max-width:720px;`,
+        headingStyle: `font-size:40px;letter-spacing:0.22em;text-transform:uppercase;font-weight:600;font-family:${SYSTEM_SANS};color:#7dd3fc;text-shadow:0 3px 14px rgba(2,6,23,0.65);`,
+        subtitleStyle: `font-size:60px;line-height:1.25;font-family:${SYSTEM_SANS};color:#e0f2fe;opacity:0.95;`,
+        titleStyle: `font-size:124px;line-height:1.02;font-weight:700;letter-spacing:-0.015em;font-family:${SYSTEM_SANS};color:#f0f9ff;text-shadow:0 6px 28px rgba(2,6,23,0.7);`,
       }),
       "panel"
     ),
@@ -609,7 +611,7 @@ const buildRightPanel = (content: AnnouncementContent): ComponentDef[] => {
         bodyStyle: BODY_GOLD,
         headingStyle: HEADING_GOLD,
         subtitleStyle: SUBTITLE_GOLD,
-        titleStyle: `${TITLE_GOLD}font-size:110px;`,
+        titleStyle: `${TITLE_GOLD}font-size:124px;`,
       }),
       "panel"
     ),
@@ -641,7 +643,7 @@ const buildTwoPanel = (content: AnnouncementContent): ComponentDef[] => {
         {
           color: "#ffffff",
           "font-family": GEORGIA_SERIF,
-          "font-size": "108px",
+          "font-size": "132px",
           "font-weight": "700",
           "line-height": "1.04",
           margin: "0",
@@ -794,10 +796,10 @@ const buildCornerCard = (content: AnnouncementContent): ComponentDef[] => {
       },
       textStack(c, {
         align: "left",
-        bodyStyle: `font-size:40px;line-height:1.4;font-family:${GEORGIA_SERIF};color:#e7e5e4;opacity:0.92;max-width:980px;`,
-        headingStyle: `font-size:34px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500;font-family:${SYSTEM_SANS};color:#d6d3d1;text-shadow:0 2px 10px rgba(0,0,0,0.35);`,
-        subtitleStyle: `font-size:52px;line-height:1.25;font-weight:400;font-family:${GEORGIA_SERIF};color:#f5f5f4;opacity:0.94;`,
-        titleStyle: `font-size:100px;line-height:1.05;font-weight:500;font-family:${GEORGIA_SERIF};color:#fafaf9;text-shadow:0 4px 24px rgba(0,0,0,0.4);`,
+        bodyStyle: `font-size:50px;line-height:1.4;font-family:${GEORGIA_SERIF};color:#e7e5e4;opacity:0.92;max-width:980px;`,
+        headingStyle: `font-size:40px;letter-spacing:0.22em;text-transform:uppercase;font-weight:500;font-family:${SYSTEM_SANS};color:#d6d3d1;text-shadow:0 2px 10px rgba(0,0,0,0.35);`,
+        subtitleStyle: `font-size:62px;line-height:1.25;font-weight:400;font-family:${GEORGIA_SERIF};color:#f5f5f4;opacity:0.94;`,
+        titleStyle: `font-size:120px;line-height:1.05;font-weight:500;font-family:${GEORGIA_SERIF};color:#fafaf9;text-shadow:0 4px 24px rgba(0,0,0,0.4);`,
       }),
       "panel"
     ),

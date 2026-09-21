@@ -242,7 +242,9 @@ describe("parseCanvasPlan — model drift tolerance", () => {
     );
     expect(title).toBeDefined();
     if (title && title.op === "updateRole") {
-      expect(title.style?.["font-size"]).toBe("72px");
+      // The model emitted 72px, far too small for a 1920×1080 slide read from
+      // across a room; the per-role font floor bumps a title up to 110px min.
+      expect(title.style?.["font-size"]).toBe("110px");
       expect(title.style?.["font-family"]).toContain("Georgia");
       expect(title.style?.fontSize).toBeUndefined();
     }
@@ -258,6 +260,10 @@ describe("parseCanvasPlan — model drift tolerance", () => {
     expect(body && body.op === "updateRole" && body.content).toBe(
       "9am\n10am\n5pm"
     );
+    // Body emitted at 26px is floored up to the 40px minimum.
+    if (body && body.op === "updateRole") {
+      expect(body.style?.["font-size"]).toBe("40px");
+    }
   });
 
   it("drops an updateRole op whose role cannot be mapped", () => {
@@ -275,5 +281,67 @@ describe("parseCanvasPlan — model drift tolerance", () => {
         (op) => op.op === "updateRole" && op.role === "totally-unknown-role"
       )
     ).toBe(false);
+  });
+});
+
+describe("parseCanvasPlan — font-size floor (distance viewing)", () => {
+  const titleFontSize = (input: {
+    role: string;
+    fontSize: string;
+  }): string | undefined => {
+    const plan = parseCanvasPlan({
+      mode: "rebuild",
+      ops: [
+        { op: "applyPreset", packId: "classic-bottom" },
+        {
+          op: "updateRole",
+          role: input.role,
+          style: { "font-size": input.fontSize },
+        },
+      ],
+      version: 1,
+    });
+    const op = plan.ops.find(
+      (candidate) =>
+        candidate.op === "updateRole" && candidate.role === input.role
+    );
+    return op && op.op === "updateRole" ? op.style?.["font-size"] : undefined;
+  };
+
+  it("bumps a too-small title up to the 110px floor", () => {
+    expect(titleFontSize({ fontSize: "64px", role: "title" })).toBe("110px");
+  });
+
+  it("floors subtitle, body, heading and link independently", () => {
+    expect(titleFontSize({ fontSize: "20px", role: "subtitle" })).toBe("48px");
+    expect(titleFontSize({ fontSize: "18px", role: "body" })).toBe("40px");
+    expect(titleFontSize({ fontSize: "12px", role: "heading" })).toBe("34px");
+    expect(titleFontSize({ fontSize: "22px", role: "link" })).toBe("40px");
+  });
+
+  it("leaves a font-size already above the floor untouched", () => {
+    expect(titleFontSize({ fontSize: "140px", role: "title" })).toBe("140px");
+  });
+
+  it("does not touch non-px units it cannot compare", () => {
+    expect(titleFontSize({ fontSize: "5vw", role: "title" })).toBe("5vw");
+  });
+
+  it("floors an addBlock title with no explicit role override", () => {
+    const plan = parseCanvasPlan({
+      mode: "rebuild",
+      ops: [
+        { op: "clear" },
+        {
+          blockId: "ann-title",
+          content: "Hi",
+          op: "addBlock",
+          style: { "font-size": "50px" },
+        },
+      ],
+      version: 1,
+    });
+    const op = plan.ops.find((candidate) => candidate.op === "addBlock");
+    expect(op && op.op === "addBlock" && op.style?.["font-size"]).toBe("110px");
   });
 });
