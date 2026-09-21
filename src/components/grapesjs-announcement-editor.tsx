@@ -434,6 +434,13 @@ export const GrapesjsAnnouncementEditor = ({
   const projectDataRef = useRef(projectData);
   const readOnlyRef = useRef(readOnly);
   const syncedProjectKeyRef = useRef(projectDataKey(projectData));
+  // Key of the last project this editor itself emitted upward. The parent
+  // echoes emitted project JSON straight back down as the `projectData` prop
+  // (history commit + autosave), so the reload effect must ignore any prop
+  // whose key matches an echo of our own emit — otherwise a live RTE edit
+  // triggers loadProjectData mid-typing, resetting the caret to offset 0 and
+  // making the field feel uneditable.
+  const lastEmittedProjectKeyRef = useRef(projectDataKey(projectData));
   const syncedSeedRevisionRef = useRef(seedRevision);
   const suppressEmitRef = useRef(false);
   const coercingBackgroundRef = useRef(false);
@@ -448,6 +455,13 @@ export const GrapesjsAnnouncementEditor = ({
   seedHtmlRef.current = seedHtml;
   projectDataRef.current = projectData;
   readOnlyRef.current = readOnly;
+
+  // Emit a snapshot upward, remembering the key we sent so the reload effect
+  // can recognise (and ignore) the parent echoing it straight back as a prop.
+  const emitProjectChange = (snapshot: AnnouncementCanvasSnapshot): void => {
+    lastEmittedProjectKeyRef.current = projectDataKey(snapshot.projectData);
+    onProjectChangeRef.current(snapshot);
+  };
 
   useImperativeHandle(
     ref,
@@ -544,7 +558,7 @@ export const GrapesjsAnnouncementEditor = ({
         lastSnapshotRef.current = snapshot;
 
         if (!suppressEmitRef.current) {
-          onProjectChangeRef.current(snapshot);
+          emitProjectChange(snapshot);
         }
 
         return snapshot;
@@ -667,7 +681,7 @@ export const GrapesjsAnnouncementEditor = ({
 
       syncedProjectKeyRef.current = nextProjectKey;
       lastSnapshotRef.current = next;
-      onProjectChangeRef.current(next);
+      emitProjectChange(next);
     };
 
     flushSaveRef.current = flushSave;
@@ -805,7 +819,7 @@ export const GrapesjsAnnouncementEditor = ({
     syncedProjectKeyRef.current = projectDataKey(initialSnapshot.projectData);
     lastSnapshotRef.current = initialSnapshot;
     suppressEmitRef.current = false;
-    onProjectChangeRef.current(initialSnapshot);
+    emitProjectChange(initialSnapshot);
 
     makeCanvasChrome(editor);
     requestAnimationFrame(() => {
@@ -843,7 +857,12 @@ export const GrapesjsAnnouncementEditor = ({
   useEffect(() => {
     const editor = editorRef.current;
     const nextProjectKey = projectDataKey(projectData);
-    const projectChanged = nextProjectKey !== syncedProjectKeyRef.current;
+    // A prop whose key equals our own last emitted key is the parent echoing
+    // our save straight back (history commit / autosave round-trip) — NOT an
+    // external change. Reloading on it would wipe the live RTE selection.
+    const isOwnEcho = nextProjectKey === lastEmittedProjectKeyRef.current;
+    const projectChanged =
+      !isOwnEcho && nextProjectKey !== syncedProjectKeyRef.current;
     const seedChanged = seedRevision !== syncedSeedRevisionRef.current;
 
     if (!editor) {
@@ -853,6 +872,9 @@ export const GrapesjsAnnouncementEditor = ({
     }
 
     if (!projectChanged && !seedChanged) {
+      // Keep the synced key current even when we skip an echo, so a later
+      // genuine external change is still detected.
+      syncedProjectKeyRef.current = nextProjectKey;
       return;
     }
 
@@ -886,7 +908,7 @@ export const GrapesjsAnnouncementEditor = ({
       requestAnimationFrame(() => {
         fitAnnouncementViewport(editor);
         suppressEmitRef.current = false;
-        onProjectChangeRef.current(snapshot);
+        emitProjectChange(snapshot);
       });
       return;
     }
