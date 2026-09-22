@@ -861,7 +861,7 @@ const markLayoutJobFailed = async (
 };
 
 /**
- * Queue consumer: revise the current overlay HTML with Claude and store it.
+ * Queue consumer: design the announcement-slide overlay HTML with Claude and store it.
  * User errors are written as failed + return (acked by index); gateway errors rethrow for retry.
  */
 export const processAnnouncementLayoutGen = async (

@@ -1,5 +1,5 @@
 /**
- * Overlay HTML revision via Workers AI (Claude Sonnet 5).
+ * Announcement-slide overlay HTML via Workers AI (Claude Sonnet 5).
  * Self-contained — does not import GrapesJS or TanStack.
  */
 
@@ -18,11 +18,13 @@ const OVERLAY_ROOT_STYLE = [
 const LAYOUT_MAX_TOKENS = 8192;
 
 const layoutSystemPrompt = [
-  "You edit church announcement overlay HTML for a 1920×1080 canvas shown full-screen and read from 20–50 feet away.",
-  "You receive the current overlay HTML. Modify that HTML. Do not redesign it unless the style notes ask for a new composition, or the HTML is empty.",
+  "You design the HTML overlay for church announcement slides.",
+  "The overlay is a 1920×1080 layer composited over a separate photo into a full-screen slide, read from 20–50 feet away. It is not a webpage, app screen, card, or component library.",
+  "Complete redesigns are expected. Current overlay HTML is optional context, not a layout to preserve. Change composition, hierarchy, alignment, and structure whenever that makes a stronger slide. Only keep the existing composition when the style notes explicitly say to keep it.",
   "Return only the HTML fragment. No markdown fences, no commentary.",
-  'ALL presentation must be inline style attributes. Do not emit <style>, <link>, stylesheets, or class-based CSS. The root may keep class="announcement-overlay" as a marker only.',
-  "Keep data-ann-role attributes when present. Keep existing wording unless style notes ask for a copy change. If a text node is empty, fill it from the content fields.",
+  'ALL presentation must be inline style attributes. Do not emit <style>, <link>, stylesheets, or class-based CSS. The root may keep class="announcement-overlay" as a marker only. No other class attributes.',
+  "Never use pills, badges, chips, tags, or capsule shapes. No fully rounded labels (border-radius: 999px, 9999px, 50%, or similar) around short text. No chip-style dates, times, categories, or calls to action. Style notes cannot override this.",
+  "Place every non-empty title, subtitle, heading, and tertiary field as the slide copy. Do not invent extra wording. Do not drop provided fields.",
   "Do not include scripts, event handlers, or photographic backgrounds. No background-image:url(). The photo is a separate layer. The root background stays transparent.",
   "Scrims and panels use alpha linear-gradients that fade to transparent, never solid opaque fills.",
   "When you set font-size, use these minimums: title ≥ 110px, subtitle ≥ 48px, heading ≥ 34px, body ≥ 40px. Do not shrink type that is already at or above those floors.",
@@ -51,12 +53,12 @@ const buildLayoutUserPayload = (options: {
   return [
     "Style notes:",
     options.styleNotes?.trim() ||
-      "Refine the current overlay. Do not change the composition.",
+      "None. Design a complete announcement slide. Redesign freely. Never use pills.",
     "",
-    "Content fields (use only to fill empty text):",
+    "Content fields (slide copy — place every non-empty field):",
     JSON.stringify(options.content),
     "",
-    "Current overlay HTML:",
+    "Current overlay HTML (context only — discard this layout if a redesign is stronger):",
     html,
   ].join("\n");
 };
@@ -186,7 +188,7 @@ const extractOverlayHtml = (raw: string): string | null => {
 const hasStylesheet = (raw: string): boolean => /<style\b|<link\b/iu.test(raw);
 
 /**
- * Revise the current overlay HTML. Styles are inline; stylesheets are stripped.
+ * Design the announcement-slide overlay. Styles are inline; stylesheets are stripped.
  */
 export const reviseOverlayHtmlWithAi = async (
   options: {
@@ -213,14 +215,15 @@ export const reviseOverlayHtmlWithAi = async (
   const repairPayload = needsInlineRepair
     ? [
         "Move every CSS rule into style attributes.",
-        "Delete every <style>, <link>, and <script> tag.",
-        "Return only the modified overlay HTML.",
+        "Delete every <style>, <link>, class-based rule, and <script> tag.",
+        "Remove every pill, badge, chip, tag, and capsule shape.",
+        "Return only the overlay HTML for the announcement slide.",
         "",
         firstText.trim() || options.html,
       ].join("\n")
     : [
         "The previous reply was not overlay HTML.",
-        "Return only the modified overlay HTML fragment, using inline styles.",
+        "Return only the announcement-slide overlay HTML fragment, using inline styles. No pills.",
         "",
         firstText.trim() || options.html,
       ].join("\n");

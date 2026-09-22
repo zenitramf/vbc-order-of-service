@@ -2789,12 +2789,12 @@ const AnnouncementEditor = ({
           <CardHeader>
             <CardTitle>Generate overlay with AI</CardTitle>
             <CardDescription>
-              Edits the current overlay HTML with{" "}
+              Designs the announcement slide overlay with{" "}
               <span className="font-mono text-xs">
                 {ANNOUNCEMENT_LAYOUT_MODEL}
               </span>
-              . Styles stay inline. Optional style notes steer the edit. Text is
-              not baked into the background image.
+              . Inline styles only. Full redesigns are allowed. No pills. Text
+              is not baked into the background image.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">

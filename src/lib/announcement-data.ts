@@ -990,8 +990,8 @@ export const removeAllVariations = createServerFn({ method: "POST" })
   });
 
 /**
- * Enqueue async AI overlay revision on the slim worker.
- * The worker edits the saved overlay HTML; the client applies `layoutJob.html`.
+ * Enqueue async AI overlay design on the slim worker.
+ * The worker may fully redesign the saved overlay HTML; the client applies `layoutJob.html`.
  */
 export const generateAnnouncementLayout = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware])

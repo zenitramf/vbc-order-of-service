@@ -13,7 +13,7 @@ export const ANNOUNCEMENT_ASPECT_RATIO = "16:9" as const;
 export const ANNOUNCEMENT_IMAGE_MODEL = "google/nano-banana-2" as const;
 
 /**
- * AI Gateway model for overlay HTML edits on `/announcements/{id}`.
+ * AI Gateway model for announcement-slide overlay HTML on `/announcements/{id}`.
  * The image-gen worker calls `env.AI.run` with this id.
  */
 export const ANNOUNCEMENT_LAYOUT_MODEL = "anthropic/claude-sonnet-5" as const;
