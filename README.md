@@ -22,7 +22,7 @@ A TanStack Start app deployed on Cloudflare Workers for planning church orders o
 - Dark-mode dashboard with left-side navigation and breadcrumbs.
 - Orders of service with service type, service date, Planning/Published status, service cards, activities, drag reordering, hymn selection, and a placeholder **Publish and Send** action.
 - Template CRUD for reusable service plans. Saving a template also creates/updates the selectable service type.
-- Hymn library CRUD with hymn number, name, Markdown lyrics, music key, last played, times played in the last six months, and source tags.
+- Hymn library CRUD with hymn number, name, Markdown lyrics, music key, language (English/Español), last played, times played in the last six months, and source tags.
 - Cloudflare D1 schema and migrations, including a hymn seed generated from `db/song-library-seed.csv`.
 
 ## Getting Started

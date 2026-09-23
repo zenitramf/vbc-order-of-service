@@ -60,9 +60,10 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { filterHymns } from "~/lib/hymn-filters";
 import { deleteHymn, getHymns } from "~/lib/order-service-data";
-import type { HymnRecord } from "~/lib/order-service-types";
+import type { HymnLanguage, HymnRecord } from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
 
 interface HymnColumnsOptions {
@@ -140,6 +141,15 @@ const createHymnColumns = ({
     header: "Source",
   },
   {
+    accessorKey: "language",
+    cell: ({ row }) => (
+      <Badge variant="secondary">
+        {row.original.language === "spanish" ? "Español" : "English"}
+      </Badge>
+    ),
+    header: "Language",
+  },
+  {
     accessorKey: "musicKey",
     header: "Key",
   },
@@ -214,6 +224,7 @@ const HymnsPage = () => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [sourceFilter, setSourceFilter] = useState(ALL_FILTER_VALUE);
+  const [languageFilter, setLanguageFilter] = useState(ALL_FILTER_VALUE);
   const [keyFilter, setKeyFilter] = useState(ALL_FILTER_VALUE);
   const [sixMonthFilter, setSixMonthFilter] = useState(ALL_FILTER_VALUE);
   const [lastPlayedFrom, setLastPlayedFrom] = useState("");
@@ -263,6 +274,10 @@ const HymnsPage = () => {
   const filteredHymnRows = useMemo(
     () =>
       filterHymns(hymnRows, {
+        language:
+          languageFilter === ALL_FILTER_VALUE
+            ? undefined
+            : (languageFilter as HymnLanguage),
         lastPlayedFrom: lastPlayedFrom || undefined,
         lastPlayedTo: lastPlayedTo || undefined,
         musicKey: keyFilter === ALL_FILTER_VALUE ? undefined : keyFilter,
@@ -277,6 +292,7 @@ const HymnsPage = () => {
     [
       hymnRows,
       keyFilter,
+      languageFilter,
       lastPlayedFrom,
       lastPlayedTo,
       searchTerm,
@@ -297,6 +313,7 @@ const HymnsPage = () => {
   const hasActiveFilters =
     searchTerm !== "" ||
     sourceFilter !== ALL_FILTER_VALUE ||
+    languageFilter !== ALL_FILTER_VALUE ||
     keyFilter !== ALL_FILTER_VALUE ||
     sixMonthFilter !== ALL_FILTER_VALUE ||
     lastPlayedFrom !== "" ||
@@ -305,6 +322,7 @@ const HymnsPage = () => {
   const handleClearFilters = () => {
     setSearchTerm("");
     setSourceFilter(ALL_FILTER_VALUE);
+    setLanguageFilter(ALL_FILTER_VALUE);
     setKeyFilter(ALL_FILTER_VALUE);
     setSixMonthFilter(ALL_FILTER_VALUE);
     setLastPlayedFrom("");
@@ -414,6 +432,22 @@ const HymnsPage = () => {
                 value={lastPlayedTo}
               />
             </div>
+            <ToggleGroup
+              aria-label="Filter by language"
+              className="lg:col-span-3"
+              onValueChange={(value) => {
+                if (value) {
+                  setLanguageFilter(value);
+                }
+              }}
+              spacing={2}
+              type="single"
+              value={languageFilter}
+            >
+              <ToggleGroupItem value={ALL_FILTER_VALUE}>All</ToggleGroupItem>
+              <ToggleGroupItem value="english">English</ToggleGroupItem>
+              <ToggleGroupItem value="spanish">Español</ToggleGroupItem>
+            </ToggleGroup>
             <Button
               disabled={!hasActiveFilters}
               onClick={handleClearFilters}

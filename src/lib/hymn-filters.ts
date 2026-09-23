@@ -1,7 +1,8 @@
-import type { HymnRecord } from "~/lib/order-service-types";
+import type { HymnLanguage, HymnRecord } from "~/lib/order-service-types";
 
 export interface HymnListFilters {
   hymnNumber?: string;
+  language?: HymnLanguage;
   lastPlayedFrom?: string;
   lastPlayedTo?: string;
   maxTimesPlayedLastSixMonths?: number;
@@ -105,6 +106,7 @@ export const filterHymns = (
       matchesExactField(hymn.sourceName, filters.sourceName) &&
       matchesExactField(hymn.musicKey, filters.musicKey) &&
       matchesExactField(hymn.hymnNumber, filters.hymnNumber) &&
+      matchesExactField(hymn.language, filters.language) &&
       matchesPlayCount(hymn, filters) &&
       matchesLastPlayed(hymn, filters, fromTime, toTime)
   );

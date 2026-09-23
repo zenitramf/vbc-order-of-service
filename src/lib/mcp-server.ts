@@ -136,6 +136,7 @@ const saveTemplateInput = z.object({
 const saveHymnInput = z.object({
   hymnNumber: z.string(),
   id: z.string().optional(),
+  language: z.enum(["english", "spanish"]).default("english"),
   lastPlayed: z.string(),
   lyricsMarkdown: z.string(),
   musicKey: z.string(),
@@ -144,6 +145,7 @@ const saveHymnInput = z.object({
 });
 const hymnListFiltersInput = z.object({
   hymnNumber: z.string().optional(),
+  language: z.enum(["english", "spanish"]).optional(),
   lastPlayedFrom: z.string().optional(),
   lastPlayedTo: z.string().optional(),
   maxTimesPlayedLastSixMonths: z.number().int().min(0).optional(),
@@ -502,6 +504,7 @@ const createMcpServer = (context: McpContext): McpServer => {
       return callServerFn(saveHymn, {
         hymnNumber: current.hymnNumber,
         id: current.id,
+        language: current.language,
         lastPlayed: current.lastPlayed,
         lyricsMarkdown: data.lyrics ?? current.lyricsMarkdown,
         musicKey: data.key ?? current.musicKey,

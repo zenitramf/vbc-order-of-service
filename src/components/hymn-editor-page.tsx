@@ -58,6 +58,7 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { Textarea } from "~/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import {
   deleteHymnFile,
   getHymnFileDownload,
@@ -67,6 +68,7 @@ import {
 } from "~/lib/order-service-data";
 import type {
   HymnFileRecord,
+  HymnLanguage,
   HymnRecord,
   ReferenceData,
 } from "~/lib/order-service-types";
@@ -154,6 +156,9 @@ export const HymnEditorPage = ({
   const [sourceId, setSourceId] = React.useState(
     hymn?.sourceId ?? referenceData.hymnSources[0]?.id ?? "living-hymns"
   );
+  const [language, setLanguage] = React.useState<HymnLanguage>(
+    hymn?.language ?? "english"
+  );
   const [isSaving, setIsSaving] = React.useState(false);
   const [files, setFiles] = React.useState(initialFiles);
   const [isUploading, setIsUploading] = React.useState(false);
@@ -172,6 +177,7 @@ export const HymnEditorPage = ({
         data: {
           hymnNumber,
           id: hymn?.id,
+          language,
           lastPlayed,
           lyricsMarkdown,
           musicKey,
@@ -452,6 +458,23 @@ export const HymnEditorPage = ({
                     </NativeSelectOption>
                   ))}
                 </NativeSelect>
+              </Field>
+              <Field>
+                <FieldLabel>Language</FieldLabel>
+                <ToggleGroup
+                  aria-label="Hymn language"
+                  onValueChange={(value) => {
+                    if (value === "english" || value === "spanish") {
+                      setLanguage(value);
+                    }
+                  }}
+                  spacing={2}
+                  type="single"
+                  value={language}
+                >
+                  <ToggleGroupItem value="english">English</ToggleGroupItem>
+                  <ToggleGroupItem value="spanish">Español</ToggleGroupItem>
+                </ToggleGroup>
               </Field>
               <Field>
                 <FieldLabel htmlFor="last-played">Last played</FieldLabel>

@@ -3,7 +3,7 @@ import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 import { hymnSources } from "./reference";
 
-/** Mirrors migrations 0001 (hymns) and 0007 (hymn_files). */
+/** Mirrors migrations 0001 (hymns), 0007 (hymn_files), and 0020 (language). */
 
 export const hymns = sqliteTable(
   "hymns",
@@ -13,6 +13,7 @@ export const hymns = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
     hymnNumber: text("hymn_number").notNull().default(""),
     id: text("id").primaryKey(),
+    language: text("language").notNull().default("english"),
     lastPlayed: text("last_played").notNull().default(""),
     lyricsMarkdown: text("lyrics_markdown").notNull().default(""),
     musicKey: text("music_key").notNull().default(""),
@@ -28,6 +29,7 @@ export const hymns = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
+    index("hymns_language_idx").on(table.language),
     index("hymns_name_idx").on(table.name),
     index("hymns_number_idx").on(table.hymnNumber),
   ]

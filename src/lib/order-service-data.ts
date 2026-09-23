@@ -39,6 +39,7 @@ import type {
   EmailSettingsRecord,
   HymnFileDownload,
   HymnFileRecord,
+  HymnLanguage,
   HymnOption,
   HymnRecord,
   MonthPlanData,
@@ -460,17 +461,26 @@ const assertRequiredTeamsStaffed = async (
   }
 };
 
-const mapHymnRow = (row: Record<string, unknown>): HymnRecord => ({
-  hymnNumber: asString(row.hymn_number),
-  id: asString(row.id),
-  lastPlayed: asString(row.last_played),
-  lyricsMarkdown: asString(row.lyrics_markdown),
-  musicKey: asString(row.music_key),
-  name: asString(row.name),
-  sourceId: asString(row.source_id),
-  sourceName: asString(row.source_name),
-  timesPlayedLastSixMonths: asNumber(row.times_played_last_6_months),
-});
+const mapHymnRow = (row: Record<string, unknown>): HymnRecord => {
+  const rawLanguage = asString(row.language).trim().toLowerCase();
+  const language: HymnLanguage =
+    rawLanguage === "spanish" || rawLanguage === "english"
+      ? rawLanguage
+      : "english";
+
+  return {
+    hymnNumber: asString(row.hymn_number),
+    id: asString(row.id),
+    language,
+    lastPlayed: asString(row.last_played),
+    lyricsMarkdown: asString(row.lyrics_markdown),
+    musicKey: asString(row.music_key),
+    name: asString(row.name),
+    sourceId: asString(row.source_id),
+    sourceName: asString(row.source_name),
+    timesPlayedLastSixMonths: asNumber(row.times_played_last_6_months),
+  };
+};
 
 const mapHymnFileRow = (row: Record<string, unknown>): HymnFileRecord => ({
   contentType: asString(row.content_type),
@@ -2297,9 +2307,21 @@ export const saveHymn = createServerFn({ method: "POST" })
     const db = getAppDb();
     const id = data.id || uuidv4();
     const timestamp = nowIso();
+    const rawLanguage =
+      typeof data.language === "string"
+        ? data.language.trim().toLowerCase()
+        : "";
+    const language: HymnLanguage =
+      rawLanguage === "" ? "english" : (rawLanguage as HymnLanguage);
+
+    if (language !== "english" && language !== "spanish") {
+      throw new Error("Language must be english or spanish.");
+    }
+
     const values = {
       hymnNumber: data.hymnNumber.trim(),
       id,
+      language,
       lastPlayed: data.lastPlayed.trim(),
       lyricsMarkdown: data.lyricsMarkdown,
       musicKey: data.musicKey.trim(),
@@ -2313,6 +2335,7 @@ export const saveHymn = createServerFn({ method: "POST" })
       .onConflictDoUpdate({
         set: {
           hymnNumber: values.hymnNumber,
+          language: values.language,
           lastPlayed: values.lastPlayed,
           lyricsMarkdown: values.lyricsMarkdown,
           musicKey: values.musicKey,

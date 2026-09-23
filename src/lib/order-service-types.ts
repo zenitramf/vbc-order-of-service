@@ -112,9 +112,12 @@ export interface OrderEmailQueueMessage {
   subject: string;
 }
 
+export type HymnLanguage = "english" | "spanish";
+
 export interface HymnRecord {
   hymnNumber: string;
   id: string;
+  language: HymnLanguage;
   lastPlayed: string;
   lyricsMarkdown: string;
   musicKey: string;
@@ -205,6 +208,7 @@ export interface CreateOrderInput {
 export interface CraftMyPdfOrderPayloadHymn {
   hymnNumber: string;
   id: string;
+  language: HymnLanguage;
   lastPlayed: string;
   musicKey: string;
   name: string;
@@ -280,6 +284,7 @@ export interface SaveEmailSettingsInput {
 export interface SaveHymnInput {
   hymnNumber: string;
   id?: string;
+  language?: HymnLanguage;
   lastPlayed: string;
   lyricsMarkdown: string;
   musicKey: string;

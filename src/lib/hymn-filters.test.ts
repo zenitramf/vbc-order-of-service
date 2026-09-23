@@ -6,6 +6,7 @@ import type { HymnRecord } from "~/lib/order-service-types";
 const hymn = (overrides: Partial<HymnRecord> = {}): HymnRecord => ({
   hymnNumber: "100",
   id: "hymn-1",
+  language: "english",
   lastPlayed: "2026-01-15",
   lyricsMarkdown: "",
   musicKey: "C",
@@ -30,6 +31,7 @@ describe("filterHymns", () => {
     hymn({
       hymnNumber: "300",
       id: "hymn-3",
+      language: "spanish",
       lastPlayed: "2025-06-01",
       musicKey: "D",
       name: "Holy Holy Holy",
@@ -79,5 +81,13 @@ describe("filterHymns", () => {
 
   it("returns only never-played hymns", () => {
     expect(filterHymns(hymns, { neverPlayed: true })).toEqual([hymns[1]]);
+  });
+
+  it("filters by language", () => {
+    expect(filterHymns(hymns, { language: "english" })).toEqual([
+      hymns[0],
+      hymns[1],
+    ]);
+    expect(filterHymns(hymns, { language: "spanish" })).toEqual([hymns[2]]);
   });
 });
