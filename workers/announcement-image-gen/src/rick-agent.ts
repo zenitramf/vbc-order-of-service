@@ -22,6 +22,7 @@ import {
   streamText,
 } from "ai";
 import { createAiGateway } from "ai-gateway-provider";
+import { createOpenAI } from "ai-gateway-provider/providers/openai";
 import { createUnified } from "ai-gateway-provider/providers/unified";
 
 import { signRickAgentToken } from "../../../src/lib/rick-agent-token";
@@ -29,74 +30,89 @@ import { createRickMcpSession } from "./rick-mcp";
 import type { RickMcpSession } from "./rick-mcp";
 
 const DEFAULT_MODEL = "openai/gpt-6-luna";
+const COMPAT_BASE_URL = "https://gateway.ai.cloudflare.com/v1/compat";
 const DEFAULT_GATEWAY_ID = "default";
 const DAILY_MESSAGE_LIMIT = 50;
-const MAX_OUTPUT_TOKENS = 2000;
+const MAX_OUTPUT_TOKENS = 4000;
 const MAX_TOOL_STEPS = 8;
 const PACIFIC_TIME_ZONE = "America/Los_Angeles";
+
+const REASONING_EFFORTS = [
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
+
+const parseReasoningEffort = (value: string | undefined): ReasoningEffort =>
+  REASONING_EFFORTS.find((effort) => effort === value?.trim()) ??
+  DEFAULT_REASONING_EFFORT;
 
 /** Secrets and local-dev vars that are not part of the generated Env type. */
 type RickAgentEnv = Env & {
   RICK_AGENT_TOKEN_SECRET?: string;
   RICK_DEV_BASE_URL?: string;
   RICK_MODEL?: string;
+  RICK_REASONING_EFFORT?: string;
 };
 
 const formatPacificDay = (now: Date): string =>
   new Intl.DateTimeFormat("en-CA", { timeZone: PACIFIC_TIME_ZONE }).format(now);
 
 /**
- * The unified OpenAI-compatible provider sends `max_tokens`, but current
- * OpenAI chat models (gpt-6-luna included) reject it and require
- * `max_completion_tokens`. Rewrite it for OpenAI models only so other unified
- * providers keep the standard parameter.
+ * Local mock compatibility: OpenAI-compatible chat completions reject
+ * `max_tokens` and want `max_completion_tokens`.
  */
-const renameMaxTokensForOpenAi = (
-  modelId: string
-): ((body: Record<string, unknown>) => Record<string, unknown>) => {
-  if (!modelId.startsWith("openai/")) {
-    return (body) => body;
+const renameMaxTokens = (
+  body: Record<string, unknown>
+): Record<string, unknown> => {
+  if (typeof body.max_tokens !== "number") {
+    return body;
   }
 
-  return (body) => {
-    if (typeof body.max_tokens !== "number") {
-      return body;
-    }
-
-    const next: Record<string, unknown> = {
-      ...body,
-      max_completion_tokens: body.max_tokens,
-    };
-
-    delete next.max_tokens;
-
-    return next;
+  const next: Record<string, unknown> = {
+    ...body,
+    max_completion_tokens: body.max_tokens,
   };
+
+  delete next.max_tokens;
+
+  return next;
 };
 
+/**
+ * Rick always sends tools, and gpt-6-luna rejects function tools with reasoning
+ * enabled on `/chat/completions`. The Responses API supports both (with
+ * streamed reasoning summaries), so production talks to it through the AI
+ * Gateway compat endpoint; the AI binding handles unified-billing auth.
+ */
 const createRickModel = (env: RickAgentEnv) => {
   const modelId = env.RICK_MODEL?.trim() || DEFAULT_MODEL;
   const devBaseUrl = env.RICK_DEV_BASE_URL?.trim();
-  const transformRequestBody = renameMaxTokensForOpenAi(modelId);
 
-  // Local development: point the OpenAI-compatible provider at a mock server.
-  // Production always routes through AI Gateway with the AI binding.
+  // Local development without Cloudflare auth: chat-completions against the
+  // mock server (no reasoning, but the whole agent loop still runs).
   if (devBaseUrl) {
-    const localProvider = createUnified({
+    return createUnified({
       apiKey: "rick-local-dev",
       baseURL: devBaseUrl,
       name: "RickLocal",
-      transformRequestBody,
-    });
-
-    return localProvider(modelId);
+      transformRequestBody: renameMaxTokens,
+    })(modelId);
   }
 
   const gateway = createAiGateway({
     binding: env.AI.gateway(env.AI_GATEWAY_ID?.trim() || DEFAULT_GATEWAY_ID),
   });
 
-  return gateway(createUnified({ transformRequestBody })(modelId));
+  // The compat path lets the AI binding apply unified billing; the wrapper maps
+  // it to `provider: "compat"` on the gateway universal endpoint.
+  return gateway(createOpenAI({ baseURL: COMPAT_BASE_URL }).responses(modelId));
 };
 
 const buildSystemPrompt = ({
@@ -196,6 +212,15 @@ export class RickAgent extends AIChatAgent<Env> {
       }),
       model: createRickModel(env),
       onFinish: () => this.closeMcpSession(),
+      providerOptions: {
+        openai: {
+          // The gateway needs the `openai/` model prefix, which stops the SDK
+          // from recognizing gpt-6-luna as a reasoning model; without this it
+          // silently strips `reasoning` from every request.
+          forceReasoning: true,
+          reasoningEffort: parseReasoningEffort(env.RICK_REASONING_EFFORT),
+        },
+      },
       stopWhen: stepCountIs(MAX_TOOL_STEPS),
       system: buildSystemPrompt({ body: options?.body, date }),
       tools: session.tools,

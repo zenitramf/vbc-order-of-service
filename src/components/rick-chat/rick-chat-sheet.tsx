@@ -5,14 +5,15 @@ import {
   useAgentChat,
 } from "@cloudflare/ai-chat/react";
 import {
+  BrainIcon,
   PlusIcon,
   PaperPlaneRightIcon,
   StopCircleIcon,
 } from "@phosphor-icons/react";
 import { useRouterState } from "@tanstack/react-router";
 import { useAgent } from "agents/react";
-import { isTextUIPart, isToolUIPart, getToolName } from "ai";
-import type { UIMessage } from "ai";
+import { getToolName, isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
+import type { ReasoningUIPart, UIMessage } from "ai";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
@@ -158,6 +159,22 @@ const ToolPart = ({ onApproval, part }: ToolPartProps) => {
   );
 };
 
+/**
+ * Collapsed one-liner for the model's reasoning. Native `<details>` keeps it
+ * accessible (keyboard + screen readers) and closed by default.
+ */
+const ReasoningPart = ({ part }: { part: ReasoningUIPart }) => (
+  <details className="w-full rounded-lg border bg-muted/30 px-3 py-2 text-xs">
+    <summary className="flex cursor-pointer list-none items-center gap-1.5 font-medium text-muted-foreground select-none">
+      <BrainIcon className="size-3.5" />
+      <span>{part.state === "streaming" ? "Thinking…" : "Show reasoning"}</span>
+    </summary>
+    <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
+      {part.text}
+    </p>
+  </details>
+);
+
 interface ChatMessageProps {
   message: UIMessage;
   onApproval: (request: ToolApprovalRequest) => void;
@@ -179,6 +196,21 @@ const ChatMessage = ({ message, onApproval }: ChatMessageProps) => {
         className={cn("flex max-w-[85%] flex-col gap-2", isUser && "items-end")}
       >
         {message.parts.map((part, index) => {
+          if (isReasoningUIPart(part)) {
+            // gpt-6-luna reasons adaptively; skipped reasoning arrives as an
+            // empty part, which isn't worth a row once it's finished.
+            if (part.state !== "streaming" && !part.text.trim()) {
+              return null;
+            }
+
+            return (
+              <ReasoningPart
+                key={`${message.id}-reasoning-${index}`}
+                part={part}
+              />
+            );
+          }
+
           if (isTextUIPart(part)) {
             return (
               <div

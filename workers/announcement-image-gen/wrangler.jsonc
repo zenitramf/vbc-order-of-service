@@ -47,6 +47,7 @@
   "vars": {
     "AI_GATEWAY_ID": "default",
     "RICK_MODEL": "openai/gpt-6-luna",
+    "RICK_REASONING_EFFORT": "medium",
   },
   "queues": {
     "consumers": [
