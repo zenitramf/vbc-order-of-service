@@ -28,6 +28,8 @@ import { Spinner } from "~/components/ui/spinner";
 import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
 
+import { RickMarkdown } from "./rick-markdown";
+
 const SUGGESTIONS = [
   "What's planned this Sunday?",
   "Draft next month's plan",
@@ -169,9 +171,9 @@ const ReasoningPart = ({ part }: { part: ReasoningUIPart }) => (
       <BrainIcon className="size-3.5" />
       <span>{part.state === "streaming" ? "Thinking…" : "Show reasoning"}</span>
     </summary>
-    <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
-      {part.text}
-    </p>
+    <div className="mt-2 text-muted-foreground">
+      <RickMarkdown className="text-xs">{part.text}</RickMarkdown>
+    </div>
   </details>
 );
 
@@ -215,12 +217,14 @@ const ChatMessage = ({ message, onApproval }: ChatMessageProps) => {
             return (
               <div
                 className={cn(
-                  "whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm",
-                  isUser ? "bg-primary text-primary-foreground" : "bg-muted"
+                  "rounded-2xl px-3.5 py-2 text-sm",
+                  isUser
+                    ? "whitespace-pre-wrap bg-primary text-primary-foreground"
+                    : "bg-muted"
                 )}
                 key={`${message.id}-text-${index}`}
               >
-                {part.text}
+                {isUser ? part.text : <RickMarkdown>{part.text}</RickMarkdown>}
               </div>
             );
           }
