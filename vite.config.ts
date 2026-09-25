@@ -8,6 +8,9 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     cloudflare({
+      auxiliaryWorkers: [
+        { configPath: "./workers/announcement-image-gen/wrangler.jsonc" },
+      ],
       tunnel: { autoStart: false },
       viteEnvironment: { name: "ssr" },
     }),

@@ -9,6 +9,7 @@ import type { RolePermissions } from "~/lib/admin-permissions";
 import { hasPermission, parsePermissions } from "~/lib/admin-permissions";
 import { createAuth } from "~/lib/auth";
 import { resolveEmailVerifiedAfterEmailUpdate } from "~/lib/email-verification";
+import { resolveRickAgentTokenSubject } from "~/lib/rick-agent-token";
 import { isValidEmail } from "~/lib/teams-logic";
 
 const readSession = async () => {
@@ -159,14 +160,27 @@ export const requireSessionMiddleware = createMiddleware({
   const match = /^(?<scheme>Bearer)\s+(?<token>.+)$/iu.exec(authorization);
 
   const token = match?.groups?.token;
-  const apiKey = token
-    ? await import("~/lib/api-key-server").then(({ resolveApiKey }) =>
-        resolveApiKey(token)
-      )
-    : null;
 
-  if (apiKey) {
-    return next();
+  if (token) {
+    const apiKey = await import("~/lib/api-key-server").then(
+      ({ resolveApiKey }) => resolveApiKey(token)
+    );
+
+    if (apiKey) {
+      return next();
+    }
+
+    // Rick's agent Durable Object calls /api/mcp with a short-lived token.
+    // Tool handlers run through this middleware, so accept it here too.
+    const agentUserId = await resolveRickAgentTokenSubject(
+      token,
+      (env as Env & { RICK_AGENT_TOKEN_SECRET?: string })
+        .RICK_AGENT_TOKEN_SECRET
+    );
+
+    if (agentUserId) {
+      return next();
+    }
   }
 
   throw new Error("Unauthorized");

@@ -19,27 +19,52 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 
 Run `wrangler types` after changing bindings in wrangler.jsonc.
 
-## Multi-Worker deploy (announcement image gen)
+## Multi-Worker deploy (announcement image gen + Rick)
 
-AI background generation runs on a **separate slim Worker** so payloads never
-share the TanStack Start isolate (128 MB limit).
+AI background generation and the Rick chat agent run on a **separate slim
+Worker** so payloads never share the TanStack Start isolate (128 MB limit).
 
 | Worker | Role |
 | ------ | ---- |
-| `vbc-order-of-service` | App HTTP + email queue; **produces** announcement AI jobs (no `env.AI`) |
-| `vbc-oos-announcement-image-gen` | **Consumes** queue → background images + layout plans → R2 |
+| `vbc-order-of-service` | App HTTP + email queue; **produces** announcement AI jobs (no `env.AI`); authorizes Rick and routes to the agent DO |
+| `vbc-oos-announcement-image-gen` | **Consumes** queue → background images + layout plans → R2; hosts the `RickAgent` Durable Object |
 
 ```bash
-pnpm deploy:image-gen   # deploy consumer first (claims the queue)
+pnpm deploy:image-gen   # deploy consumer + Rick DO first (creates the DO class)
 pnpm deploy             # main app (producer only for image-gen)
 # or
 pnpm deploy:all
 ```
 
-Local end-to-end image gen needs the consumer running separately:
+### Rick bindings and secrets
+
+- Main app: `RICK_AGENT` cross-script Durable Object binding
+  (`script_name: vbc-oos-announcement-image-gen`); `RICK_AGENT_TOKEN_SECRET`.
+- Sidecar: `RICK_AGENT` DO binding + `v1-rick-agent` SQLite migration;
+  `PORTAL` service binding back to the main app; `RICK_AGENT_TOKEN_SECRET`
+  (must be the same value), `RICK_MODEL`, `AI_GATEWAY_ID`.
+- `workers_dev: false` on the sidecar: the agent is only reachable through the
+  main app's cross-script DO binding.
+- Rick calls the portal's `/api/mcp` with a 5-minute HMAC token
+  (`src/lib/rick-agent-token.ts`), so every tool runs with the user's role
+  permissions. `requireSessionMiddleware` accepts the token in addition to
+  sessions and API keys.
+
+### Local development
+
+`pnpm dev` runs **both** Workers in one Vite dev server: `vite.config.ts` lists
+the sidecar under `cloudflare({ auxiliaryWorkers: [...] })`, which keeps
+cross-script Durable Object names and bindings faithful locally. No separate
+`wrangler dev` process is needed.
+
+Set local secrets from `.dev.vars.example` (root and
+`workers/announcement-image-gen/.dev.vars.example`). Without a Cloudflare login
+the sidecar's `AI` binding cannot reach AI Gateway; point Rick at a local
+OpenAI-compatible server instead:
 
 ```bash
-pnpm exec wrangler dev -c workers/announcement-image-gen/wrangler.jsonc
+node scripts/mock-llm-server.mjs   # :9799
+# sidecar .dev.vars: RICK_DEV_BASE_URL=http://127.0.0.1:9799/v1
 ```
 
 ## Node.js Compatibility

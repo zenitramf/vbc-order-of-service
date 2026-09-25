@@ -1,7 +1,9 @@
 /**
- * Slim Worker: announcement AI image generation queue consumer only.
+ * Slim AI Worker: announcement background/layout queue consumer plus the Rick
+ * chat agent Durable Object.
  * Deploy with: pnpm deploy:image-gen
- * Must be deployed for Generate Background to complete (writes JPEGs to R2).
+ * Must be deployed for Generate Background to complete (writes JPEGs to R2)
+ * and for the portal's Rick assistant to be reachable.
  */
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
@@ -19,8 +21,32 @@
   "ai": {
     "binding": "AI",
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RICK_AGENT",
+        "class_name": "RickAgent",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1-rick-agent",
+      "new_sqlite_classes": ["RickAgent"],
+    },
+  ],
+  "services": [
+    {
+      "binding": "PORTAL",
+      "service": "vbc-order-of-service",
+    },
+  ],
+  // No public HTTP surface: the portal reaches Rick through the cross-script
+  // Durable Object binding. Keep this off and add no routes.
+  "workers_dev": false,
   "vars": {
     "AI_GATEWAY_ID": "default",
+    "RICK_MODEL": "openai/gpt-6-luna",
   },
   "queues": {
     "consumers": [

@@ -1,0 +1,7 @@
+# Local development secrets (copy to .dev.vars). Never commit real values.
+BETTER_AUTH_SECRET=replace-with-openssl-rand-base64-32
+BETTER_AUTH_URL=http://localhost:3000
+
+# Shared HMAC secret for the Rick agent <-> portal MCP token. Must match the
+# value in workers/announcement-image-gen/.dev.vars.
+RICK_AGENT_TOKEN_SECRET=replace-with-openssl-rand-hex-32

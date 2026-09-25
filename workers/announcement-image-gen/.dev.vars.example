@@ -1,0 +1,7 @@
+# Local development secrets (copy to .dev.vars). Never commit real values.
+# Must match the value in the repo root .dev.vars.
+RICK_AGENT_TOKEN_SECRET=replace-with-openssl-rand-hex-32
+
+# Optional: route Rick's model calls to a local OpenAI-compatible server
+# instead of AI Gateway (useful without a Cloudflare login).
+# RICK_DEV_BASE_URL=http://127.0.0.1:9799/v1

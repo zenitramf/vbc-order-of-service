@@ -23,6 +23,7 @@ import {
 import { Fragment } from "react";
 import { toast } from "sonner";
 
+import { RickLauncher } from "~/components/rick-chat/rick-launcher";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -383,24 +384,29 @@ const ImpersonationBanner = () => {
   );
 };
 
-const AuthenticatedAppShell = () => (
-  <SidebarProvider>
-    <AppSidebar />
-    <SidebarInset>
-      <div className="flex min-h-svh flex-col">
-        <ImpersonationBanner />
-        <div className="flex h-14 shrink-0 items-center gap-2 px-4">
-          <SidebarTrigger />
-          <Separator className="h-4" orientation="vertical" />
-          <AppBreadcrumb />
+const AuthenticatedAppShell = () => {
+  const { user } = Route.useRouteContext();
+
+  return (
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset>
+        <div className="flex min-h-svh flex-col">
+          <ImpersonationBanner />
+          <div className="flex h-14 shrink-0 items-center gap-2 px-4">
+            <SidebarTrigger />
+            <Separator className="h-4" orientation="vertical" />
+            <AppBreadcrumb />
+          </div>
+          <main className="flex-1 p-4 md:p-6">
+            <Outlet />
+          </main>
         </div>
-        <main className="flex-1 p-4 md:p-6">
-          <Outlet />
-        </main>
-      </div>
-    </SidebarInset>
-  </SidebarProvider>
-);
+      </SidebarInset>
+      <RickLauncher userId={user.id} />
+    </SidebarProvider>
+  );
+};
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async () => {

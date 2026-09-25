@@ -1,16 +1,20 @@
 /**
- * Slim queue consumer Worker for announcement AI (backgrounds + layout).
- * No HTTP app surface — only processes oos-announcement-image-gen messages.
+ * Slim AI Worker: announcement background/layout queue consumer plus the Rick
+ * chat agent Durable Object.
+ *
+ * No public HTTP surface — the portal reaches Rick through the cross-script
+ * Durable Object binding, and the queue is consumed here so AI payloads never
+ * share an isolate with TanStack Start.
  */
 import {
   processAnnouncementImageGen,
   processAnnouncementLayoutGen,
 } from "./consumer";
+import { RickAgent } from "./rick-agent";
 import type { AnnouncementAiQueueMessage } from "./types";
-import {
-  isBackgroundQueueMessage,
-  isLayoutQueueMessage,
-} from "./types";
+import { isBackgroundQueueMessage, isLayoutQueueMessage } from "./types";
+
+export { RickAgent };
 
 const IMAGE_GEN_QUEUE = "oos-announcement-image-gen";
 
@@ -44,9 +48,12 @@ const processMessage = async (
 };
 
 export default {
-  async queue(
-    batch: MessageBatch<AnnouncementAiQueueMessage>
-  ): Promise<void> {
+  // The portal reaches Rick through the cross-script Durable Object binding;
+  // this Worker intentionally has no public HTTP surface.
+  fetch(): Response {
+    return new Response("Not found", { status: 404 });
+  },
+  async queue(batch: MessageBatch<AnnouncementAiQueueMessage>): Promise<void> {
     if (batch.queue !== IMAGE_GEN_QUEUE) {
       for (const message of batch.messages) {
         message.ack();

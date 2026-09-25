@@ -11,5 +11,10 @@
     "noEmit": true,
     "types": ["./worker-configuration.d.ts", "node"]
   },
-  "include": ["src/**/*.ts", "worker-configuration.d.ts"]
+  "include": [
+    "src/**/*.ts",
+    "worker-configuration.d.ts",
+    "../../src/lib/rick-agent-token.ts",
+    "../../src/lib/rick-approval.ts"
+  ]
 }

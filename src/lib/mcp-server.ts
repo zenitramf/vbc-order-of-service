@@ -3,6 +3,7 @@ import {
   ResourceTemplate,
 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { env } from "cloudflare:workers";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -56,6 +57,7 @@ import {
   sendOrderEmail,
 } from "~/lib/order-service-data";
 import type { HymnRecord } from "~/lib/order-service-types";
+import { resolveRickAgentTokenSubject } from "~/lib/rick-agent-token";
 
 interface McpContext {
   permissions: RolePermissions;
@@ -190,6 +192,20 @@ const saveMonthPlanningSettingsInput = z.object({
   ),
 });
 
+const getRickAgentTokenSecret = (): string | undefined =>
+  (env as Env & { RICK_AGENT_TOKEN_SECRET?: string }).RICK_AGENT_TOKEN_SECRET;
+
+const resolveCallerUserId = async (token: string): Promise<string | null> => {
+  const key = await resolveApiKey(token);
+
+  if (key) {
+    return key.userId;
+  }
+
+  // Not an API key: maybe a short-lived token minted by the Rick agent DO.
+  return await resolveRickAgentTokenSubject(token, getRickAgentTokenSecret());
+};
+
 const getCaller = async (request: Request): Promise<McpContext | Response> => {
   const authorization = request.headers.get("authorization") ?? "";
   const match = /^(?<scheme>Bearer)\s+(?<token>.+)$/iu.exec(authorization);
@@ -201,9 +217,9 @@ const getCaller = async (request: Request): Promise<McpContext | Response> => {
     });
   }
 
-  const key = await resolveApiKey(match.groups.token);
+  const userId = await resolveCallerUserId(match.groups.token);
 
-  if (!key) {
+  if (!userId) {
     return new Response("Invalid API key.", {
       headers: { "WWW-Authenticate": 'Bearer error="invalid_token"' },
       status: 401,
@@ -215,7 +231,7 @@ const getCaller = async (request: Request): Promise<McpContext | Response> => {
     .select({ permissions: roles.permissions, role: user.role })
     .from(user)
     .leftJoin(roles, eq(user.role, roles.id))
-    .where(eq(user.id, key.userId))
+    .where(eq(user.id, userId))
     .get();
 
   return {
@@ -223,7 +239,7 @@ const getCaller = async (request: Request): Promise<McpContext | Response> => {
       row?.role === "admin"
         ? { "*": ["*"] }
         : parsePermissions(row?.permissions ?? "{}"),
-    userId: key.userId,
+    userId,
   };
 };
 

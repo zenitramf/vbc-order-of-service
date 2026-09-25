@@ -53,6 +53,11 @@
         "name": "ORDER_EMAIL_STATUS",
         "class_name": "OrderEmailStatusDurableObject",
       },
+      {
+        "name": "RICK_AGENT",
+        "class_name": "RickAgent",
+        "script_name": "vbc-oos-announcement-image-gen",
+      },
     ],
   },
   "migrations": [
