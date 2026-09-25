@@ -81,6 +81,16 @@ const TOOL_LABELS: Record<string, string> = {
 const toolLabel = (toolName: string): string =>
   TOOL_LABELS[toolName] ?? toolName.replaceAll("_", " ");
 
+/**
+ * After a tool approval, the AI SDK's continuation stream emits
+ * `tool-output-available` without the matching call chunk, and the client-side
+ * stream processor throws (vercel/ai#10196). The server already applied the
+ * result and re-syncs the transcript over the WebSocket, so this error is
+ * cosmetic — hide it.
+ */
+const isHarmlessContinuationError = (error: Error): boolean =>
+  error.message.startsWith("No tool invocation found for tool call ID");
+
 const STATE_LABELS: Record<
   ReturnType<typeof getToolPartState>,
   string | undefined
@@ -402,7 +412,7 @@ const RickChatSession = ({ userId }: { userId: string }) => {
         {status === "submitted" && !isStreaming ? (
           <p className="text-muted-foreground text-xs">Rick is thinking…</p>
         ) : null}
-        {error ? (
+        {error && !isHarmlessContinuationError(error) ? (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive text-xs">
             {error.message ||
               "Rick hit an error. Please try again in a moment."}
