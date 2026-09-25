@@ -166,6 +166,24 @@ const respond = async (req, res) => {
     return;
   }
 
+  // Mirror production OpenAI models: `max_tokens` is rejected in favour of
+  // `max_completion_tokens`, so the sidecar's request transform is exercised.
+  if (typeof body.max_tokens === "number") {
+    res.writeHead(400, { "content-type": "application/json" });
+    res.end(
+      JSON.stringify({
+        error: {
+          code: "unsupported_parameter",
+          message:
+            "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+          param: "max_tokens",
+          type: "invalid_request_error",
+        },
+      })
+    );
+    return;
+  }
+
   const messages = Array.isArray(body.messages) ? body.messages : [];
   const lastUser = [...messages]
     .toReversed()

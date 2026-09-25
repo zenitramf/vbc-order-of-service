@@ -284,6 +284,7 @@ const RickChatSession = ({ userId }: { userId: string }) => {
     addToolApprovalResponse,
     clearHistory,
     connectionError,
+    error,
     isStreaming,
     messages,
     sendMessage,
@@ -350,18 +351,26 @@ const RickChatSession = ({ userId }: { userId: string }) => {
             onSuggestion={(suggestion) => sendMessage({ text: suggestion })}
           />
         ) : (
-          messages.map((message) => (
-            <ChatMessage
-              key={message.id}
-              message={message}
-              onApproval={(request) => {
-                void addToolApprovalResponse(request);
-              }}
-            />
-          ))
+          messages
+            .filter((message) => message.parts.length > 0)
+            .map((message) => (
+              <ChatMessage
+                key={message.id}
+                message={message}
+                onApproval={(request) => {
+                  void addToolApprovalResponse(request);
+                }}
+              />
+            ))
         )}
         {status === "submitted" && !isStreaming ? (
           <p className="text-muted-foreground text-xs">Rick is thinking…</p>
+        ) : null}
+        {error ? (
+          <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive text-xs">
+            {error.message ||
+              "Rick hit an error. Please try again in a moment."}
+          </p>
         ) : null}
         <div ref={endRef} />
       </div>

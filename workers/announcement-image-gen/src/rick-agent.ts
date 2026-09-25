@@ -45,9 +45,39 @@ type RickAgentEnv = Env & {
 const formatPacificDay = (now: Date): string =>
   new Intl.DateTimeFormat("en-CA", { timeZone: PACIFIC_TIME_ZONE }).format(now);
 
+/**
+ * The unified OpenAI-compatible provider sends `max_tokens`, but current
+ * OpenAI chat models (gpt-6-luna included) reject it and require
+ * `max_completion_tokens`. Rewrite it for OpenAI models only so other unified
+ * providers keep the standard parameter.
+ */
+const renameMaxTokensForOpenAi = (
+  modelId: string
+): ((body: Record<string, unknown>) => Record<string, unknown>) => {
+  if (!modelId.startsWith("openai/")) {
+    return (body) => body;
+  }
+
+  return (body) => {
+    if (typeof body.max_tokens !== "number") {
+      return body;
+    }
+
+    const next: Record<string, unknown> = {
+      ...body,
+      max_completion_tokens: body.max_tokens,
+    };
+
+    delete next.max_tokens;
+
+    return next;
+  };
+};
+
 const createRickModel = (env: RickAgentEnv) => {
   const modelId = env.RICK_MODEL?.trim() || DEFAULT_MODEL;
   const devBaseUrl = env.RICK_DEV_BASE_URL?.trim();
+  const transformRequestBody = renameMaxTokensForOpenAi(modelId);
 
   // Local development: point the OpenAI-compatible provider at a mock server.
   // Production always routes through AI Gateway with the AI binding.
@@ -56,6 +86,7 @@ const createRickModel = (env: RickAgentEnv) => {
       apiKey: "rick-local-dev",
       baseURL: devBaseUrl,
       name: "RickLocal",
+      transformRequestBody,
     });
 
     return localProvider(modelId);
@@ -65,7 +96,7 @@ const createRickModel = (env: RickAgentEnv) => {
     binding: env.AI.gateway(env.AI_GATEWAY_ID?.trim() || DEFAULT_GATEWAY_ID),
   });
 
-  return gateway(createUnified()(modelId));
+  return gateway(createUnified({ transformRequestBody })(modelId));
 };
 
 const buildSystemPrompt = ({
