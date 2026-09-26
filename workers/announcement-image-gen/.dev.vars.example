@@ -3,5 +3,9 @@
 RICK_AGENT_TOKEN_SECRET=replace-with-openssl-rand-hex-32
 
 # Optional: route Rick's model calls to a local OpenAI-compatible server
-# instead of AI Gateway (useful without a Cloudflare login).
+# instead of OpenRouter (useful without an OpenRouter key).
 # RICK_DEV_BASE_URL=http://127.0.0.1:9799/v1
+
+# Required in production (wrangler secret put OPENROUTER_API_KEY); optional
+# locally when RICK_DEV_BASE_URL is set.
+# OPENROUTER_API_KEY=sk-or-v1-...

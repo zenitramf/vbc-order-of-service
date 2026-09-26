@@ -12,6 +12,7 @@ import type {
   OnChatMessageOptions,
 } from "@cloudflare/ai-chat";
 import { AIChatAgent } from "@cloudflare/ai-chat";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { GenerateTextOnFinishCallback, ToolSet } from "ai";
 import {
   convertToModelMessages,
@@ -21,8 +22,6 @@ import {
   stepCountIs,
   streamText,
 } from "ai";
-import { createAiGateway } from "ai-gateway-provider";
-import { createOpenAI } from "ai-gateway-provider/providers/openai";
 import { createUnified } from "ai-gateway-provider/providers/unified";
 
 import { signRickAgentToken } from "../../../src/lib/rick-agent-token";
@@ -30,8 +29,6 @@ import { createRickMcpSession } from "./rick-mcp";
 import type { RickMcpSession } from "./rick-mcp";
 
 const DEFAULT_MODEL = "openai/gpt-6-luna";
-const COMPAT_BASE_URL = "https://gateway.ai.cloudflare.com/v1/compat";
-const DEFAULT_GATEWAY_ID = "default";
 const DAILY_MESSAGE_LIMIT = 50;
 const MAX_OUTPUT_TOKENS = 4000;
 const MAX_TOOL_STEPS = 8;
@@ -55,6 +52,7 @@ const parseReasoningEffort = (value: string | undefined): ReasoningEffort =>
 
 /** Secrets and local-dev vars that are not part of the generated Env type. */
 type RickAgentEnv = Env & {
+  OPENROUTER_API_KEY?: string;
   RICK_AGENT_TOKEN_SECRET?: string;
   RICK_DEV_BASE_URL?: string;
   RICK_MODEL?: string;
@@ -86,10 +84,10 @@ const renameMaxTokens = (
 };
 
 /**
- * Rick always sends tools, and gpt-6-luna rejects function tools with reasoning
- * enabled on `/chat/completions`. The Responses API supports both (with
- * streamed reasoning summaries), so production talks to it through the AI
- * Gateway compat endpoint; the AI binding handles unified-billing auth.
+ * Production talks to OpenRouter directly with our own API key — the previous
+ * AI Gateway unified-billing path caps paid models at 50 requests/min per
+ * account, which a single agentic chat turn (tool steps + retries) can burst
+ * past. OpenRouter applies its own per-key limits instead.
  */
 const createRickModel = (env: RickAgentEnv) => {
   const modelId = env.RICK_MODEL?.trim() || DEFAULT_MODEL;
@@ -106,13 +104,13 @@ const createRickModel = (env: RickAgentEnv) => {
     })(modelId);
   }
 
-  const gateway = createAiGateway({
-    binding: env.AI.gateway(env.AI_GATEWAY_ID?.trim() || DEFAULT_GATEWAY_ID),
-  });
+  const apiKey = env.OPENROUTER_API_KEY?.trim();
 
-  // The compat path lets the AI binding apply unified billing; the wrapper maps
-  // it to `provider: "compat"` on the gateway universal endpoint.
-  return gateway(createOpenAI({ baseURL: COMPAT_BASE_URL }).responses(modelId));
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not set on the Rick Worker.");
+  }
+
+  return createOpenRouter({ apiKey })(modelId);
 };
 
 const buildSystemPrompt = ({
@@ -204,21 +202,32 @@ export class RickAgent extends AIChatAgent<Env> {
 
     this.mcpSession = session;
 
+    let model: ReturnType<typeof createRickModel>;
+
+    try {
+      model = createRickModel(env);
+    } catch {
+      return textResponse(
+        "Rick isn't configured yet. Ask an admin to set the OPENROUTER_API_KEY secret on the Rick Worker."
+      );
+    }
+
     const result = streamText({
       maxOutputTokens: MAX_OUTPUT_TOKENS,
+      // One retry keeps a transient blip from failing the turn without
+      // tripling request volume against per-minute rate limits.
+      maxRetries: 1,
       messages: pruneMessages({
         messages: await convertToModelMessages(this.messages),
         toolCalls: "before-last-2-messages",
       }),
-      model: createRickModel(env),
+      model,
       onFinish: () => this.closeMcpSession(),
       providerOptions: {
-        openai: {
-          // The gateway needs the `openai/` model prefix, which stops the SDK
-          // from recognizing gpt-6-luna as a reasoning model; without this it
-          // silently strips `reasoning` from every request.
-          forceReasoning: true,
-          reasoningEffort: parseReasoningEffort(env.RICK_REASONING_EFFORT),
+        openrouter: {
+          reasoning: {
+            effort: parseReasoningEffort(env.RICK_REASONING_EFFORT),
+          },
         },
       },
       stopWhen: stepCountIs(MAX_TOOL_STEPS),

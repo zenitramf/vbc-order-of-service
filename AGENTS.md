@@ -42,7 +42,9 @@ pnpm deploy:all
   (`script_name: vbc-oos-announcement-image-gen`); `RICK_AGENT_TOKEN_SECRET`.
 - Sidecar: `RICK_AGENT` DO binding + `v1-rick-agent` SQLite migration;
   `PORTAL` service binding back to the main app; `RICK_AGENT_TOKEN_SECRET`
-  (must be the same value), `RICK_MODEL`, `AI_GATEWAY_ID`.
+  (must be the same value), `OPENROUTER_API_KEY` (Rick's model calls),
+  `RICK_MODEL`, `AI_GATEWAY_ID` (image gen only — Rick no longer uses AI
+  Gateway; unified billing caps paid models at 50 req/min per account).
 - `workers_dev: false` on the sidecar: the agent is only reachable through the
   main app's cross-script DO binding.
 - Rick calls the portal's `/api/mcp` with a 5-minute HMAC token
@@ -58,9 +60,9 @@ cross-script Durable Object names and bindings faithful locally. No separate
 `wrangler dev` process is needed.
 
 Set local secrets from `.dev.vars.example` (root and
-`workers/announcement-image-gen/.dev.vars.example`). Without a Cloudflare login
-the sidecar's `AI` binding cannot reach AI Gateway; point Rick at a local
-OpenAI-compatible server instead:
+`workers/announcement-image-gen/.dev.vars.example`). Rick calls OpenRouter in
+production; locally, either set `OPENROUTER_API_KEY` in the sidecar `.dev.vars`
+or point Rick at a local OpenAI-compatible server instead:
 
 ```bash
 node scripts/mock-llm-server.mjs   # :9799
