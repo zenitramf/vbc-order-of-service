@@ -6,17 +6,35 @@ import {
 } from "@cloudflare/ai-chat/react";
 import {
   BrainIcon,
-  PlusIcon,
+  CameraIcon,
+  FilePdfIcon,
+  PaperclipIcon,
   PaperPlaneRightIcon,
+  PlusIcon,
   StopCircleIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { useRouterState } from "@tanstack/react-router";
 import { useAgent } from "agents/react";
-import { getToolName, isReasoningUIPart, isTextUIPart, isToolUIPart } from "ai";
-import type { ReasoningUIPart, UIMessage } from "ai";
-import { Suspense, useEffect, useRef, useState } from "react";
+import {
+  getToolName,
+  isFileUIPart,
+  isReasoningUIPart,
+  isTextUIPart,
+  isToolUIPart,
+} from "ai";
+import type { FileUIPart, ReasoningUIPart, UIMessage } from "ai";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
+import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -28,6 +46,13 @@ import { Spinner } from "~/components/ui/spinner";
 import { Textarea } from "~/components/ui/textarea";
 import { cn } from "~/lib/utils";
 
+import {
+  ATTACHMENT_ACCEPT,
+  CAMERA_ACCEPT,
+  fileToFileUIPart,
+  MAX_FILES_PER_MESSAGE,
+  prepareAttachment,
+} from "./attachments";
 import { RickMarkdown } from "./rick-markdown";
 
 const SUGGESTIONS = [
@@ -187,6 +212,68 @@ const ReasoningPart = ({ part }: { part: ReasoningUIPart }) => (
   </details>
 );
 
+interface PendingAttachmentProps {
+  file: File;
+  onRemove: () => void;
+}
+
+const prepareAttachmentSafely = async (file: File): Promise<File | null> => {
+  try {
+    return await prepareAttachment(file);
+  } catch (error) {
+    toast.error(
+      error instanceof Error ? error.message : `Couldn't attach "${file.name}".`
+    );
+    return null;
+  }
+};
+
+const PendingAttachment = ({ file, onRemove }: PendingAttachmentProps) => {
+  const isImage = file.type.startsWith("image/");
+  const previewUrl = useMemo(
+    () => (isImage ? URL.createObjectURL(file) : null),
+    [file, isImage]
+  );
+
+  useEffect(
+    () => () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    },
+    [previewUrl]
+  );
+
+  return (
+    <li className="relative">
+      {previewUrl ? (
+        <img
+          alt={file.name}
+          className="size-16 rounded-lg border object-cover"
+          height={64}
+          src={previewUrl}
+          width={64}
+        />
+      ) : (
+        <div className="flex size-16 flex-col items-center justify-center gap-1 rounded-lg border bg-muted/40 p-1">
+          <FilePdfIcon className="size-5 shrink-0 text-muted-foreground" />
+          <span className="w-full truncate text-center text-[10px] leading-tight">
+            {file.name}
+          </span>
+        </div>
+      )}
+      <button
+        aria-label={`Remove ${file.name}`}
+        className="absolute -top-1.5 -right-1.5 rounded-full border bg-background p-0.5 text-muted-foreground shadow-sm transition-colors hover:text-foreground"
+        onClick={onRemove}
+        type="button"
+      >
+        <XIcon className="size-3.5" />
+      </button>
+    </li>
+  );
+};
+
 interface ChatMessageProps {
   message: UIMessage;
   onApproval: (request: ToolApprovalRequest) => void;
@@ -235,6 +322,31 @@ const ChatMessage = ({ message, onApproval }: ChatMessageProps) => {
                 key={`${message.id}-text-${index}`}
               >
                 {isUser ? part.text : <RickMarkdown>{part.text}</RickMarkdown>}
+              </div>
+            );
+          }
+
+          if (isFileUIPart(part)) {
+            if (part.mediaType.startsWith("image/")) {
+              return (
+                <img
+                  alt={part.filename ?? "Attached image"}
+                  className="max-h-64 max-w-full rounded-2xl border object-contain"
+                  key={`${message.id}-file-${index}`}
+                  src={part.url}
+                />
+              );
+            }
+
+            return (
+              <div
+                className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs"
+                key={`${message.id}-file-${index}`}
+              >
+                <FilePdfIcon className="size-4 shrink-0 text-muted-foreground" />
+                <span className="max-w-52 truncate">
+                  {part.filename ?? "Attached file"}
+                </span>
               </div>
             );
           }
@@ -318,7 +430,11 @@ const RickChatSheetFallback = () => (
 
 const RickChatSession = ({ userId }: { userId: string }) => {
   const [input, setInput] = useState("");
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -354,15 +470,60 @@ const RickChatSession = ({ userId }: { userId: string }) => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [partCount, isStreaming]);
 
-  const submit = () => {
-    const text = input.trim();
+  const handleFilesSelected = async (
+    event: ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    const selected = [...(event.target.files ?? [])];
+    event.target.value = "";
 
-    if (!text || isStreaming) {
+    if (selected.length === 0) {
       return;
     }
 
-    sendMessage({ text });
+    const capacity = MAX_FILES_PER_MESSAGE - pendingFiles.length;
+
+    if (selected.length > capacity) {
+      toast.error(`Attach up to ${MAX_FILES_PER_MESSAGE} files per message.`);
+    }
+
+    setIsPreparing(true);
+
+    const results = await Promise.all(
+      selected.slice(0, capacity).map((file) => prepareAttachmentSafely(file))
+    );
+    const prepared = results.filter((file): file is File => file !== null);
+
+    setIsPreparing(false);
+    setPendingFiles((current) => [...current, ...prepared]);
+  };
+
+  const submit = async (): Promise<void> => {
+    const text = input.trim();
+
+    if ((!text && pendingFiles.length === 0) || isStreaming || isPreparing) {
+      return;
+    }
+
+    let fileParts: FileUIPart[];
+
+    try {
+      fileParts = await Promise.all(
+        pendingFiles.map((file) => fileToFileUIPart(file))
+      );
+    } catch {
+      toast.error("Couldn't read an attachment. Please try again.");
+      return;
+    }
+
     setInput("");
+    setPendingFiles([]);
+
+    if (fileParts.length === 0) {
+      void sendMessage({ text });
+      return;
+    }
+
+    void sendMessage(text ? { files: fileParts, text } : { files: fileParts });
   };
 
   return (
@@ -428,48 +589,122 @@ const RickChatSession = ({ userId }: { userId: string }) => {
       ) : null}
 
       <form
-        className="flex items-end gap-2 border-t p-3"
+        className="flex flex-col gap-2 border-t p-3"
         onSubmit={(event) => {
           event.preventDefault();
-          submit();
+          void submit();
         }}
       >
-        <Textarea
-          autoFocus
-          className="max-h-32 min-h-10 flex-1 resize-none"
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submit();
-            }
-          }}
-          placeholder="Ask Rick anything…"
-          rows={1}
-          value={input}
-        />
-        {isStreaming ? (
-          <Button
-            aria-label="Stop Rick"
-            onClick={() => {
-              void stop();
+        {pendingFiles.length > 0 ? (
+          <ul className="flex flex-wrap gap-2">
+            {pendingFiles.map((file) => (
+              <PendingAttachment
+                file={file}
+                key={`${file.name}-${file.lastModified}-${file.size}`}
+                onRemove={() =>
+                  setPendingFiles((current) =>
+                    current.filter((item) => item !== file)
+                  )
+                }
+              />
+            ))}
+          </ul>
+        ) : null}
+        <div className="flex items-end gap-2">
+          <input
+            accept={ATTACHMENT_ACCEPT}
+            className="hidden"
+            multiple
+            onChange={(event) => {
+              void handleFilesSelected(event);
             }}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <StopCircleIcon />
-          </Button>
-        ) : (
-          <Button
-            aria-label="Send message"
-            disabled={!input.trim()}
-            size="icon"
-            type="submit"
-          >
-            <PaperPlaneRightIcon />
-          </Button>
-        )}
+            ref={fileInputRef}
+            type="file"
+          />
+          <input
+            accept={CAMERA_ACCEPT}
+            capture="environment"
+            className="hidden"
+            onChange={(event) => {
+              void handleFilesSelected(event);
+            }}
+            ref={cameraInputRef}
+            type="file"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                aria-label="Add an attachment"
+                disabled={
+                  isStreaming ||
+                  isPreparing ||
+                  pendingFiles.length >= MAX_FILES_PER_MESSAGE
+                }
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                {isPreparing ? <Spinner /> : <PaperclipIcon />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="top">
+              <DropdownMenuItem
+                onSelect={() => {
+                  fileInputRef.current?.click();
+                }}
+              >
+                <PaperclipIcon />
+                Attach a file
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  cameraInputRef.current?.click();
+                }}
+              >
+                <CameraIcon />
+                Take a photo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Textarea
+            autoFocus
+            className="max-h-32 min-h-10 flex-1 resize-none"
+            onChange={(event) => setInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void submit();
+              }
+            }}
+            placeholder="Ask Rick anything…"
+            rows={1}
+            value={input}
+          />
+          {isStreaming ? (
+            <Button
+              aria-label="Stop Rick"
+              onClick={() => {
+                void stop();
+              }}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <StopCircleIcon />
+            </Button>
+          ) : (
+            <Button
+              aria-label="Send message"
+              disabled={
+                (!input.trim() && pendingFiles.length === 0) || isPreparing
+              }
+              size="icon"
+              type="submit"
+            >
+              <PaperPlaneRightIcon />
+            </Button>
+          )}
+        </div>
       </form>
     </>
   );

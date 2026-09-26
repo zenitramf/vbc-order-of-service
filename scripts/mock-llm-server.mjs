@@ -97,6 +97,13 @@ const readBody = async (req) => {
   return raw ? JSON.parse(raw) : {};
 };
 
+const attachmentCount = (content) =>
+  Array.isArray(content)
+    ? content.filter(
+        (part) => part?.type === "image_url" || part?.type === "file"
+      ).length
+    : 0;
+
 const summarizeToolResult = (messages) => {
   const lastTool = [...messages].toReversed().find((m) => m.role === "tool");
 
@@ -195,6 +202,16 @@ const respond = async (req, res) => {
 
   if (hasToolResult && summary) {
     streamText(res, summary);
+    return;
+  }
+
+  const attachments = attachmentCount(lastUser?.content);
+
+  if (attachments > 0) {
+    streamText(
+      res,
+      `I received ${attachments} attachment(s) with your message. The local mock can't read them, but they reached the model request.`
+    );
     return;
   }
 
