@@ -5,10 +5,10 @@ import {
   useAgentChat,
 } from "@cloudflare/ai-chat/react";
 import {
-  ArrowsInIcon,
-  ArrowsOutIcon,
   BrainIcon,
   CameraIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
   FilePdfIcon,
   PaperclipIcon,
   PaperPlaneRightIcon,
@@ -430,17 +430,7 @@ const RickChatSheetFallback = () => (
   </>
 );
 
-interface RickChatSessionProps {
-  isExpanded: boolean;
-  onToggleExpanded: () => void;
-  userId: string;
-}
-
-const RickChatSession = ({
-  isExpanded,
-  onToggleExpanded,
-  userId,
-}: RickChatSessionProps) => {
+const RickChatSession = ({ userId }: { userId: string }) => {
   const [input, setInput] = useState("");
   const [isPreparing, setIsPreparing] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -540,7 +530,7 @@ const RickChatSession = ({
 
   return (
     <>
-      <SheetHeader className="flex-row items-center gap-3 border-b px-4 py-3 pr-20">
+      <SheetHeader className="flex-row items-center gap-3 border-b px-4 py-3 pr-12">
         <img alt="" className="size-10 rounded-full" src="/rick-avatar.svg" />
         <div className="flex flex-1 flex-col">
           <SheetTitle className="text-base">Rick</SheetTitle>
@@ -557,16 +547,6 @@ const RickChatSession = ({
         >
           <PlusIcon data-icon="inline-start" />
           New chat
-        </Button>
-        <Button
-          aria-label={isExpanded ? "Collapse chat" : "Expand chat"}
-          onClick={onToggleExpanded}
-          size="icon-sm"
-          title={isExpanded ? "Collapse chat" : "Expand chat"}
-          type="button"
-          variant="outline"
-        >
-          {isExpanded ? <ArrowsInIcon /> : <ArrowsOutIcon />}
         </Button>
       </SheetHeader>
 
@@ -767,16 +747,28 @@ export const RickChatSheet = ({
       <SheetContent
         className={cn(
           "flex w-full flex-col gap-0 p-0",
-          isExpanded ? "sm:max-w-none" : "sm:max-w-md"
+          // The sheet's own widths use the `data-[side=right]:` variant, so
+          // ours must match that variant to win the specificity contest.
+          isExpanded &&
+            "data-[side=right]:w-full data-[side=right]:sm:max-w-none"
         )}
         side="right"
       >
+        <button
+          aria-label={isExpanded ? "Collapse chat" : "Expand chat"}
+          className="absolute top-1/2 left-0 z-10 flex h-16 w-6 -translate-y-1/2 items-center justify-center rounded-r-full border-border border-y border-r bg-background/80 text-muted-foreground/60 shadow-sm backdrop-blur-sm transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
+          onClick={() => setIsExpanded((current) => !current)}
+          title={isExpanded ? "Collapse chat" : "Expand chat"}
+          type="button"
+        >
+          {isExpanded ? (
+            <CaretRightIcon className="size-3.5" />
+          ) : (
+            <CaretLeftIcon className="size-3.5" />
+          )}
+        </button>
         <Suspense fallback={<RickChatSheetFallback />}>
-          <RickChatSession
-            isExpanded={isExpanded}
-            onToggleExpanded={() => setIsExpanded((current) => !current)}
-            userId={userId}
-          />
+          <RickChatSession userId={userId} />
         </Suspense>
       </SheetContent>
     </Sheet>
