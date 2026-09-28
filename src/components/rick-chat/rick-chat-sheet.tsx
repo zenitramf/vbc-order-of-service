@@ -5,6 +5,8 @@ import {
   useAgentChat,
 } from "@cloudflare/ai-chat/react";
 import {
+  ArrowsInIcon,
+  ArrowsOutIcon,
   BrainIcon,
   CameraIcon,
   FilePdfIcon,
@@ -428,7 +430,17 @@ const RickChatSheetFallback = () => (
   </>
 );
 
-const RickChatSession = ({ userId }: { userId: string }) => {
+interface RickChatSessionProps {
+  isExpanded: boolean;
+  onToggleExpanded: () => void;
+  userId: string;
+}
+
+const RickChatSession = ({
+  isExpanded,
+  onToggleExpanded,
+  userId,
+}: RickChatSessionProps) => {
   const [input, setInput] = useState("");
   const [isPreparing, setIsPreparing] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -528,7 +540,7 @@ const RickChatSession = ({ userId }: { userId: string }) => {
 
   return (
     <>
-      <SheetHeader className="flex-row items-center gap-3 border-b px-4 py-3 pr-12">
+      <SheetHeader className="flex-row items-center gap-3 border-b px-4 py-3 pr-20">
         <img alt="" className="size-10 rounded-full" src="/rick-avatar.svg" />
         <div className="flex flex-1 flex-col">
           <SheetTitle className="text-base">Rick</SheetTitle>
@@ -545,6 +557,16 @@ const RickChatSession = ({ userId }: { userId: string }) => {
         >
           <PlusIcon data-icon="inline-start" />
           New chat
+        </Button>
+        <Button
+          aria-label={isExpanded ? "Collapse chat" : "Expand chat"}
+          onClick={onToggleExpanded}
+          size="icon-sm"
+          title={isExpanded ? "Collapse chat" : "Expand chat"}
+          type="button"
+          variant="outline"
+        >
+          {isExpanded ? <ArrowsInIcon /> : <ArrowsOutIcon />}
         </Button>
       </SheetHeader>
 
@@ -710,23 +732,53 @@ const RickChatSession = ({ userId }: { userId: string }) => {
   );
 };
 
+const EXPANDED_STORAGE_KEY = "rick-chat-expanded";
+
+const readExpandedPreference = (): boolean => {
+  try {
+    return window.localStorage.getItem(EXPANDED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Stable sheet shell: the drawer mounts once, and only its body swaps between
- * the connecting fallback and the live chat session.
+ * the connecting fallback and the live chat session. The header toggle widens
+ * the sheet to the full viewport; the choice persists across opens.
  */
 export const RickChatSheet = ({
   onOpenChange,
   open,
   userId,
-}: RickChatSheetProps) => (
-  <Sheet onOpenChange={onOpenChange} open={open}>
-    <SheetContent
-      className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
-      side="right"
-    >
-      <Suspense fallback={<RickChatSheetFallback />}>
-        <RickChatSession userId={userId} />
-      </Suspense>
-    </SheetContent>
-  </Sheet>
-);
+}: RickChatSheetProps) => {
+  const [isExpanded, setIsExpanded] = useState(readExpandedPreference);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(EXPANDED_STORAGE_KEY, String(isExpanded));
+    } catch {
+      // The preference just won't persist (e.g. storage disabled).
+    }
+  }, [isExpanded]);
+
+  return (
+    <Sheet onOpenChange={onOpenChange} open={open}>
+      <SheetContent
+        className={cn(
+          "flex w-full flex-col gap-0 p-0",
+          isExpanded ? "sm:max-w-none" : "sm:max-w-md"
+        )}
+        side="right"
+      >
+        <Suspense fallback={<RickChatSheetFallback />}>
+          <RickChatSession
+            isExpanded={isExpanded}
+            onToggleExpanded={() => setIsExpanded((current) => !current)}
+            userId={userId}
+          />
+        </Suspense>
+      </SheetContent>
+    </Sheet>
+  );
+};
