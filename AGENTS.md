@@ -24,10 +24,10 @@ Run `wrangler types` after changing bindings in wrangler.jsonc.
 AI background generation and the Rick chat agent run on a **separate slim
 Worker** so payloads never share the TanStack Start isolate (128 MB limit).
 
-| Worker | Role |
-| ------ | ---- |
-| `vbc-order-of-service` | App HTTP + email queue; **produces** announcement AI jobs (no `env.AI`); authorizes Rick and routes to the agent DO |
-| `vbc-oos-announcement-image-gen` | **Consumes** queue → background images + layout plans → R2; hosts the `RickAgent` Durable Object |
+| Worker                           | Role                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `vbc-order-of-service`           | App HTTP + email queue; **produces** announcement AI jobs (no `env.AI`); authorizes Rick and routes to the agent DO |
+| `vbc-oos-announcement-image-gen` | **Consumes** queue → background images + layout plans → R2; hosts the `RickAgent` Durable Object                    |
 
 ```bash
 pnpm deploy:image-gen   # deploy consumer + Rick DO first (creates the DO class)

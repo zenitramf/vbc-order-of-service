@@ -24,7 +24,7 @@ const baseDraft = (): AnnouncementDraft => ({
   layoutJob: null,
   legacyHtml: null,
   name: "Sunday",
-  overlayHtml: "<div class=\"announcement-overlay\"><h1>Title</h1></div>",
+  overlayHtml: '<div class="announcement-overlay"><h1>Title</h1></div>',
   projectData: null,
   selectedVariationId: "v1",
   showInPresentationDeck: false,
@@ -52,7 +52,7 @@ describe("isMaterialSave", () => {
     const draft = baseDraft();
     const data: SaveAnnouncementInput = {
       id: draft.id,
-      overlayHtml: "<div class=\"announcement-overlay\"><h1>Changed</h1></div>",
+      overlayHtml: '<div class="announcement-overlay"><h1>Changed</h1></div>',
     };
 
     expect(isMaterialSave(draft, data)).toBe(true);

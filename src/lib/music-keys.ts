@@ -42,8 +42,7 @@ export const getMusicKeyLabel = (value: string): string => {
   }
 
   const option = MUSIC_KEY_OPTIONS.find(
-    (entry) =>
-      entry.value === normalized || entry.aliases.includes(normalized)
+    (entry) => entry.value === normalized || entry.aliases.includes(normalized)
   );
 
   return option?.label ?? normalized;

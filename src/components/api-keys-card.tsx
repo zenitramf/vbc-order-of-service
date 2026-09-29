@@ -105,9 +105,7 @@ export const ApiKeysCard = ({
           <code className="break-all">{MCP_ENDPOINT_URL}</code>
           <Button
             className="mt-2"
-            onClick={() =>
-              void navigator.clipboard.writeText(MCP_ENDPOINT_URL)
-            }
+            onClick={() => void navigator.clipboard.writeText(MCP_ENDPOINT_URL)}
             size="sm"
             type="button"
             variant="outline"

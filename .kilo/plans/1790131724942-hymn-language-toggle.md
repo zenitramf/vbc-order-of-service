@@ -1,19 +1,23 @@
 # Hymn Language (English/Spanish) + Toggle Plan
 
 ## Goal
+
 Add `language` (`english` | `spanish`, default `english`) to hymn data, with a shadcn `ToggleGroup` selector in the hymn editor and a language filter + badge column on the hymn library list.
 
 ## Confirmed decisions
+
 - Storage: `TEXT NOT NULL DEFAULT 'english'` with `CHECK (language IN ('english','spanish'))`; existing rows backfill to `english`.
 - Editor + list filter scope (both).
 - List shows a Language `Badge` column; order-editor hymn picker (`getHymnOptions`) unchanged.
 - New hymns default `english`; editor value is required (never empty).
 
 ## Non-goals
+
 - No `hymn_languages` reference table.
 - No order-picker language display/grouping, no lyrics translation, no UI localization, no CSV re-import.
 
 ## Migration / schema
+
 1. `src/db/schema/hymns.ts`: add `language: text("language").notNull().default("english")` (+ optional `index("hymns_language_idx")`). Mirror migrations comment.
 2. Author SQL via `pnpm run db:generate` (`drizzle-kit generate`), review, copy into `migrations/0020_add_hymn_language.sql` (next number after `0019`). Expected shape:
    ```sql
@@ -26,6 +30,7 @@ Add `language` (`english` | `spanish`, default `english`) to hymn data, with a s
 4. No change to `migrations/0002_seed_hymns.sql` or `db/song-library-seed.csv`; inserts without `language` get `english`.
 
 ## Ordered tasks
+
 1. **Types** (`src/lib/order-service-types.ts`):
    - Add `export type HymnLanguage = "english" | "spanish";`
    - `HymnRecord`: add `language: HymnLanguage`.
@@ -44,11 +49,22 @@ Add `language` (`english` | `spanish`, default `english`) to hymn data, with a s
    - Submit: include `language` in `saveHymnFn({ data: {...} })`.
    - UI in Hymn details `FieldGroup`, after Source tag field: `Field` + `FieldLabel "Language"` + `ToggleGroup` (radix API — repo uses `radix-ui` primitive):
      ```tsx
-     import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
-     <ToggleGroup type="single" value={language} onValueChange={(v) => { if (v === "english" || v === "spanish") setLanguage(v); }} spacing={2} aria-label="Hymn language">
+     import {
+       ToggleGroup,
+       ToggleGroupItem,
+     } from "~/components/ui/toggle-group";
+     <ToggleGroup
+       type="single"
+       value={language}
+       onValueChange={(v) => {
+         if (v === "english" || v === "spanish") setLanguage(v);
+       }}
+       spacing={2}
+       aria-label="Hymn language"
+     >
        <ToggleGroupItem value="english">English</ToggleGroupItem>
        <ToggleGroupItem value="spanish">Español</ToggleGroupItem>
-     </ToggleGroup>
+     </ToggleGroup>;
      ```
      - Guard empty-string deselect (radix single can emit `""`) to keep required value.
      - Follow `.agents/skills/shadcn/rules/forms.md` (Field + ToggleGroup) and `base-vs-radix.md` (radix `type="single"`, plain string value).
@@ -64,6 +80,7 @@ Add `language` (`english` | `spanish`, default `english`) to hymn data, with a s
 7. **Docs**: update `README.md` hymn-library bullet to mention language if touching it (optional, one line).
 
 ## Failure modes / edge cases
+
 - Radix single-toggle deselect emits `""` → must be ignored in both editor and list filter (list uses `"all"` sentinel, so `v &&` guard).
 - Bilingual hymns (e.g. existing "Worthy of Worship (English and Spanish)") have no multi-value support; editor forces one choice — accepted limitation.
 - Old MCP/`saveHymn` callers omitting `language` → server defaults `english`; `update_hymn` must preserve current value (task 6).
@@ -71,6 +88,7 @@ Add `language` (`english` | `spanish`, default `english`) to hymn data, with a s
 - SQLite `CHECK` on `ADD COLUMN`: verify on local D1; fallback to app-level validation only.
 
 ## Validation
+
 - `pnpm run db:check`
 - `pnpm test` (vitest; covers updated `hymn-filters.test.ts`)
 - `pnpm build` (`vite build && tsc --noEmit`)
@@ -78,4 +96,5 @@ Add `language` (`english` | `spanish`, default `english`) to hymn data, with a s
 - Manual: new hymn shows English pressed by default; save persists; edit Spanish persists; list shows Badge + All/English/Español filter works; order hymn picker unchanged; `list_hymns` MCP filter by language works.
 
 ## Open questions
+
 - None. All material decisions resolved with user (storage text enum, editor+list scope, badge column with picker unchanged).
