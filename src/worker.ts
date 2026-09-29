@@ -3,7 +3,12 @@ import { routeAgentRequest } from "agents";
 
 import { OrderEmailStatusDurableObject } from "~/email-status-durable-object";
 import { createAuth } from "~/lib/auth";
-import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
+import { sendSmtpEmail } from "~/lib/email-sender";
+import type {
+  EmailQueueMessage,
+  OrderEmailQueueMessage,
+  PlainEmailQueueMessage,
+} from "~/lib/order-service-types";
 
 export { OrderEmailStatusDurableObject };
 
@@ -42,25 +47,46 @@ const authorizeRickAgentRequest = async (
   return undefined;
 };
 
-const isEmailMessage = (body: unknown): body is OrderEmailQueueMessage =>
+const isOrderEmailMessage = (body: unknown): body is OrderEmailQueueMessage =>
   typeof body === "object" &&
   body !== null &&
   "orderId" in body &&
   "deliveryId" in body;
 
+const isPlainEmailMessage = (body: unknown): body is PlainEmailQueueMessage =>
+  typeof body === "object" &&
+  body !== null &&
+  "type" in body &&
+  body.type === "plain" &&
+  "to" in body &&
+  "subject" in body &&
+  "text" in body;
+
 const processEmailBatch = async (
-  batch: MessageBatch<OrderEmailQueueMessage>,
+  batch: MessageBatch<EmailQueueMessage>,
   env: Env
 ): Promise<void> => {
   await Promise.all(
     batch.messages.map(async (message) => {
-      if (!isEmailMessage(message.body)) {
-        message.ack();
+      const { body } = message;
+
+      if (isOrderEmailMessage(body)) {
+        const stub = env.ORDER_EMAIL_STATUS.getByName(body.orderId);
+        await stub.processEmail(body);
         return;
       }
 
-      const stub = env.ORDER_EMAIL_STATUS.getByName(message.body.orderId);
-      await stub.processEmail(message.body);
+      if (isPlainEmailMessage(body)) {
+        try {
+          await sendSmtpEmail(env, body);
+        } catch (error) {
+          // Plain emails have no delivery row to record failures against, so
+          // surface them in Workers Logs instead.
+          console.error("Unable to send queued email.", error);
+        }
+      }
+
+      message.ack();
     })
   );
 };
@@ -88,10 +114,7 @@ export default {
 
     return await serverEntry.fetch(request);
   },
-  async queue(
-    batch: MessageBatch<OrderEmailQueueMessage>,
-    env: Env
-  ): Promise<void> {
+  async queue(batch: MessageBatch<EmailQueueMessage>, env: Env): Promise<void> {
     if (batch.queue === EMAIL_QUEUE) {
       await processEmailBatch(batch, env);
       return;
@@ -102,4 +125,4 @@ export default {
       message.ack();
     }
   },
-} satisfies ExportedHandler<Env, OrderEmailQueueMessage>;
+} satisfies ExportedHandler<Env, EmailQueueMessage>;

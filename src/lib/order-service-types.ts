@@ -112,6 +112,19 @@ export interface OrderEmailQueueMessage {
   subject: string;
 }
 
+/**
+ * Queue message for a plain-text email that is not tied to an order (for
+ * example auth emails such as new-user onboarding and password resets).
+ */
+export interface PlainEmailQueueMessage {
+  subject: string;
+  text: string;
+  to: string[];
+  type: "plain";
+}
+
+export type EmailQueueMessage = OrderEmailQueueMessage | PlainEmailQueueMessage;
+
 export type HymnLanguage = "english" | "spanish";
 
 export interface HymnRecord {

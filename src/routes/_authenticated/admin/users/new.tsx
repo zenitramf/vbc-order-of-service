@@ -1,6 +1,7 @@
 // oxlint-disable no-use-before-define
 import { ArrowLeftIcon, UserPlusIcon } from "@phosphor-icons/react";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -19,63 +20,50 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "~/components/ui/native-select";
-import { getRoles } from "~/lib/admin-data";
-import { authClient } from "~/lib/auth-client";
-
-type CreateUserRole = Parameters<
-  typeof authClient.admin.createUser
->[0]["role"];
+import { createUserWithOnboarding, getRoles } from "~/lib/admin-data";
 
 const NewUserPage = () => {
   const roles = Route.useLoaderData();
   const navigate = useNavigate();
+  const createUser = useServerFn(createUserWithOnboarding);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState("user");
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (password.length < 8) {
-      toast.error("Password must be at least 8 characters.");
-      return;
-    }
-
-    const trimmedFirstName = firstName.trim();
-    const trimmedLastName = lastName.trim();
-    const computedName = `${trimmedFirstName} ${trimmedLastName}`.trim();
-
     setIsSaving(true);
     try {
-      const { data, error } = await authClient.admin.createUser({
+      const result = await createUser({
         data: {
-          firstName: trimmedFirstName,
-          lastName: trimmedLastName,
+          email: email.trim(),
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          role,
         },
-        email: email.trim(),
-        name: computedName,
-        password,
-        role: role as CreateUserRole,
       });
 
-      if (error) {
-        toast.error(error.message ?? "Unable to create user.");
-        return;
+      if (result.onboardingEmailQueued) {
+        toast.success("User created — a sign-in email is on its way.");
+      } else {
+        toast.warning(
+          result.onboardingEmailError ??
+            "User created, but the sign-in email could not be sent."
+        );
       }
 
-      toast.success("User created.");
-
-      const createdId = data?.user?.id;
-      await (createdId
-        ? navigate({
-            params: { userId: createdId },
-            to: "/admin/users/$userId",
-          })
-        : navigate({ to: "/admin/users" }));
+      await navigate({
+        params: { userId: result.userId },
+        to: "/admin/users/$userId",
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to create user."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -95,7 +83,8 @@ const NewUserPage = () => {
             New user
           </h1>
           <p className="text-muted-foreground">
-            Create an account with an email and password.
+            The user gets an email to set their own password and sign in for the
+            first time.
           </p>
         </div>
         <Button disabled={isSaving} type="submit">
@@ -108,7 +97,8 @@ const NewUserPage = () => {
         <CardHeader>
           <CardTitle>Account details</CardTitle>
           <CardDescription>
-            The user can sign in immediately with these credentials.
+            We email the new user a link to choose their password. You never see
+            or share it.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -139,18 +129,6 @@ const NewUserPage = () => {
                 required
                 type="email"
                 value={email}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="new-user-password">Password</FieldLabel>
-              <Input
-                autoComplete="new-password"
-                id="new-user-password"
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 8 characters"
-                required
-                type="password"
-                value={password}
               />
             </Field>
             <Field>

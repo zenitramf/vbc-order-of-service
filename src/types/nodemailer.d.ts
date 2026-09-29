@@ -8,6 +8,7 @@ declare module "nodemailer" {
   interface SendMailOptions {
     attachments?: MailAttachment[];
     from: string;
+    html?: string;
     subject: string;
     text: string;
     to: string[];

@@ -2,94 +2,14 @@ import { Buffer } from "node:buffer";
 
 import { DurableObject } from "cloudflare:workers";
 import { eq, sql } from "drizzle-orm";
-import nodemailer from "nodemailer";
 
 import { createDb } from "~/db/client";
 import { orderEmailDeliveries } from "~/db/schema";
+import { sendSmtpEmail } from "~/lib/email-sender";
 import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
-
-interface StoredEmailSettings {
-  smtpAddress?: string;
-  smtpPort?: number;
-  smtpSenderName?: string;
-  smtpTokenEncrypted?: string;
-  smtpUserEncrypted?: string;
-}
-
-const EMAIL_SETTINGS_ENCRYPTION_KEY = "EMAIL_SETTINGS_ENCRYPTION_KEY";
-const SECURE_SMTP_PORT = 465;
 
 const getErrorMessage = (error: unknown, fallbackMessage: string) =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
-
-const getRequiredSecret = (env: Env, key: string) => {
-  const value = (env as unknown as Record<string, string | undefined>)[
-    key
-  ]?.trim();
-
-  if (!value) {
-    throw new Error(`${key} is not configured.`);
-  }
-
-  return value;
-};
-
-const getEmailEncryptionKey = async (env: Env) => {
-  const secret = getRequiredSecret(env, EMAIL_SETTINGS_ENCRYPTION_KEY);
-  const secretBytes = new TextEncoder().encode(secret);
-  const hash = await crypto.subtle.digest("SHA-256", secretBytes);
-
-  return crypto.subtle.importKey("raw", hash, "AES-GCM", false, ["decrypt"]);
-};
-
-const decryptSetting = async (env: Env, encryptedValue: string) => {
-  const [ivBase64, encryptedBase64] = encryptedValue.split(".");
-
-  if (!ivBase64 || !encryptedBase64) {
-    throw new Error("Stored SMTP setting is invalid.");
-  }
-
-  const iv = Buffer.from(ivBase64, "base64");
-  const encrypted = Buffer.from(encryptedBase64, "base64");
-  const decrypted = await crypto.subtle.decrypt(
-    { iv, name: "AES-GCM" },
-    await getEmailEncryptionKey(env),
-    encrypted
-  );
-
-  return new TextDecoder().decode(decrypted);
-};
-
-const getStoredEmailSettings = async (env: Env, key: string) => {
-  const row = await createDb(env.DB).get<{ value: string }>(
-    sql`SELECT value FROM app_settings WHERE key = ${key}`
-  );
-
-  if (!row) {
-    throw new Error("SMTP settings are not configured.");
-  }
-
-  const settings = JSON.parse(row.value) as StoredEmailSettings;
-
-  if (
-    !(
-      settings.smtpAddress &&
-      settings.smtpPort &&
-      settings.smtpTokenEncrypted &&
-      settings.smtpUserEncrypted
-    )
-  ) {
-    throw new Error("SMTP settings are incomplete.");
-  }
-
-  return {
-    smtpAddress: settings.smtpAddress,
-    smtpPort: settings.smtpPort,
-    smtpSenderName: settings.smtpSenderName?.trim() || "Order of Service",
-    smtpTokenEncrypted: settings.smtpTokenEncrypted,
-    smtpUserEncrypted: settings.smtpUserEncrypted,
-  };
-};
 
 const updateDeliveryStatus = async (
   env: Env,
@@ -124,40 +44,23 @@ export class OrderEmailStatusDurableObject extends DurableObject<Env> {
     try {
       await updateDeliveryStatus(this.env, message.deliveryId, "Sending");
 
-      const settings = await getStoredEmailSettings(
-        this.env,
-        message.smtpSettingsKey
+      const object = await this.env.SERVICE_PDFS.get(
+        message.attachment.objectKey
       );
-      const [smtpUser, smtpToken, object] = await Promise.all([
-        decryptSetting(this.env, settings.smtpUserEncrypted),
-        decryptSetting(this.env, settings.smtpTokenEncrypted),
-        this.env.SERVICE_PDFS.get(message.attachment.objectKey),
-      ]);
 
       if (!object) {
         throw new Error("Published PDF was not found in R2 storage.");
       }
 
-      const pdfBuffer = Buffer.from(await object.arrayBuffer());
-      const transporter = nodemailer.createTransport({
-        auth: {
-          pass: smtpToken,
-          user: smtpUser,
-        },
-        host: settings.smtpAddress,
-        port: settings.smtpPort,
-        secure: settings.smtpPort === SECURE_SMTP_PORT,
-      });
-
-      await transporter.sendMail({
+      await sendSmtpEmail(this.env, {
         attachments: [
           {
-            content: pdfBuffer,
+            content: Buffer.from(await object.arrayBuffer()),
             contentType: message.attachment.contentType,
             filename: message.attachment.filename,
           },
         ],
-        from: `${settings.smtpSenderName.replaceAll('"', "'")} <${smtpUser}>`,
+        settingsKey: message.smtpSettingsKey,
         subject: message.subject,
         text: message.body,
         to: message.recipients,

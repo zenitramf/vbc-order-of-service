@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PresentationRouteImport } from './routes/presentation'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
@@ -47,6 +48,11 @@ import { Route as AuthenticatedAdminUsersUserIdRouteImport } from './routes/_aut
 import { Route as AuthenticatedAdminRolesNewRouteImport } from './routes/_authenticated/admin/roles/new'
 import { Route as AuthenticatedAdminRolesRoleIdRouteImport } from './routes/_authenticated/admin/roles/$roleId'
 
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PresentationRoute = PresentationRouteImport.update({
   id: '/presentation',
   path: '/presentation',
@@ -256,6 +262,7 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
   '/presentation': typeof PresentationRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/presentation': typeof PresentationRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
   '/api/presentation-asset': typeof ApiPresentationAssetRoute
@@ -332,6 +340,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/presentation': typeof PresentationRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/presentation'
+    | '/reset-password'
     | '/admin'
     | '/planner'
     | '/api/mcp'
@@ -410,6 +420,7 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/presentation'
+    | '/reset-password'
     | '/planner'
     | '/api/mcp'
     | '/api/presentation-asset'
@@ -448,6 +459,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/presentation'
+    | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/planner'
     | '/api/mcp'
@@ -488,6 +500,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   PresentationRoute: typeof PresentationRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ApiMcpRoute: typeof ApiMcpRoute
   ApiPresentationAssetRoute: typeof ApiPresentationAssetRoute
   ApiR2AssetRoute: typeof ApiR2AssetRoute
@@ -496,6 +509,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/presentation': {
       id: '/presentation'
       path: '/presentation'
@@ -842,6 +862,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   PresentationRoute: PresentationRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ApiMcpRoute: ApiMcpRoute,
   ApiPresentationAssetRoute: ApiPresentationAssetRoute,
   ApiR2AssetRoute: ApiR2AssetRoute,

@@ -13,6 +13,7 @@ import {
   user,
   verification,
 } from "../db/schema/auth";
+import { buildPasswordResetEmail } from "./user-onboarding";
 
 /**
  * Better Auth on Drizzle + Cloudflare D1.
@@ -35,10 +36,20 @@ type AuthEnv = Env & {
   BETTER_AUTH_URL?: string;
 };
 
+interface ResetPasswordEmailParams {
+  url: string;
+  user: {
+    email: string;
+    firstName?: string;
+    name: string;
+  };
+}
+
 interface AuthSettings {
   baseURL?: string;
   database: DrizzleD1Database;
   secret?: string;
+  sendResetPassword?: (params: ResetPasswordEmailParams) => Promise<void>;
 }
 
 const authSchema = {
@@ -49,15 +60,34 @@ const authSchema = {
   verification,
 };
 
-const createAuthWithDatabase = ({ baseURL, database, secret }: AuthSettings) =>
+const createAuthWithDatabase = ({
+  baseURL,
+  database,
+  secret,
+  sendResetPassword,
+}: AuthSettings) =>
   betterAuth({
     baseURL,
     database: drizzleAdapter(database, {
       provider: "sqlite",
       schema: authSchema,
     }),
-    emailAndPassword: { enabled: true },
+    emailAndPassword: {
+      enabled: true,
+      sendResetPassword: sendResetPassword
+        ? async ({ user: resetUser, url }) => {
+            await sendResetPassword({ url, user: resetUser });
+          }
+        : undefined,
+    },
     plugins: [admin(), passkey(), tanstackStartCookies()],
+    rateLimit: {
+      customRules: {
+        // Admins onboarding a batch of users would otherwise hit the default
+        // 3-per-minute limit on password emails; 10 keeps reset spam bounded.
+        "/request-password-reset": { max: 10, window: 60 },
+      },
+    },
     secret,
     user: {
       additionalFields: {
@@ -78,6 +108,17 @@ export const createAuth = (env: AuthEnv) =>
     baseURL: env.BETTER_AUTH_URL,
     database: drizzle(env.DB),
     secret: env.BETTER_AUTH_SECRET,
+    sendResetPassword: async ({ user: resetUser, url }) => {
+      const queue = env.OOS_EMAIL_SENDER;
+
+      if (!queue) {
+        throw new Error("The email queue is not configured.");
+      }
+
+      const email = buildPasswordResetEmail(resetUser, url);
+
+      await queue.send({ ...email, to: [resetUser.email], type: "plain" });
+    },
   });
 
 const noopD1 = {

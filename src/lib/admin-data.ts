@@ -9,8 +9,10 @@ import { roles as rolesTable, session, user } from "~/db/schema";
 import type { RoleRecord, SaveRoleInput } from "~/lib/admin-permissions";
 import { parsePermissions } from "~/lib/admin-permissions";
 import { createAuth } from "~/lib/auth";
+import { EMAIL_SETTINGS_KEY, getStoredEmailSettings } from "~/lib/email-sender";
 import { resolveEmailVerifiedAfterEmailUpdate } from "~/lib/email-verification";
 import { isValidEmail } from "~/lib/teams-logic";
+import { PASSWORD_RESET_PATH } from "~/lib/user-onboarding";
 
 export const USERS_PAGE_SIZE = 10;
 
@@ -254,6 +256,118 @@ export const updateUserProfileAdmin = createServerFn({ method: "POST" })
     }
 
     return { success: true };
+  });
+
+export interface CreateUserWithOnboardingInput {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
+export interface CreateUserWithOnboardingResult {
+  onboardingEmailError?: string;
+  onboardingEmailQueued: boolean;
+  userId: string;
+}
+
+const getOnboardingEmailError = (error: unknown): string =>
+  error instanceof Error && error.message
+    ? error.message
+    : "Unable to send the sign-in email.";
+
+/**
+ * Verify the email path is configured before asking Better Auth to queue the
+ * link, so the admin gets immediate feedback instead of a silent queue
+ * failure (Better Auth swallows hook errors).
+ */
+const assertOnboardingEmailReady = async (): Promise<void> => {
+  if (!env.OOS_EMAIL_SENDER) {
+    throw new Error("The email queue is not configured.");
+  }
+
+  await getStoredEmailSettings(env, EMAIL_SETTINGS_KEY);
+};
+
+/**
+ * Create a user from the admin page with a random password, then email them a
+ * login link so they set their own password and sign in for the first time.
+ * The admin never chooses or sees the password.
+ */
+export const createUserWithOnboarding = createServerFn({ method: "POST" })
+  .validator((data: CreateUserWithOnboardingInput) => data)
+  .handler(async ({ data }): Promise<CreateUserWithOnboardingResult> => {
+    await requireAdmin();
+
+    const firstName = data.firstName.trim();
+    const lastName = data.lastName.trim();
+    const email = data.email.trim();
+
+    if (!firstName) {
+      throw new Error("First name is required.");
+    }
+
+    if (!lastName) {
+      throw new Error("Last name is required.");
+    }
+
+    if (!isValidEmail(email)) {
+      throw new Error("Enter a valid email address.");
+    }
+
+    const db = getAppDb();
+    const [existingUser, roleRecord] = await Promise.all([
+      db.select({ id: user.id }).from(user).where(eq(user.email, email)).get(),
+      db
+        .select({ id: rolesTable.id })
+        .from(rolesTable)
+        .where(eq(rolesTable.id, data.role))
+        .get(),
+    ]);
+
+    if (existingUser) {
+      throw new Error("That email address is already in use.");
+    }
+
+    if (!roleRecord) {
+      throw new Error("Role not found.");
+    }
+
+    const authInstance = createAuth(env);
+    const headers = getRequestHeaders();
+    const created = await authInstance.api.createUser({
+      body: {
+        data: { firstName, lastName },
+        email,
+        name: `${firstName} ${lastName}`,
+        password: `${crypto.randomUUID()}${crypto.randomUUID()}`,
+        // Role ids come from the app's roles table; Better Auth's admin plugin
+        // only types its built-in roles.
+        role: data.role as "admin" | "user",
+      },
+      headers,
+    });
+
+    let onboardingEmailQueued = false;
+    let onboardingEmailError: string | undefined;
+
+    try {
+      await assertOnboardingEmailReady();
+      await authInstance.api.requestPasswordReset({
+        body: { email, redirectTo: PASSWORD_RESET_PATH },
+        headers,
+      });
+      onboardingEmailQueued = true;
+    } catch (error) {
+      onboardingEmailError = getOnboardingEmailError(error);
+      console.error("Unable to send the new-user onboarding email.", error);
+    }
+
+    return {
+      onboardingEmailError,
+      onboardingEmailQueued,
+      userId: created.user.id,
+    };
   });
 
 const mapRoleRow = (row: Record<string, unknown>): RoleRecord => ({

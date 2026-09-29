@@ -1,6 +1,6 @@
 import { ChurchIcon, FingerprintIcon } from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { ComponentProps, FormEvent } from "react";
+import type { ComponentProps, FormEvent, MouseEvent } from "react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import {
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import { Spinner } from "~/components/ui/spinner";
+import { isValidEmail } from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
 
 const HOME_PATH = "/";
@@ -20,72 +21,109 @@ const LOGIN_HERO_IMAGE_URL = "/vbc_logo_portal_image.webp";
 
 type LoginFormProps = ComponentProps<"form"> & {
   isSubmitting: boolean;
+  onForgotPassword: (email: string) => void;
   onPasskeySignIn: () => void;
 };
 
 const LoginForm = ({
   className,
   isSubmitting,
+  onForgotPassword,
   onPasskeySignIn,
   ...props
-}: LoginFormProps) => (
-  <form className={cn("flex flex-col gap-6", className)} {...props}>
-    <FieldGroup>
-      <div className="flex flex-col items-center gap-1 text-center">
-        <h1 className="font-bold text-2xl">Login to your account</h1>
-        <p className="text-balance text-muted-foreground text-sm">
-          Enter your email below to login to your account
-        </p>
-      </div>
-      <Field>
-        <FieldLabel htmlFor="email">Email</FieldLabel>
-        <Input
-          autoCapitalize="none"
-          autoComplete="username webauthn"
-          id="email"
-          name="email"
-          placeholder="me@example.com"
-          required
-          type="email"
-        />
-      </Field>
-      <Field>
-        <div className="flex items-center">
-          <FieldLabel htmlFor="password">Password</FieldLabel>
+}: LoginFormProps) => {
+  const handleForgotPassword = (event: MouseEvent<HTMLButtonElement>) => {
+    const { form } = event.currentTarget;
+    const email = form ? String(new FormData(form).get("email") ?? "") : "";
+    onForgotPassword(email.trim());
+  };
+
+  return (
+    <form className={cn("flex flex-col gap-6", className)} {...props}>
+      <FieldGroup>
+        <div className="flex flex-col items-center gap-1 text-center">
+          <h1 className="font-bold text-2xl">Login to your account</h1>
+          <p className="text-balance text-muted-foreground text-sm">
+            Enter your email below to login to your account
+          </p>
         </div>
-        <Input
-          autoComplete="current-password webauthn"
-          id="password"
-          minLength={8}
-          name="password"
-          required
-          type="password"
-        />
-      </Field>
-      <Field>
-        <Button disabled={isSubmitting} type="submit">
-          {isSubmitting ? <Spinner /> : "Login"}
-        </Button>
-      </Field>
-      <FieldSeparator>Or</FieldSeparator>
-      <Field>
-        <Button
-          disabled={isSubmitting}
-          onClick={onPasskeySignIn}
-          type="button"
-          variant="outline"
-        >
-          <FingerprintIcon data-icon="inline-start" />
-          Sign in with a passkey
-        </Button>
-      </Field>
-    </FieldGroup>
-  </form>
-);
+        <Field>
+          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <Input
+            autoCapitalize="none"
+            autoComplete="username webauthn"
+            id="email"
+            name="email"
+            placeholder="me@example.com"
+            required
+            type="email"
+          />
+        </Field>
+        <Field>
+          <div className="flex items-center justify-between">
+            <FieldLabel htmlFor="password">Password</FieldLabel>
+            <button
+              className="text-muted-foreground text-sm underline-offset-4 hover:underline"
+              onClick={handleForgotPassword}
+              type="button"
+            >
+              Forgot password?
+            </button>
+          </div>
+          <Input
+            autoComplete="current-password webauthn"
+            id="password"
+            minLength={8}
+            name="password"
+            required
+            type="password"
+          />
+        </Field>
+        <Field>
+          <Button disabled={isSubmitting} type="submit">
+            {isSubmitting ? <Spinner /> : "Login"}
+          </Button>
+        </Field>
+        <FieldSeparator>Or</FieldSeparator>
+        <Field>
+          <Button
+            disabled={isSubmitting}
+            onClick={onPasskeySignIn}
+            type="button"
+            variant="outline"
+          >
+            <FingerprintIcon data-icon="inline-start" />
+            Sign in with a passkey
+          </Button>
+        </Field>
+      </FieldGroup>
+    </form>
+  );
+};
 
 interface ConditionalMediationCapable {
   isConditionalMediationAvailable?: () => Promise<boolean>;
 }
+
+const handleForgotPassword = async (email: string) => {
+  if (!isValidEmail(email)) {
+    toast.error("Enter your email address first.");
+    return;
+  }
+
+  const { authClient } = await import("~/lib/auth-client");
+  const { error } = await authClient.requestPasswordReset({
+    email,
+    redirectTo: "/reset-password",
+  });
+
+  if (error) {
+    toast.error(error.message ?? "Unable to send the reset email.");
+    return;
+  }
+
+  toast.success("If that email exists, we've sent a reset link.");
+};
 
 export const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -179,6 +217,7 @@ export const LoginPage = () => {
           <div className="w-full max-w-xs">
             <LoginForm
               isSubmitting={isSubmitting}
+              onForgotPassword={handleForgotPassword}
               onPasskeySignIn={handlePasskeySignIn}
               onSubmit={handleSubmit}
             />
