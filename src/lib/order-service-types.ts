@@ -108,7 +108,9 @@ export interface OrderEmailQueueMessage {
   deliveryId: string;
   orderId: string;
   recipients: string[];
-  smtpSettingsKey: "email.smtp";
+  settingsKey: "email.smtp";
+  /** Pre-Resend field name; accepted on consume for in-flight messages. */
+  smtpSettingsKey?: "email.smtp";
   subject: string;
 }
 
@@ -117,6 +119,7 @@ export interface OrderEmailQueueMessage {
  * example auth emails such as new-user onboarding and password resets).
  */
 export interface PlainEmailQueueMessage {
+  settingsKey?: string;
   subject: string;
   text: string;
   to: string[];
@@ -277,21 +280,17 @@ export interface SendOrderToCraftMyPdfInput {
 }
 
 export interface EmailSettingsRecord {
+  fromEmail: string;
+  fromEmailConfigured: boolean;
   recipients: string[];
-  smtpAddress: string;
-  smtpPort: number | "";
-  smtpSenderName: string;
-  smtpTokenConfigured: boolean;
-  smtpUserConfigured: boolean;
+  senderName: string;
 }
 
 export interface SaveEmailSettingsInput {
+  /** Omit to keep the currently stored sender address. */
+  fromEmail?: string;
   recipients: string[];
-  smtpAddress: string;
-  smtpPort: number;
-  smtpSenderName: string;
-  smtpToken?: string;
-  smtpUser?: string;
+  senderName: string;
 }
 
 export interface SaveHymnInput {

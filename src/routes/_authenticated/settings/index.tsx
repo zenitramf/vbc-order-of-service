@@ -40,26 +40,17 @@ const SettingsPage = () => {
   const addRecipient = useServerFn(addEmailRecipient);
   const deleteRecipient = useServerFn(deleteEmailRecipient);
   const saveSettings = useServerFn(saveEmailSettings);
-  const [smtpAddress, setSmtpAddress] = React.useState(settings.smtpAddress);
-  const [smtpPort, setSmtpPort] = React.useState(String(settings.smtpPort));
-  const [smtpSenderName, setSmtpSenderName] = React.useState(
-    settings.smtpSenderName
-  );
-  const [smtpUser, setSmtpUser] = React.useState("");
-  const [smtpToken, setSmtpToken] = React.useState("");
+  const [fromEmail, setFromEmail] = React.useState(settings.fromEmail);
+  const [senderName, setSenderName] = React.useState(settings.senderName);
   const [recipients, setRecipients] = React.useState(settings.recipients);
   const [newRecipient, setNewRecipient] = React.useState("");
   const [isSaving, setIsSaving] = React.useState(false);
 
-  const portNumber = Number(smtpPort);
   const invalidRecipient =
     newRecipient.trim().length > 0 && !EMAIL_REGEX.test(newRecipient.trim());
   const canSave =
-    smtpAddress.trim().length > 0 &&
-    smtpSenderName.trim().length > 0 &&
-    Number.isInteger(portNumber) &&
-    portNumber >= 1 &&
-    portNumber <= 65_535;
+    senderName.trim().length > 0 &&
+    (fromEmail.trim().length > 0 || settings.fromEmailConfigured);
 
   const onAddRecipient = async () => {
     const email = newRecipient.trim().toLowerCase();
@@ -105,15 +96,8 @@ const SettingsPage = () => {
   };
 
   const onSave = async () => {
-    const port = Number(smtpPort);
-
-    if (!(smtpUser.trim() || settings.smtpUserConfigured)) {
-      toast.error("Enter the SMTP user email address.");
-      return;
-    }
-
-    if (!(smtpToken.trim() || settings.smtpTokenConfigured)) {
-      toast.error("Enter the SMTP token.");
+    if (!(fromEmail.trim() || settings.fromEmailConfigured)) {
+      toast.error("Enter the sender email address.");
       return;
     }
 
@@ -122,17 +106,13 @@ const SettingsPage = () => {
       await saveSettings({
         data: {
           recipients,
-          smtpAddress,
-          smtpPort: port,
-          smtpSenderName,
-          ...(smtpToken.trim() ? { smtpToken } : {}),
-          ...(smtpUser.trim() ? { smtpUser } : {}),
+          senderName,
+          ...(fromEmail.trim() ? { fromEmail } : {}),
         },
       });
       toast.success("Email settings saved.");
       await router.invalidate();
-      setSmtpToken("");
-      setSmtpUser("");
+      setFromEmail("");
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -163,93 +143,48 @@ const SettingsPage = () => {
               <div className="flex flex-col gap-1.5">
                 <CardTitle>Email configuration</CardTitle>
                 <CardDescription>
-                  SMTP values are stored server-side. The user and token are
-                  encrypted and never returned to the UI.
+                  Sent through Resend. The API key is a Worker secret and is
+                  never returned to the UI.
                 </CardDescription>
               </div>
               <Badge
-                variant={
-                  settings.smtpTokenConfigured && settings.smtpUserConfigured
-                    ? "secondary"
-                    : "outline"
-                }
+                variant={settings.fromEmailConfigured ? "secondary" : "outline"}
               >
-                {settings.smtpTokenConfigured && settings.smtpUserConfigured
-                  ? "Configured"
-                  : "Incomplete"}
+                {settings.fromEmailConfigured ? "Configured" : "Incomplete"}
               </Badge>
             </div>
           </CardHeader>
           <CardContent>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="smtp-address">SMTP address</FieldLabel>
+                <FieldLabel htmlFor="sender-name">Sender name</FieldLabel>
                 <Input
-                  id="smtp-address"
-                  onChange={(event) => setSmtpAddress(event.target.value)}
-                  placeholder="smtp.example.com"
-                  value={smtpAddress}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="smtp-port">SMTP port</FieldLabel>
-                <Input
-                  id="smtp-port"
-                  max={65_535}
-                  min={1}
-                  onChange={(event) => setSmtpPort(event.target.value)}
-                  placeholder="587"
-                  type="number"
-                  value={smtpPort}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="smtp-sender-name">Sender name</FieldLabel>
-                <Input
-                  id="smtp-sender-name"
-                  onChange={(event) => setSmtpSenderName(event.target.value)}
+                  id="sender-name"
+                  onChange={(event) => setSenderName(event.target.value)}
                   placeholder="Victory Baptist Church"
-                  value={smtpSenderName}
+                  value={senderName}
                 />
                 <FieldDescription>
                   This name is shown as the sender display name.
                 </FieldDescription>
               </Field>
               <Field>
-                <FieldLabel htmlFor="smtp-user">SMTP user email</FieldLabel>
+                <FieldLabel htmlFor="from-email">Sender email</FieldLabel>
                 <Input
                   autoComplete="off"
-                  id="smtp-user"
-                  onChange={(event) => setSmtpUser(event.target.value)}
+                  id="from-email"
+                  onChange={(event) => setFromEmail(event.target.value)}
                   placeholder={
-                    settings.smtpUserConfigured
+                    settings.fromEmailConfigured
                       ? "Configured — enter a new value to replace"
                       : "mailer@example.com"
                   }
                   type="email"
-                  value={smtpUser}
+                  value={fromEmail}
                 />
                 <FieldDescription>
-                  The saved user is not displayed after it is stored.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="smtp-token">SMTP token</FieldLabel>
-                <Input
-                  autoComplete="new-password"
-                  id="smtp-token"
-                  onChange={(event) => setSmtpToken(event.target.value)}
-                  placeholder={
-                    settings.smtpTokenConfigured
-                      ? "Configured — enter a new value to replace"
-                      : "SMTP app token"
-                  }
-                  type="password"
-                  value={smtpToken}
-                />
-                <FieldDescription>
-                  The token is encrypted at rest and is never returned to the
-                  browser.
+                  Must be a sender address verified in Resend. The saved address
+                  is not displayed after it is stored.
                 </FieldDescription>
               </Field>
               <Button

@@ -9,6 +9,7 @@ interface __BaseEnv_Env {
 	BETTER_AUTH_SECRET: string;
 	BETTER_AUTH_URL: string;
 	RICK_AGENT_TOKEN_SECRET: string;
+	RESEND_API_KEY: string;
 	ORDER_EMAIL_STATUS: DurableObjectNamespace<import("./src/worker").OrderEmailStatusDurableObject>;
 	RICK_AGENT: DurableObjectNamespace /* RickAgent from vbc-oos-announcement-image-gen */;
 }
@@ -24,7 +25,7 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "RICK_AGENT_TOKEN_SECRET">> {}
+	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "BETTER_AUTH_SECRET" | "BETTER_AUTH_URL" | "RICK_AGENT_TOKEN_SECRET" | "RESEND_API_KEY">> {}
 }
 
 // Begin runtime types

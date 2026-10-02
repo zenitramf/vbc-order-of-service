@@ -5,3 +5,7 @@ BETTER_AUTH_URL=http://localhost:3000
 # Shared HMAC secret for the Rick agent <-> portal MCP token. Must match the
 # value in workers/announcement-image-gen/.dev.vars.
 RICK_AGENT_TOKEN_SECRET=replace-with-openssl-rand-hex-32
+
+# Resend API key used for order-of-service and auth emails.
+# Production: `wrangler secret put RESEND_API_KEY` (never commit the value).
+# RESEND_API_KEY=re_...
