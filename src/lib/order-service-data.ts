@@ -29,6 +29,7 @@ import {
   requireSendEmailPermissionMiddleware,
   requireSessionMiddleware,
 } from "~/lib/auth.functions";
+import { getStoredEmailSettings, sendSmtpEmail } from "~/lib/email-sender";
 import type {
   CraftMyPdfOrderPayload,
   CraftMyPdfOrderPayloadActivity,
@@ -75,6 +76,7 @@ import type {
   TemplateOption,
   UploadHymnFileInput,
   ServiceStatus,
+  SmtpAuthType,
   TemplateRecord,
   TemplateSummary,
 } from "~/lib/order-service-types";
@@ -93,6 +95,7 @@ import {
   validateTeamMember,
   validateTeamParent,
 } from "~/lib/teams-logic";
+import { buildTestEmailMessage } from "~/lib/test-email";
 
 const getPdfBucket = (): R2Bucket => {
   if (!env.SERVICE_PDFS) {
@@ -2137,6 +2140,29 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     ]);
 
     return { success: true };
+  });
+
+/**
+ * Send a test message through the saved SMTP configuration so the Settings
+ * page can verify sending works. Sends immediately (no queue) so failures
+ * surface directly to the caller.
+ */
+export const sendTestEmail = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((email: string) => email)
+  .handler(async ({ data }): Promise<{ authType: SmtpAuthType }> => {
+    const to = data.trim().toLowerCase();
+    assertValidEmail(to, "Test email address");
+    const settings = await getStoredEmailSettings(env, EMAIL_SETTINGS_KEY);
+    const message = buildTestEmailMessage(nowIso(), settings.smtpAuthType);
+
+    await sendSmtpEmail(env, {
+      subject: message.subject,
+      text: message.text,
+      to: [to],
+    });
+
+    return { authType: settings.smtpAuthType };
   });
 
 export const addEmailRecipient = createServerFn({ method: "POST" })

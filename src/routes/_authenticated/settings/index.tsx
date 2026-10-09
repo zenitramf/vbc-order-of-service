@@ -1,5 +1,10 @@
 // oxlint-disable no-use-before-define
-import { FloppyDiskIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import {
+  FloppyDiskIcon,
+  PaperPlaneIcon,
+  PlusIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
@@ -26,6 +31,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "~/components/ui/native-select";
+import { Separator } from "~/components/ui/separator";
 import {
   addEmailRecipient,
   deleteEmailRecipient,
@@ -33,6 +39,7 @@ import {
   getMonthPlanningSettings,
   getTemplates,
   saveEmailSettings,
+  sendTestEmail,
 } from "~/lib/order-service-data";
 import type {
   EmailSettingsRecord,
@@ -105,6 +112,78 @@ const getCredentialError = (input: CredentialInput): string | undefined => {
   }
 
   return undefined;
+};
+
+const SendTestEmailForm = () => {
+  const sendTest = useServerFn(sendTestEmail);
+  const [address, setAddress] = React.useState("");
+  const [isSending, setIsSending] = React.useState(false);
+  const invalidAddress =
+    address.trim().length > 0 && !EMAIL_REGEX.test(address.trim());
+
+  const onSend = async () => {
+    const to = address.trim().toLowerCase();
+
+    if (!EMAIL_REGEX.test(to)) {
+      toast.error("Enter a valid email address.");
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      const result = await sendTest({ data: to });
+      toast.success(
+        `Test email sent via ${result.authType === "oauth2" ? "OAuth 2.0" : "password"}.`
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Test email could not be sent."
+      );
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <>
+      <Separator />
+      <Field data-invalid={invalidAddress || undefined}>
+        <FieldLabel htmlFor="test-email-address">Send a test email</FieldLabel>
+        <div className="flex gap-2">
+          <Input
+            aria-invalid={invalidAddress || undefined}
+            id="test-email-address"
+            onChange={(event) => setAddress(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void onSend();
+              }
+            }}
+            placeholder="you@example.com"
+            type="email"
+            value={address}
+          />
+          <Button
+            disabled={isSending}
+            onClick={() => void onSend()}
+            type="button"
+            variant="outline"
+          >
+            <PaperPlaneIcon data-icon="inline-start" />
+            {isSending ? "Sending…" : "Send test"}
+          </Button>
+        </div>
+        {invalidAddress ? (
+          <FieldDescription>Enter a valid email address.</FieldDescription>
+        ) : (
+          <FieldDescription>
+            Uses the saved settings. Save first if you changed anything above.
+          </FieldDescription>
+        )}
+      </Field>
+    </>
+  );
 };
 
 const useEmailConfiguration = (
@@ -484,6 +563,7 @@ const SettingsPage = () => {
                 <FloppyDiskIcon data-icon="inline-start" />
                 {isSaving ? "Saving…" : "Save email settings"}
               </Button>
+              <SendTestEmailForm />
             </FieldGroup>
           </CardContent>
         </Card>
