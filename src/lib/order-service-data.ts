@@ -29,7 +29,6 @@ import {
   requireSendEmailPermissionMiddleware,
   requireSessionMiddleware,
 } from "~/lib/auth.functions";
-import { getStoredEmailSettings } from "~/lib/email-sender";
 import type {
   CraftMyPdfOrderPayload,
   CraftMyPdfOrderPayloadActivity,
@@ -184,6 +183,43 @@ const DEFAULT_MONTH_PLANNING_SETTINGS: MonthPlanningSettings = {
   ],
 };
 
+const getRequiredSecret = (key: string) => {
+  const value = (env as unknown as Record<string, string | undefined>)[
+    key
+  ]?.trim();
+
+  if (!value) {
+    throw new Error(
+      `${key} is not configured. Add it as a Cloudflare Worker secret before saving email settings.`
+    );
+  }
+
+  return value;
+};
+
+const getEmailEncryptionKey = async () => {
+  const secret = getRequiredSecret("EMAIL_SETTINGS_ENCRYPTION_KEY");
+  const secretBytes = new TextEncoder().encode(secret);
+  const hash = await crypto.subtle.digest("SHA-256", secretBytes);
+
+  return crypto.subtle.importKey("raw", hash, "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
+};
+
+const encryptSetting = async (value: string) => {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encodedValue = new TextEncoder().encode(value);
+  const encrypted = await crypto.subtle.encrypt(
+    { iv, name: "AES-GCM" },
+    await getEmailEncryptionKey(),
+    encodedValue
+  );
+
+  return `${Buffer.from(iv).toString("base64")}.${Buffer.from(encrypted).toString("base64")}`;
+};
+
 const isValidEmail = (email: string) => EMAIL_REGEX.test(email.trim());
 
 const assertValidEmail = (email: string, fieldName: string) => {
@@ -193,15 +229,46 @@ const assertValidEmail = (email: string, fieldName: string) => {
 };
 
 const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
-  if (!settings.senderName.trim()) {
+  if (!settings.smtpAddress.trim()) {
+    throw new Error("SMTP address is required.");
+  }
+
+  if (
+    !Number.isInteger(settings.smtpPort) ||
+    settings.smtpPort < 1 ||
+    settings.smtpPort > 65_535
+  ) {
+    throw new Error("SMTP port must be between 1 and 65535.");
+  }
+
+  if (!settings.smtpSenderName.trim()) {
     throw new Error("Sender name is required.");
   }
 
   if (
-    settings.fromEmail !== undefined &&
-    settings.fromEmail.trim().length > 0
+    settings.smtpAuthType !== "password" &&
+    settings.smtpAuthType !== "oauth2"
   ) {
-    assertValidEmail(settings.fromEmail, "Sender email");
+    throw new Error("SMTP auth type must be password or oauth2.");
+  }
+
+  if (settings.smtpUser !== undefined && settings.smtpUser.trim().length > 0) {
+    assertValidEmail(settings.smtpUser, "SMTP user");
+  }
+
+  if (
+    settings.smtpToken !== undefined &&
+    settings.smtpToken.trim().length === 0
+  ) {
+    throw new Error("SMTP token cannot be blank.");
+  }
+
+  if (
+    settings.smtpAuthType === "oauth2" &&
+    settings.oauthClientSecret !== undefined &&
+    settings.oauthClientSecret.trim().length === 0
+  ) {
+    throw new Error("OAuth client secret cannot be blank.");
   }
 
   for (const email of settings.recipients) {
@@ -1837,17 +1904,17 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
         .orderBy(emailRecipients.email),
     ]);
     const storedSettings = settingsRow
-      ? (JSON.parse(settingsRow.value) as Record<string, unknown>)
+      ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
       : {};
+    const credentialsReady =
+      storedSettings.smtpAuthType === "oauth2"
+        ? storedSettings.oauthClientSecretConfigured &&
+          Boolean(storedSettings.oauthTenantId) &&
+          Boolean(storedSettings.oauthClientId)
+        : storedSettings.smtpTokenConfigured;
 
-    if (
-      !(
-        storedSettings.fromEmailConfigured ||
-        (storedSettings.smtpTokenConfigured &&
-          storedSettings.smtpUserConfigured)
-      )
-    ) {
-      throw new Error("Email settings are not fully configured.");
+    if (!(storedSettings.smtpUserConfigured && credentialsReady)) {
+      throw new Error("SMTP settings are not fully configured.");
     }
 
     const recipients = recipientRows.map((row) => row.email);
@@ -1876,7 +1943,7 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       deliveryId,
       orderId: data,
       recipients,
-      settingsKey: EMAIL_SETTINGS_KEY,
+      smtpSettingsKey: EMAIL_SETTINGS_KEY,
       subject,
     };
 
@@ -1932,30 +1999,38 @@ export const getEmailSettings = createServerFn({
         .orderBy(emailRecipients.email),
     ]);
     const storedSettings = settingsRow
-      ? (JSON.parse(settingsRow.value) as Record<string, unknown>)
+      ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
       : {};
-    const legacyConfigured = Boolean(
-      storedSettings.smtpTokenConfigured && storedSettings.smtpUserConfigured
-    );
-
-    let senderName = "";
-
-    if (typeof storedSettings.senderName === "string") {
-      ({ senderName } = storedSettings);
-    } else if (typeof storedSettings.smtpSenderName === "string") {
-      senderName = storedSettings.smtpSenderName;
-    }
 
     return {
-      fromEmail:
-        typeof storedSettings.fromEmail === "string"
-          ? storedSettings.fromEmail
+      oauthClientId:
+        typeof storedSettings.oauthClientId === "string"
+          ? storedSettings.oauthClientId
           : "",
-      fromEmailConfigured: Boolean(
-        storedSettings.fromEmailConfigured || legacyConfigured
+      oauthClientSecretConfigured: Boolean(
+        storedSettings.oauthClientSecretConfigured
       ),
+      oauthTenantId:
+        typeof storedSettings.oauthTenantId === "string"
+          ? storedSettings.oauthTenantId
+          : "",
       recipients: recipientRows.map((row) => row.email),
-      senderName,
+      smtpAddress:
+        typeof storedSettings.smtpAddress === "string"
+          ? storedSettings.smtpAddress
+          : "",
+      smtpAuthType:
+        storedSettings.smtpAuthType === "oauth2" ? "oauth2" : "password",
+      smtpPort:
+        typeof storedSettings.smtpPort === "number"
+          ? storedSettings.smtpPort
+          : "",
+      smtpSenderName:
+        typeof storedSettings.smtpSenderName === "string"
+          ? storedSettings.smtpSenderName
+          : "",
+      smtpTokenConfigured: Boolean(storedSettings.smtpTokenConfigured),
+      smtpUserConfigured: Boolean(storedSettings.smtpUserConfigured),
     };
   });
 
@@ -1969,27 +2044,75 @@ export const saveEmailSettings = createServerFn({ method: "POST" })
     const trimmedRecipients = [
       ...new Set(data.recipients.map((email) => email.trim().toLowerCase())),
     ];
-    // Resolve the currently stored sender so omitting the address keeps the
-    // same FROM email (including rows saved in the legacy SMTP shape).
-    const resolved = await getStoredEmailSettings(
-      env,
-      EMAIL_SETTINGS_KEY
-    ).catch(() => null);
-    const fromEmail =
-      data.fromEmail?.trim().toLowerCase() || resolved?.fromEmail || "";
+    const currentRow = await db
+      .select({ value: appSettings.value })
+      .from(appSettings)
+      .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
+      .get();
+    const currentSettings = currentRow
+      ? (JSON.parse(currentRow.value) as Record<string, unknown>)
+      : {};
+    const encryptedToken = data.smtpToken
+      ? await encryptSetting(data.smtpToken.trim())
+      : asString(currentSettings.smtpTokenEncrypted);
+    const encryptedUser = data.smtpUser
+      ? await encryptSetting(data.smtpUser.trim().toLowerCase())
+      : asString(currentSettings.smtpUserEncrypted);
+    const oauthTenantId =
+      data.oauthTenantId?.trim() || asString(currentSettings.oauthTenantId);
+    const oauthClientId =
+      data.oauthClientId?.trim() || asString(currentSettings.oauthClientId);
+    const encryptedClientSecret = data.oauthClientSecret
+      ? await encryptSetting(data.oauthClientSecret.trim())
+      : asString(currentSettings.oauthClientSecretEncrypted);
 
-    if (!fromEmail) {
+    if (!encryptedUser) {
       throw new Error(
-        "Sender email address is required before email settings can be saved."
+        "SMTP user is required before email settings can be saved."
       );
     }
 
-    assertValidEmail(fromEmail, "Sender email");
+    if (data.smtpAuthType === "password") {
+      if (!encryptedToken) {
+        throw new Error(
+          "SMTP token is required before email settings can be saved."
+        );
+      }
+    } else {
+      if (!oauthTenantId) {
+        throw new Error(
+          "OAuth tenant ID is required before email settings can be saved."
+        );
+      }
 
+      if (!oauthClientId) {
+        throw new Error(
+          "OAuth client ID is required before email settings can be saved."
+        );
+      }
+
+      if (!encryptedClientSecret) {
+        throw new Error(
+          "OAuth client secret is required before email settings can be saved."
+        );
+      }
+    }
+
+    // Both credential sets are kept when present so switching auth modes back
+    // and forth does not force re-entering the other mode's secrets.
     const settingsToStore = {
-      fromEmail,
-      fromEmailConfigured: true,
-      senderName: data.senderName.trim(),
+      oauthClientId,
+      oauthClientSecretConfigured: Boolean(encryptedClientSecret),
+      oauthClientSecretEncrypted: encryptedClientSecret,
+      oauthTenantId,
+      smtpAddress: data.smtpAddress.trim(),
+      smtpAuthType: data.smtpAuthType,
+      smtpPort: data.smtpPort,
+      smtpSenderName: data.smtpSenderName.trim(),
+      smtpTokenConfigured: Boolean(encryptedToken),
+      smtpTokenEncrypted: encryptedToken,
+      smtpUserConfigured: true,
+      smtpUserEncrypted: encryptedUser,
     };
 
     const settingsValue = JSON.stringify(settingsToStore);

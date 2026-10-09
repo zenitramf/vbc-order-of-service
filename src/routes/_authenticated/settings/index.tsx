@@ -23,6 +23,10 @@ import {
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
 import {
+  NativeSelect,
+  NativeSelectOption,
+} from "~/components/ui/native-select";
+import {
   addEmailRecipient,
   deleteEmailRecipient,
   getEmailSettings,
@@ -30,27 +34,225 @@ import {
   getTemplates,
   saveEmailSettings,
 } from "~/lib/order-service-data";
+import type {
+  EmailSettingsRecord,
+  SmtpAuthType,
+} from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
+
+interface CredentialInput {
+  isOAuth: boolean;
+  oauthClientId: string;
+  oauthClientSecret: string;
+  oauthTenantId: string;
+  settings: EmailSettingsRecord;
+  smtpToken: string;
+  smtpUser: string;
+}
+
+const isEmailConfigured = (settings: EmailSettingsRecord): boolean => {
+  if (!settings.smtpUserConfigured) {
+    return false;
+  }
+
+  if (settings.smtpAuthType === "oauth2") {
+    return (
+      settings.oauthClientSecretConfigured &&
+      settings.oauthTenantId.length > 0 &&
+      settings.oauthClientId.length > 0
+    );
+  }
+
+  return settings.smtpTokenConfigured;
+};
+
+const configuredPlaceholder = (
+  isConfigured: boolean,
+  emptyPlaceholder: string
+): string =>
+  isConfigured ? "Configured — enter a new value to replace" : emptyPlaceholder;
+
+const getCredentialError = (input: CredentialInput): string | undefined => {
+  if (!(input.smtpUser.trim() || input.settings.smtpUserConfigured)) {
+    return "Enter the SMTP user email address.";
+  }
+
+  if (input.isOAuth) {
+    if (!(input.oauthTenantId.trim() || input.settings.oauthTenantId)) {
+      return "Enter the Entra tenant (directory) ID.";
+    }
+
+    if (!(input.oauthClientId.trim() || input.settings.oauthClientId)) {
+      return "Enter the Entra application (client) ID.";
+    }
+
+    if (
+      !(
+        input.oauthClientSecret.trim() ||
+        input.settings.oauthClientSecretConfigured
+      )
+    ) {
+      return "Enter the Entra client secret.";
+    }
+
+    return undefined;
+  }
+
+  if (!(input.smtpToken.trim() || input.settings.smtpTokenConfigured)) {
+    return "Enter the SMTP token.";
+  }
+
+  return undefined;
+};
+
+const useEmailConfiguration = (
+  settings: EmailSettingsRecord,
+  recipients: string[]
+) => {
+  const router = useRouter();
+  const saveSettings = useServerFn(saveEmailSettings);
+  const [smtpAddress, setSmtpAddress] = React.useState(settings.smtpAddress);
+  const [smtpPort, setSmtpPort] = React.useState(String(settings.smtpPort));
+  const [smtpSenderName, setSmtpSenderName] = React.useState(
+    settings.smtpSenderName
+  );
+  const [smtpUser, setSmtpUser] = React.useState("");
+  const [smtpToken, setSmtpToken] = React.useState("");
+  const [smtpAuthType, setSmtpAuthType] = React.useState<SmtpAuthType>(
+    settings.smtpAuthType
+  );
+  const [oauthTenantId, setOauthTenantId] = React.useState(
+    settings.oauthTenantId
+  );
+  const [oauthClientId, setOauthClientId] = React.useState(
+    settings.oauthClientId
+  );
+  const [oauthClientSecret, setOauthClientSecret] = React.useState("");
+  const [isSaving, setIsSaving] = React.useState(false);
+
+  const isOAuth = smtpAuthType === "oauth2";
+  const portNumber = Number(smtpPort);
+  const emailConfigured = isEmailConfigured(settings);
+  const canSave =
+    smtpAddress.trim().length > 0 &&
+    smtpSenderName.trim().length > 0 &&
+    Number.isInteger(portNumber) &&
+    portNumber >= 1 &&
+    portNumber <= 65_535;
+
+  const onSave = async () => {
+    const port = Number(smtpPort);
+    const credentialError = getCredentialError({
+      isOAuth,
+      oauthClientId,
+      oauthClientSecret,
+      oauthTenantId,
+      settings,
+      smtpToken,
+      smtpUser,
+    });
+
+    if (credentialError) {
+      toast.error(credentialError);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await saveSettings({
+        data: {
+          recipients,
+          smtpAddress,
+          smtpAuthType,
+          smtpPort: port,
+          smtpSenderName,
+          ...(smtpToken.trim() ? { smtpToken } : {}),
+          ...(smtpUser.trim() ? { smtpUser } : {}),
+          ...(oauthTenantId.trim() ? { oauthTenantId } : {}),
+          ...(oauthClientId.trim() ? { oauthClientId } : {}),
+          ...(oauthClientSecret.trim() ? { oauthClientSecret } : {}),
+        },
+      });
+      toast.success("Email settings saved.");
+      await router.invalidate();
+      setSmtpToken("");
+      setSmtpUser("");
+      setOauthClientSecret("");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Email settings could not be saved."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return {
+    canSave,
+    emailConfigured,
+    isOAuth,
+    isSaving,
+    oauthClientId,
+    oauthClientSecret,
+    oauthTenantId,
+    onSave,
+    setOauthClientId,
+    setOauthClientSecret,
+    setOauthTenantId,
+    setSmtpAddress,
+    setSmtpAuthType,
+    setSmtpPort,
+    setSmtpSenderName,
+    setSmtpToken,
+    setSmtpUser,
+    smtpAddress,
+    smtpAuthType,
+    smtpPort,
+    smtpSenderName,
+    smtpToken,
+    smtpUser,
+  };
+};
 
 const SettingsPage = () => {
   const { monthPlanning, settings, templates } = Route.useLoaderData();
   const router = useRouter();
   const addRecipient = useServerFn(addEmailRecipient);
   const deleteRecipient = useServerFn(deleteEmailRecipient);
-  const saveSettings = useServerFn(saveEmailSettings);
-  const [fromEmail, setFromEmail] = React.useState(settings.fromEmail);
-  const [senderName, setSenderName] = React.useState(settings.senderName);
   const [recipients, setRecipients] = React.useState(settings.recipients);
   const [newRecipient, setNewRecipient] = React.useState("");
-  const [isSaving, setIsSaving] = React.useState(false);
+  const {
+    canSave,
+    emailConfigured,
+    isOAuth,
+    isSaving,
+    oauthClientId,
+    oauthClientSecret,
+    oauthTenantId,
+    onSave,
+    setOauthClientId,
+    setOauthClientSecret,
+    setOauthTenantId,
+    setSmtpAddress,
+    setSmtpAuthType,
+    setSmtpPort,
+    setSmtpSenderName,
+    setSmtpToken,
+    setSmtpUser,
+    smtpAddress,
+    smtpAuthType,
+    smtpPort,
+    smtpSenderName,
+    smtpToken,
+    smtpUser,
+  } = useEmailConfiguration(settings, recipients);
 
   const invalidRecipient =
     newRecipient.trim().length > 0 && !EMAIL_REGEX.test(newRecipient.trim());
-  const canSave =
-    senderName.trim().length > 0 &&
-    (fromEmail.trim().length > 0 || settings.fromEmailConfigured);
 
   const onAddRecipient = async () => {
     const email = newRecipient.trim().toLowerCase();
@@ -95,35 +297,6 @@ const SettingsPage = () => {
     }
   };
 
-  const onSave = async () => {
-    if (!(fromEmail.trim() || settings.fromEmailConfigured)) {
-      toast.error("Enter the sender email address.");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await saveSettings({
-        data: {
-          recipients,
-          senderName,
-          ...(fromEmail.trim() ? { fromEmail } : {}),
-        },
-      });
-      toast.success("Email settings saved.");
-      await router.invalidate();
-      setFromEmail("");
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Email settings could not be saved."
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -143,50 +316,166 @@ const SettingsPage = () => {
               <div className="flex flex-col gap-1.5">
                 <CardTitle>Email configuration</CardTitle>
                 <CardDescription>
-                  Sent through Resend. The API key is a Worker secret and is
-                  never returned to the UI.
+                  SMTP values are stored server-side. The user and token are
+                  encrypted and never returned to the UI.
                 </CardDescription>
               </div>
-              <Badge
-                variant={settings.fromEmailConfigured ? "secondary" : "outline"}
-              >
-                {settings.fromEmailConfigured ? "Configured" : "Incomplete"}
+              <Badge variant={emailConfigured ? "secondary" : "outline"}>
+                {emailConfigured ? "Configured" : "Incomplete"}
               </Badge>
             </div>
           </CardHeader>
           <CardContent>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="sender-name">Sender name</FieldLabel>
+                <FieldLabel htmlFor="smtp-address">SMTP address</FieldLabel>
                 <Input
-                  id="sender-name"
-                  onChange={(event) => setSenderName(event.target.value)}
+                  id="smtp-address"
+                  onChange={(event) => setSmtpAddress(event.target.value)}
+                  placeholder="smtp.example.com"
+                  value={smtpAddress}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="smtp-port">SMTP port</FieldLabel>
+                <Input
+                  id="smtp-port"
+                  max={65_535}
+                  min={1}
+                  onChange={(event) => setSmtpPort(event.target.value)}
+                  placeholder="587"
+                  type="number"
+                  value={smtpPort}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="smtp-sender-name">Sender name</FieldLabel>
+                <Input
+                  id="smtp-sender-name"
+                  onChange={(event) => setSmtpSenderName(event.target.value)}
                   placeholder="Victory Baptist Church"
-                  value={senderName}
+                  value={smtpSenderName}
                 />
                 <FieldDescription>
                   This name is shown as the sender display name.
                 </FieldDescription>
               </Field>
               <Field>
-                <FieldLabel htmlFor="from-email">Sender email</FieldLabel>
-                <Input
-                  autoComplete="off"
-                  id="from-email"
-                  onChange={(event) => setFromEmail(event.target.value)}
-                  placeholder={
-                    settings.fromEmailConfigured
-                      ? "Configured — enter a new value to replace"
-                      : "mailer@example.com"
+                <FieldLabel htmlFor="smtp-auth-type">Authentication</FieldLabel>
+                <NativeSelect
+                  className="w-full"
+                  id="smtp-auth-type"
+                  onChange={(event) =>
+                    setSmtpAuthType(event.target.value as SmtpAuthType)
                   }
-                  type="email"
-                  value={fromEmail}
-                />
+                  value={smtpAuthType}
+                >
+                  <NativeSelectOption value="password">
+                    Password / app password
+                  </NativeSelectOption>
+                  <NativeSelectOption value="oauth2">
+                    OAuth 2.0 (Microsoft Entra)
+                  </NativeSelectOption>
+                </NativeSelect>
                 <FieldDescription>
-                  Must be a sender address verified in Resend. The saved address
-                  is not displayed after it is stored.
+                  OAuth 2.0 is required for Exchange Online once Microsoft
+                  retires Basic authentication for SMTP.
                 </FieldDescription>
               </Field>
+              <Field>
+                <FieldLabel htmlFor="smtp-user">SMTP user email</FieldLabel>
+                <Input
+                  autoComplete="off"
+                  id="smtp-user"
+                  onChange={(event) => setSmtpUser(event.target.value)}
+                  placeholder={configuredPlaceholder(
+                    settings.smtpUserConfigured,
+                    "mailer@example.com"
+                  )}
+                  type="email"
+                  value={smtpUser}
+                />
+                <FieldDescription>
+                  {isOAuth
+                    ? "The sending mailbox. It must be the mailbox your Entra app was granted access to."
+                    : "The saved user is not displayed after it is stored."}
+                </FieldDescription>
+              </Field>
+              {isOAuth ? (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="oauth-tenant-id">
+                      Entra tenant (directory) ID
+                    </FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      id="oauth-tenant-id"
+                      onChange={(event) => setOauthTenantId(event.target.value)}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      value={oauthTenantId}
+                    />
+                    <FieldDescription>
+                      From the app registration overview page in Entra.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="oauth-client-id">
+                      Entra application (client) ID
+                    </FieldLabel>
+                    <Input
+                      autoComplete="off"
+                      id="oauth-client-id"
+                      onChange={(event) => setOauthClientId(event.target.value)}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                      value={oauthClientId}
+                    />
+                    <FieldDescription>
+                      From the app registration overview page in Entra.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="oauth-client-secret">
+                      Entra client secret
+                    </FieldLabel>
+                    <Input
+                      autoComplete="new-password"
+                      id="oauth-client-secret"
+                      onChange={(event) =>
+                        setOauthClientSecret(event.target.value)
+                      }
+                      placeholder={configuredPlaceholder(
+                        settings.oauthClientSecretConfigured,
+                        "Client secret value"
+                      )}
+                      type="password"
+                      value={oauthClientSecret}
+                    />
+                    <FieldDescription>
+                      The secret is encrypted at rest and is never returned to
+                      the browser.
+                    </FieldDescription>
+                  </Field>
+                </>
+              ) : (
+                <Field>
+                  <FieldLabel htmlFor="smtp-token">SMTP token</FieldLabel>
+                  <Input
+                    autoComplete="new-password"
+                    id="smtp-token"
+                    onChange={(event) => setSmtpToken(event.target.value)}
+                    placeholder={configuredPlaceholder(
+                      settings.smtpTokenConfigured,
+                      "SMTP app token"
+                    )}
+                    type="password"
+                    value={smtpToken}
+                  />
+                  <FieldDescription>
+                    The token is encrypted at rest and is never returned to the
+                    browser.
+                  </FieldDescription>
+                </Field>
+              )}
               <Button
                 disabled={!canSave || isSaving}
                 onClick={onSave}

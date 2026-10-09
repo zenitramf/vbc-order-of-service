@@ -3,7 +3,7 @@ import { routeAgentRequest } from "agents";
 
 import { OrderEmailStatusDurableObject } from "~/email-status-durable-object";
 import { createAuth } from "~/lib/auth";
-import { sendResendEmail } from "~/lib/email-sender";
+import { sendSmtpEmail } from "~/lib/email-sender";
 import type {
   EmailQueueMessage,
   OrderEmailQueueMessage,
@@ -78,7 +78,7 @@ const processEmailBatch = async (
 
       if (isPlainEmailMessage(body)) {
         try {
-          await sendResendEmail(env, body);
+          await sendSmtpEmail(env, body);
         } catch (error) {
           // Plain emails have no delivery row to record failures against, so
           // surface them in Workers Logs instead.

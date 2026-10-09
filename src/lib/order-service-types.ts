@@ -108,9 +108,9 @@ export interface OrderEmailQueueMessage {
   deliveryId: string;
   orderId: string;
   recipients: string[];
-  settingsKey: "email.smtp";
-  /** Pre-Resend field name; accepted on consume for in-flight messages. */
-  smtpSettingsKey?: "email.smtp";
+  /** Resend-era field name; accepted on consume for in-flight messages. */
+  settingsKey?: "email.smtp";
+  smtpSettingsKey: "email.smtp";
   subject: string;
 }
 
@@ -119,7 +119,6 @@ export interface OrderEmailQueueMessage {
  * example auth emails such as new-user onboarding and password resets).
  */
 export interface PlainEmailQueueMessage {
-  settingsKey?: string;
   subject: string;
   text: string;
   to: string[];
@@ -279,18 +278,36 @@ export interface SendOrderToCraftMyPdfInput {
   templateId?: string;
 }
 
+/** SMTP credential flavor: mailbox password/app password, or Entra OAuth2. */
+export type SmtpAuthType = "oauth2" | "password";
+
 export interface EmailSettingsRecord {
-  fromEmail: string;
-  fromEmailConfigured: boolean;
+  oauthClientId: string;
+  oauthClientSecretConfigured: boolean;
+  oauthTenantId: string;
   recipients: string[];
-  senderName: string;
+  smtpAddress: string;
+  smtpAuthType: SmtpAuthType;
+  smtpPort: number | "";
+  smtpSenderName: string;
+  smtpTokenConfigured: boolean;
+  smtpUserConfigured: boolean;
 }
 
 export interface SaveEmailSettingsInput {
-  /** Omit to keep the currently stored sender address. */
-  fromEmail?: string;
+  /** Omit to keep the currently stored Entra application (client) ID. */
+  oauthClientId?: string;
+  /** Omit to keep the currently stored Entra client secret. */
+  oauthClientSecret?: string;
+  /** Omit to keep the currently stored Entra directory (tenant) ID. */
+  oauthTenantId?: string;
   recipients: string[];
-  senderName: string;
+  smtpAddress: string;
+  smtpAuthType: SmtpAuthType;
+  smtpPort: number;
+  smtpSenderName: string;
+  smtpToken?: string;
+  smtpUser?: string;
 }
 
 export interface SaveHymnInput {

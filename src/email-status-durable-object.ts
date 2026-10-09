@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { createDb } from "~/db/client";
 import { orderEmailDeliveries } from "~/db/schema";
-import { sendResendEmail } from "~/lib/email-sender";
+import { sendSmtpEmail } from "~/lib/email-sender";
 import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
 
 const getErrorMessage = (error: unknown, fallbackMessage: string) =>
@@ -52,7 +52,7 @@ export class OrderEmailStatusDurableObject extends DurableObject<Env> {
         throw new Error("Published PDF was not found in R2 storage.");
       }
 
-      await sendResendEmail(this.env, {
+      await sendSmtpEmail(this.env, {
         attachments: [
           {
             content: Buffer.from(await object.arrayBuffer()),
@@ -60,7 +60,7 @@ export class OrderEmailStatusDurableObject extends DurableObject<Env> {
             filename: message.attachment.filename,
           },
         ],
-        settingsKey: message.settingsKey ?? message.smtpSettingsKey,
+        settingsKey: message.smtpSettingsKey ?? message.settingsKey,
         subject: message.subject,
         text: message.body,
         to: message.recipients,
