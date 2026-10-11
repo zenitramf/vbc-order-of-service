@@ -37,6 +37,7 @@ import type {
   CraftMyPdfOrderPayloadTeamMember,
   CreateOrderInput,
   DashboardData,
+  EmailQueueMessage,
   EmailSettingsRecord,
   HymnFileDownload,
   HymnFileRecord,
@@ -56,6 +57,7 @@ import type {
   OrderServiceTemplateJson,
   OrderSummary,
   PlanMonthInput,
+  PublishOrderResult,
   ReferenceData,
   ReferenceOption,
   RenameHymnFileInput,
@@ -66,12 +68,15 @@ import type {
   SaveTemplateInput,
   SaveTeamInput,
   SaveTeamMemberInput,
+  SaveTeamsSettingsInput,
   SendOrderToCraftMyPdfInput,
   Team,
   TeamMember,
   TeamMembershipInput,
   TeamMemberSummary,
   TeamRecord,
+  TeamsPostResult,
+  TeamsSettingsRecord,
   TeamSummary,
   TemplateOption,
   UploadHymnFileInput,
@@ -80,6 +85,12 @@ import type {
   TemplateRecord,
   TemplateSummary,
 } from "~/lib/order-service-types";
+import {
+  TEAMS_CHANNEL_EMAIL_KEY,
+  buildTeamsChannelMessage,
+  isValidChannelEmail,
+  normalizeChannelEmail,
+} from "~/lib/teams-channel";
 import {
   findMissingRequiredTeams,
   getAssignmentMemberIds,
@@ -105,9 +116,9 @@ const getPdfBucket = (): R2Bucket => {
   return env.SERVICE_PDFS;
 };
 
-const getEmailQueue = (): Queue<OrderEmailQueueMessage> => {
+const getEmailQueue = (): Queue<EmailQueueMessage> => {
   const queue = (
-    env as unknown as { OOS_EMAIL_SENDER?: Queue<OrderEmailQueueMessage> }
+    env as unknown as { OOS_EMAIL_SENDER?: Queue<EmailQueueMessage> }
   ).OOS_EMAIL_SENDER;
 
   if (!queue) {
@@ -277,6 +288,77 @@ const assertValidEmailSettings = (settings: SaveEmailSettingsInput) => {
   for (const email of settings.recipients) {
     assertValidEmail(email, "Recipient");
   }
+};
+
+/** Whether the stored SMTP flags describe a usable mail configuration. */
+const isSmtpConfigured = (
+  storedSettings: Partial<EmailSettingsRecord>
+): boolean => {
+  const credentialsReady =
+    storedSettings.smtpAuthType === "oauth2"
+      ? storedSettings.oauthClientSecretConfigured &&
+        Boolean(storedSettings.oauthTenantId) &&
+        Boolean(storedSettings.oauthClientId)
+      : storedSettings.smtpTokenConfigured;
+
+  return Boolean(storedSettings.smtpUserConfigured && credentialsReady);
+};
+
+/**
+ * Queue a post of the published order PDF to the Microsoft Teams channel.
+ * Never throws: publishing already succeeded by the time this runs, so every
+ * skip or queue failure is reported through the result for the UI to surface.
+ */
+const queueTeamsChannelPost = async (
+  db: AppDatabase,
+  order: OrderRecord,
+  pdfObjectKey: string
+): Promise<TeamsPostResult> => {
+  const teamsRow = await db
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, TEAMS_CHANNEL_EMAIL_KEY))
+    .get();
+  const channelEmail = normalizeChannelEmail(teamsRow?.value ?? "");
+
+  if (!channelEmail) {
+    return { queued: false, reason: "not-configured" };
+  }
+
+  if (!isValidChannelEmail(channelEmail)) {
+    return { queued: false, reason: "invalid-email" };
+  }
+
+  const settingsRow = await db
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
+    .get();
+  const storedSettings = settingsRow
+    ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
+    : {};
+
+  if (!isSmtpConfigured(storedSettings)) {
+    return { queued: false, reason: "smtp-not-configured" };
+  }
+
+  try {
+    await getEmailQueue().send(
+      buildTeamsChannelMessage({
+        bucket: SERVICE_PDFS_BUCKET_NAME,
+        channelEmail,
+        filename: pdfObjectKey,
+        objectKey: pdfObjectKey,
+        orderId: order.id,
+        serviceDate: order.serviceDate,
+      }),
+      { contentType: "json" }
+    );
+  } catch {
+    return { channelEmail, queued: false, reason: "queue-failed" };
+  }
+
+  return { channelEmail, queued: true };
 };
 
 const loadReferenceOptions = async (
@@ -1736,100 +1818,98 @@ export const publishOrder = createServerFn({ method: "POST" })
   .validator((data: string | { dryRun?: boolean; id: string }) =>
     typeof data === "string" ? { dryRun: false, id: data } : data
   )
-  .handler(
-    async ({
-      data,
-    }): Promise<{ dryRun?: boolean; id: string; pdfObjectKey?: string }> => {
-      const db = getAppDb();
-      const orderId = data.id;
-      const order = await getOrder({ data: orderId });
+  .handler(async ({ data }): Promise<PublishOrderResult> => {
+    const db = getAppDb();
+    const orderId = data.id;
+    const order = await getOrder({ data: orderId });
 
-      if (!order) {
-        throw new Error("Order of service not found.");
-      }
+    if (!order) {
+      throw new Error("Order of service not found.");
+    }
 
-      assertHymnActivitiesHaveSelections(order);
-      await assertRequiredTeamsStaffed(db, order);
+    assertHymnActivitiesHaveSelections(order);
+    await assertRequiredTeamsStaffed(db, order);
 
-      if (order.status === "Published") {
-        return { id: orderId, pdfObjectKey: order.pdfObjectKey };
-      }
+    if (order.status === "Published") {
+      return { id: orderId, pdfObjectKey: order.pdfObjectKey };
+    }
 
-      if (data.dryRun) {
-        const craftMyPdfResult = await postOrderToCraftMyPdf({
-          data: { dryRun: true, orderId },
-        });
-        return { id: orderId, ...craftMyPdfResult };
-      }
-
+    if (data.dryRun) {
       const craftMyPdfResult = await postOrderToCraftMyPdf({
-        data: { orderId },
+        data: { dryRun: true, orderId },
       });
-      const pdfUrl = getCraftMyPdfFileUrl(
-        craftMyPdfResult.craftMyPdfResponseBody ?? "{}"
+      return { id: orderId, ...craftMyPdfResult };
+    }
+
+    const craftMyPdfResult = await postOrderToCraftMyPdf({
+      data: { orderId },
+    });
+    const pdfUrl = getCraftMyPdfFileUrl(
+      craftMyPdfResult.craftMyPdfResponseBody ?? "{}"
+    );
+    const pdfResponse = await fetch(pdfUrl);
+
+    if (!pdfResponse.ok) {
+      throw new Error(
+        `Unable to download generated PDF (${pdfResponse.status} ${pdfResponse.statusText}).`
       );
-      const pdfResponse = await fetch(pdfUrl);
+    }
 
-      if (!pdfResponse.ok) {
-        throw new Error(
-          `Unable to download generated PDF (${pdfResponse.status} ${pdfResponse.statusText}).`
-        );
-      }
+    const pdfObjectKey = getPdfObjectKey(order);
+    const pdfFilename =
+      pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
+    await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
+      httpMetadata: {
+        contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
+        contentType: "application/pdf",
+      },
+    });
 
-      const pdfObjectKey = getPdfObjectKey(order);
-      const pdfFilename =
-        pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
-      await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
-        httpMetadata: {
-          contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
-          contentType: "application/pdf",
-        },
-      });
+    const hymnIds = new Set<string>();
 
-      const hymnIds = new Set<string>();
-
-      for (const segment of order.order.service_type) {
-        for (const activity of segment.activities) {
-          if (activity.activityType === "hymn" && activity.hymnId) {
-            hymnIds.add(activity.hymnId);
-          }
+    for (const segment of order.order.service_type) {
+      for (const activity of segment.activities) {
+        if (activity.activityType === "hymn" && activity.hymnId) {
+          hymnIds.add(activity.hymnId);
         }
       }
-      const timestamp = nowIso();
-      const statements: BatchItem<"sqlite">[] = [
-        db
-          .update(ordersOfService)
-          .set({
-            pdfObjectKey,
-            publishedAt: timestamp,
-            status: "Published",
-            updatedAt: timestamp,
-          })
-          .where(eq(ordersOfService.id, orderId)),
-      ];
-
-      for (const hymnId of hymnIds) {
-        statements.push(
-          db.insert(hymnPlays).values({
-            hymnId,
-            id: uuidv4(),
-            orderId,
-            playedOn: order.serviceDate,
-          }),
-          db
-            .update(hymns)
-            .set({ lastPlayed: order.serviceDate, updatedAt: timestamp })
-            .where(eq(hymns.id, hymnId))
-        );
-      }
-
-      await db.batch(
-        statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
-      );
-
-      return { id: orderId, pdfObjectKey };
     }
-  );
+    const timestamp = nowIso();
+    const statements: BatchItem<"sqlite">[] = [
+      db
+        .update(ordersOfService)
+        .set({
+          pdfObjectKey,
+          publishedAt: timestamp,
+          status: "Published",
+          updatedAt: timestamp,
+        })
+        .where(eq(ordersOfService.id, orderId)),
+    ];
+
+    for (const hymnId of hymnIds) {
+      statements.push(
+        db.insert(hymnPlays).values({
+          hymnId,
+          id: uuidv4(),
+          orderId,
+          playedOn: order.serviceDate,
+        }),
+        db
+          .update(hymns)
+          .set({ lastPlayed: order.serviceDate, updatedAt: timestamp })
+          .where(eq(hymns.id, hymnId))
+      );
+    }
+
+    await db.batch(
+      statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
+    );
+
+    const teamsPost = await queueTeamsChannelPost(db, order, pdfObjectKey);
+
+    return { id: orderId, pdfObjectKey, teamsPost };
+  });
 
 export const getPublishedOrderPdf = createServerFn({
   method: "GET",
@@ -1909,14 +1989,8 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
     const storedSettings = settingsRow
       ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
       : {};
-    const credentialsReady =
-      storedSettings.smtpAuthType === "oauth2"
-        ? storedSettings.oauthClientSecretConfigured &&
-          Boolean(storedSettings.oauthTenantId) &&
-          Boolean(storedSettings.oauthClientId)
-        : storedSettings.smtpTokenConfigured;
 
-    if (!(storedSettings.smtpUserConfigured && credentialsReady)) {
+    if (!isSmtpConfigured(storedSettings)) {
       throw new Error("SMTP settings are not fully configured.");
     }
 
@@ -2190,6 +2264,56 @@ export const deleteEmailRecipient = createServerFn({
     await db
       .delete(emailRecipients)
       .where(eq(emailRecipients.email, data.trim().toLowerCase()));
+
+    return { success: true };
+  });
+
+export const getTeamsSettings = createServerFn({
+  method: "GET",
+})
+  .middleware([requireSessionMiddleware])
+  .handler(async (): Promise<TeamsSettingsRecord> => {
+    const row = await getAppDb()
+      .select({ value: appSettings.value })
+      .from(appSettings)
+      .where(eq(appSettings.key, TEAMS_CHANNEL_EMAIL_KEY))
+      .get();
+
+    return { channelEmail: normalizeChannelEmail(row?.value ?? "") };
+  });
+
+export const saveTeamsSettings = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: SaveTeamsSettingsInput) => data)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    const channelEmail = normalizeChannelEmail(data.channelEmail ?? "");
+
+    if (channelEmail && !isValidChannelEmail(channelEmail)) {
+      throw new Error("Teams channel email must be a valid email address.");
+    }
+
+    const db = getAppDb();
+
+    if (!channelEmail) {
+      await db
+        .delete(appSettings)
+        .where(eq(appSettings.key, TEAMS_CHANNEL_EMAIL_KEY));
+
+      return { success: true };
+    }
+
+    const timestamp = nowIso();
+    await db
+      .insert(appSettings)
+      .values({
+        key: TEAMS_CHANNEL_EMAIL_KEY,
+        updatedAt: timestamp,
+        value: channelEmail,
+      })
+      .onConflictDoUpdate({
+        set: { updatedAt: timestamp, value: channelEmail },
+        target: appSettings.key,
+      });
 
     return { success: true };
   });

@@ -37,8 +37,10 @@ import {
   deleteEmailRecipient,
   getEmailSettings,
   getMonthPlanningSettings,
+  getTeamsSettings,
   getTemplates,
   saveEmailSettings,
+  saveTeamsSettings,
   sendTestEmail,
 } from "~/lib/order-service-data";
 import type {
@@ -297,8 +299,101 @@ const useEmailConfiguration = (
   };
 };
 
+const TeamsChannelForm = ({ initialEmail }: { initialEmail: string }) => {
+  const router = useRouter();
+  const saveSettings = useServerFn(saveTeamsSettings);
+  const [channelEmail, setChannelEmail] = React.useState(initialEmail);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const trimmedEmail = channelEmail.trim();
+  const invalidEmail =
+    trimmedEmail.length > 0 && !EMAIL_REGEX.test(trimmedEmail);
+
+  const onSave = async () => {
+    if (invalidEmail) {
+      toast.error("Enter a valid Teams channel email address.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await saveSettings({ data: { channelEmail: trimmedEmail } });
+      toast.success(
+        trimmedEmail ? "Teams channel email saved." : "Teams posting disabled."
+      );
+      await router.invalidate();
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Teams settings could not be saved."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1.5">
+            <CardTitle>Microsoft Teams</CardTitle>
+            <CardDescription>
+              Publishing an order of service posts its PDF to this channel email
+              address as “Order of Service for YYYY-MM-DD”. Leave blank to
+              disable Teams posts.
+            </CardDescription>
+          </div>
+          <Badge variant={initialEmail ? "secondary" : "outline"}>
+            {initialEmail ? "Enabled" : "Disabled"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <FieldGroup>
+          <Field data-invalid={invalidEmail || undefined}>
+            <FieldLabel htmlFor="teams-channel-email">Channel email</FieldLabel>
+            <div className="flex gap-2">
+              <Input
+                aria-invalid={invalidEmail || undefined}
+                id="teams-channel-email"
+                onChange={(event) => setChannelEmail(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void onSave();
+                  }
+                }}
+                placeholder="order-of-service@teams.example.com"
+                type="email"
+                value={channelEmail}
+              />
+              <Button
+                disabled={isSaving}
+                onClick={() => void onSave()}
+                type="button"
+              >
+                <FloppyDiskIcon data-icon="inline-start" />
+                {isSaving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+            {invalidEmail ? (
+              <FieldDescription>Enter a valid email address.</FieldDescription>
+            ) : (
+              <FieldDescription>
+                In Teams, open the channel menu and choose “Get email address”,
+                then paste it here.
+              </FieldDescription>
+            )}
+          </Field>
+        </FieldGroup>
+      </CardContent>
+    </Card>
+  );
+};
+
 const SettingsPage = () => {
-  const { monthPlanning, settings, templates } = Route.useLoaderData();
+  const { monthPlanning, settings, teams, templates } = Route.useLoaderData();
   const router = useRouter();
   const addRecipient = useServerFn(addEmailRecipient);
   const deleteRecipient = useServerFn(deleteEmailRecipient);
@@ -643,6 +738,8 @@ const SettingsPage = () => {
         </Card>
       </div>
 
+      <TeamsChannelForm initialEmail={teams.channelEmail} />
+
       <MonthPlannerSettings settings={monthPlanning} templates={templates} />
     </div>
   );
@@ -654,12 +751,13 @@ export const Route = createFileRoute("/_authenticated/settings/")({
   },
   component: SettingsPage,
   loader: async () => {
-    const [settings, templates, monthPlanning] = await Promise.all([
+    const [settings, templates, monthPlanning, teams] = await Promise.all([
       getEmailSettings(),
       getTemplates(),
       getMonthPlanningSettings(),
+      getTeamsSettings(),
     ]);
 
-    return { monthPlanning, settings, templates };
+    return { monthPlanning, settings, teams, templates };
   },
 });

@@ -84,6 +84,7 @@ import type {
   OrderEmailDeliveryRecord,
   OrderServiceTemplateJson,
   ServiceStatus,
+  TeamsPostSkipReason,
 } from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
 import {
@@ -128,6 +129,23 @@ const hasHymnActivityWithoutSelection = (
 
 const MISSING_HYMN_SELECTION_MESSAGE =
   "Select a hymn for every hymn activity before publishing or sending.";
+
+const getTeamsPostSkippedMessage = (reason: TeamsPostSkipReason): string => {
+  switch (reason) {
+    case "invalid-email": {
+      return "Published, but the Teams channel email is invalid. Update it in Settings.";
+    }
+    case "smtp-not-configured": {
+      return "Published, but SMTP is not configured, so the Teams post was skipped.";
+    }
+    case "queue-failed": {
+      return "Published, but the Teams post could not be queued. Check Workers Logs.";
+    }
+    default: {
+      return "Published, but the Teams post was skipped.";
+    }
+  }
+};
 
 const copyTextToClipboard = async (text: string): Promise<void> => {
   if (navigator.clipboard?.writeText) {
@@ -341,8 +359,19 @@ const OrderRoute = () => {
     setFormError(null);
 
     try {
-      await publishOrderFn({ data: currentOrderId });
+      const result = await publishOrderFn({ data: currentOrderId });
       setStatus("Published");
+
+      const { teamsPost } = result;
+
+      if (teamsPost?.queued) {
+        toast.success(
+          `Published and posted to the Teams channel (${teamsPost.channelEmail}).`
+        );
+      } else if (teamsPost?.reason && teamsPost.reason !== "not-configured") {
+        toast.warning(getTeamsPostSkippedMessage(teamsPost.reason));
+      }
+
       await router.invalidate();
     } catch (error) {
       const errorMessage = getErrorMessage(

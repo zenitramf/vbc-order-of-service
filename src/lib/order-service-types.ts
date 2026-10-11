@@ -125,7 +125,29 @@ export interface PlainEmailQueueMessage {
   type: "plain";
 }
 
-export type EmailQueueMessage = OrderEmailQueueMessage | PlainEmailQueueMessage;
+/**
+ * Queue message that posts a published order PDF to the Microsoft Teams
+ * channel. It is delivered as an email to the channel's email address, which
+ * Teams renders as a channel post with the PDF attached.
+ */
+export interface TeamsChannelQueueMessage {
+  attachment: {
+    bucket: string;
+    contentType: "application/pdf";
+    filename: string;
+    objectKey: string;
+  };
+  orderId: string;
+  subject: string;
+  text: string;
+  to: string;
+  type: "teams-channel";
+}
+
+export type EmailQueueMessage =
+  | OrderEmailQueueMessage
+  | PlainEmailQueueMessage
+  | TeamsChannelQueueMessage;
 
 export type HymnLanguage = "english" | "spanish";
 
@@ -292,6 +314,33 @@ export interface EmailSettingsRecord {
   smtpSenderName: string;
   smtpTokenConfigured: boolean;
   smtpUserConfigured: boolean;
+}
+
+export interface TeamsSettingsRecord {
+  channelEmail: string;
+}
+
+export interface SaveTeamsSettingsInput {
+  channelEmail: string;
+}
+
+export type TeamsPostSkipReason =
+  | "invalid-email"
+  | "not-configured"
+  | "queue-failed"
+  | "smtp-not-configured";
+
+export interface TeamsPostResult {
+  channelEmail?: string;
+  queued: boolean;
+  reason?: TeamsPostSkipReason;
+}
+
+export interface PublishOrderResult {
+  dryRun?: boolean;
+  id: string;
+  pdfObjectKey?: string;
+  teamsPost?: TeamsPostResult;
 }
 
 export interface SaveEmailSettingsInput {
