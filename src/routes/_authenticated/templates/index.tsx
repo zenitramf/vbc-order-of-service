@@ -142,7 +142,7 @@ const TemplatesPage = () => {
                           }}
                           size="sm"
                           type="button"
-                          variant="ghost"
+                          variant="destructive"
                         >
                           <TrashIcon data-icon="inline-start" />
                           Delete

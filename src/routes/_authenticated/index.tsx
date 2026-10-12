@@ -96,7 +96,9 @@ const NextServiceCard = ({
 }) => (
   <Card>
     <CardHeader>
-      <CardDescription>Next service</CardDescription>
+      <div>
+        <Badge variant="info">Next service</Badge>
+      </div>
       <CardTitle className="text-2xl">
         {formatFullDate(nextOrder?.serviceDate ?? nextSundayDate)}
       </CardTitle>
@@ -217,6 +219,7 @@ const MonthOrdersSection = ({
               <OrderOverviewRow
                 badge={order.id === nextOrderId ? <Badge>Next</Badge> : null}
                 dimmed={order.serviceDate < today}
+                highlighted={order.id === nextOrderId}
                 key={order.id}
                 order={order}
               />
@@ -274,7 +277,7 @@ const TeamMembersSection = ({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {teams.map((team) => (
             <Link
-              className="flex flex-col gap-1 rounded-lg border p-4 transition-colors hover:bg-muted/50"
+              className="flex flex-col gap-1 rounded-lg border p-4 transition-colors hover:border-primary/30 hover:bg-accent/50"
               key={team.id}
               params={{ teamId: team.id }}
               to="/teams/$teamId"
@@ -301,24 +304,28 @@ const Dashboard = () => {
       description: "Orders still being planned",
       icon: ClockIcon,
       label: "Planning",
+      tone: "bg-warning/15 text-warning",
       value: data.planningCount,
     },
     {
       description: "Orders sent with Publish and Send",
       icon: CheckCircleIcon,
       label: "Published",
+      tone: "bg-success/15 text-success",
       value: data.publishedCount,
     },
     {
       description: "Reusable service plans",
       icon: ListChecksIcon,
       label: "Templates",
+      tone: "bg-info/15 text-info",
       value: data.templateCount,
     },
     {
       description: "Songs available for service planning",
       icon: MusicNotesIcon,
       label: "Hymns",
+      tone: "bg-primary/12 text-primary",
       value: data.hymnCount,
     },
   ];
@@ -366,7 +373,11 @@ const Dashboard = () => {
                   <CardDescription>{card.label}</CardDescription>
                   <CardTitle className="text-3xl">{card.value}</CardTitle>
                 </div>
-                <Icon className="text-muted-foreground" />
+                <span
+                  className={`flex size-10 items-center justify-center rounded-xl [&_svg]:size-5 ${card.tone}`}
+                >
+                  <Icon />
+                </span>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">

@@ -571,14 +571,14 @@ const OrderRoute = () => {
             <h1 className="font-heading text-3xl font-semibold tracking-tight">
               {title || "Untitled Order of Service"}
             </h1>
-            <Badge variant={status === "Published" ? "default" : "secondary"}>
+            <Badge variant={status === "Published" ? "success" : "warning"}>
               {status}
             </Badge>
             {status === "Published" && isEmailSent && emailDelivery ? (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge className="cursor-default" variant="default">
+                    <Badge className="cursor-default" variant="success">
                       Email: {emailStatusLabel}
                     </Badge>
                   </TooltipTrigger>
@@ -603,7 +603,7 @@ const OrderRoute = () => {
               </TooltipProvider>
             ) : null}
             {status === "Published" && !isEmailSent ? (
-              <Badge variant="outline">Email: {emailStatusLabel}</Badge>
+              <Badge variant="warning">Email: {emailStatusLabel}</Badge>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -705,6 +705,7 @@ const OrderRoute = () => {
               disabled={!canPublish}
               onClick={handlePublish}
               type="button"
+              variant="cta"
             >
               <PaperPlaneTiltIcon data-icon="inline-start" />
               {publishButtonLabel}
@@ -732,7 +733,7 @@ const OrderRoute = () => {
               <span className="font-medium">Status</span>
               <Badge
                 variant={
-                  emailDelivery.status === "Failed" ? "destructive" : "outline"
+                  emailDelivery.status === "Failed" ? "destructive" : "info"
                 }
               >
                 {emailDelivery.status}

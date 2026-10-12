@@ -1651,9 +1651,7 @@ const PresentationDeckControls = ({
   return (
     <div className="flex flex-col gap-2">
       {showInPresentationDeck ? (
-        <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600/90">
-          In presentation deck
-        </Badge>
+        <Badge variant="info">In presentation deck</Badge>
       ) : null}
       <div className="flex items-center gap-3">
         <Switch

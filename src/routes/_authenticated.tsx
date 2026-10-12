@@ -1,6 +1,7 @@
 // oxlint-disable no-use-before-define
 import {
   CalendarCheckIcon,
+  ChurchIcon,
   FastForwardIcon,
   GearIcon,
   HouseIcon,
@@ -222,7 +223,15 @@ const AppSidebar = () => {
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg">
               <Link to="/">
-                <span>VBC PORTAL</span>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <ChurchIcon />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate font-semibold">VBC Portal</span>
+                  <span className="truncate text-xs font-normal text-sidebar-foreground/70">
+                    Order of Service
+                  </span>
+                </span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -380,7 +389,7 @@ const ImpersonationBanner = () => {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-500/15 px-4 py-2 text-sm">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-warning/35 bg-warning/15 px-4 py-2 text-sm text-warning">
       <span className="flex items-center gap-2 font-medium">
         <UserSwitchIcon />
         Impersonating {session.user.name || session.user.email}
@@ -401,7 +410,7 @@ const AuthenticatedAppShell = () => {
       <SidebarInset>
         <div className="flex min-h-svh flex-col">
           <ImpersonationBanner />
-          <div className="flex h-14 shrink-0 items-center gap-2 px-4">
+          <div className="flex h-14 shrink-0 items-center gap-2 border-b bg-card/50 px-4">
             <SidebarTrigger />
             <Separator className="h-4" orientation="vertical" />
             <AppBreadcrumb />

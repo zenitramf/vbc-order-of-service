@@ -142,15 +142,13 @@ const createAnnouncementColumns = ({
     cell: ({ row }) => (
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge
-          variant={row.original.status === "approved" ? "default" : "secondary"}
+          variant={row.original.status === "approved" ? "success" : "secondary"}
         >
           {row.original.status === "approved" ? "Approved" : "Draft"}
         </Badge>
         {row.original.status === "approved" &&
         row.original.showInPresentationDeck ? (
-          <Badge className="border-transparent bg-emerald-600 text-white hover:bg-emerald-600/90">
-            In presentation deck
-          </Badge>
+          <Badge variant="info">In presentation deck</Badge>
         ) : null}
       </div>
     ),

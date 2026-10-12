@@ -6,6 +6,8 @@ import {
 } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 
+import { Button } from "~/components/ui/button";
+
 export const DefaultCatchBoundary = ({ error }: ErrorComponentProps) => {
   const router = useRouter();
   const isRoot = useLocation({
@@ -15,36 +17,33 @@ export const DefaultCatchBoundary = ({ error }: ErrorComponentProps) => {
   console.error("DefaultCatchBoundary Error:", error);
 
   return (
-    <div className="min-w-0 flex-1 p-4 flex flex-col items-center justify-center gap-6">
+    <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-6 p-4">
       <ErrorComponent error={error} />
-      <div className="flex gap-2 items-center flex-wrap">
-        <button
-          className="px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded-sm text-white uppercase font-extrabold"
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
           onClick={() => {
             router.invalidate();
           }}
           type="button"
         >
-          Try Again
-        </button>
+          Try again
+        </Button>
         {isRoot ? (
-          <Link
-            className="px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded-sm text-white uppercase font-extrabold"
-            to="/"
-          >
-            Home
-          </Link>
+          <Button asChild variant="outline">
+            <Link to="/">Home</Link>
+          </Button>
         ) : (
-          <Link
-            className="px-2 py-1 bg-gray-600 dark:bg-gray-700 rounded-sm text-white uppercase font-extrabold"
-            onClick={(e) => {
-              e.preventDefault();
-              window.history.back();
-            }}
-            to="/"
-          >
-            Go Back
-          </Link>
+          <Button asChild variant="outline">
+            <Link
+              onClick={(e) => {
+                e.preventDefault();
+                window.history.back();
+              }}
+              to="/"
+            >
+              Go back
+            </Link>
+          </Button>
         )}
       </div>
     </div>

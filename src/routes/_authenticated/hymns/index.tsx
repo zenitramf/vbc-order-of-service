@@ -178,7 +178,7 @@ const createHymnColumns = ({
           open={hymnToDelete === row.original.id}
         >
           <AlertDialogTrigger asChild>
-            <Button size="sm" type="button" variant="ghost">
+            <Button size="sm" type="button" variant="destructive">
               <TrashIcon data-icon="inline-start" />
               Delete
             </Button>
