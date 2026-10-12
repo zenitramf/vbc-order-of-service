@@ -1,7 +1,6 @@
 // oxlint-disable no-use-before-define
 import {
   CalendarCheckIcon,
-  ChurchIcon,
   FastForwardIcon,
   GearIcon,
   HouseIcon,
@@ -223,9 +222,11 @@ const AppSidebar = () => {
           <SidebarMenuItem>
             <SidebarMenuButton asChild size="lg">
               <Link to="/">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <ChurchIcon />
-                </span>
+                <img
+                  alt=""
+                  className="size-8 shrink-0"
+                  src="/vbc-chip-logo.svg"
+                />
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate font-semibold">VBC Portal</span>
                   <span className="truncate text-xs font-normal text-sidebar-foreground/70">
