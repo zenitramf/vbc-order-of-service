@@ -79,7 +79,7 @@ export const Route = createRootRoute({
         sizes: "16x16",
         type: "image/png",
       },
-      { color: "#fffff", href: "/site.webmanifest", rel: "manifest" },
+      { href: "/site.webmanifest", rel: "manifest" },
       { href: "/favicon.ico", rel: "icon" },
     ],
     meta: [
@@ -89,6 +89,10 @@ export const Route = createRootRoute({
       {
         content: "width=device-width, initial-scale=1",
         name: "viewport",
+      },
+      {
+        content: "#1c1a1f",
+        name: "theme-color",
       },
       ...seo({
         description: "Used for the management for the order of service.",

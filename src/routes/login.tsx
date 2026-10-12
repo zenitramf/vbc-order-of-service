@@ -224,11 +224,13 @@ export const LoginPage = () => {
           </div>
         </div>
       </div>
-      <div className="relative hidden bg-muted lg:block">
+      <div className="relative hidden bg-primary lg:block">
         <div
           className="absolute inset-0 bg-center bg-cover opacity-80"
           style={{ backgroundImage: `url(${LOGIN_HERO_IMAGE_URL})` }}
         />
+        {/* Teal wash ties the photo to the portal brand and deepens contrast. */}
+        <div className="absolute inset-0 bg-primary/25 mix-blend-multiply dark:bg-primary/15" />
       </div>
     </div>
   );

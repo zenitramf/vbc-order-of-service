@@ -26,6 +26,26 @@ import { cn } from "~/lib/utils";
 
 const MAX_COMPACT_MEMBERS = 4;
 
+/** Stable per-person avatar tint so the same face reads the same everywhere. */
+const MEMBER_TONES = [
+  "bg-chart-1/20 text-chart-1",
+  "bg-chart-2/20 text-chart-2",
+  "bg-chart-3/20 text-chart-3",
+  "bg-chart-4/20 text-chart-4",
+  "bg-chart-5/20 text-chart-5",
+] as const;
+
+const memberTone = (member: RosterMember): string => {
+  const name = formatRosterMemberName(member);
+  let hash = 0;
+
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + (name.codePointAt(index) ?? 0)) % 9973;
+  }
+
+  return MEMBER_TONES[hash % MEMBER_TONES.length];
+};
+
 export const formatRosterMemberName = (member: RosterMember): string =>
   `${member.firstName} ${member.lastName}`.trim();
 
@@ -43,7 +63,7 @@ const teamDisplayName = (team: RosterTeam): string =>
 
 const TeamMissingBadge = ({ team }: { team: RosterTeam }) =>
   team.missingCount > 0 ? (
-    <Badge variant="destructive">
+    <Badge variant="warning">
       <WarningCircleIcon />
       {team.assignedCount === 0
         ? "Unstaffed"
@@ -60,7 +80,7 @@ export const RosterAttention = ({ roster }: { roster: OrderRoster }) => {
   return (
     <span className="flex flex-wrap items-center gap-1.5">
       {roster.missingRequiredCount > 0 ? (
-        <Badge variant="destructive">
+        <Badge variant="warning">
           <WarningCircleIcon />
           {roster.missingRequiredCount}{" "}
           {roster.missingRequiredCount === 1 ? "team needs" : "teams need"}{" "}
@@ -68,7 +88,7 @@ export const RosterAttention = ({ roster }: { roster: OrderRoster }) => {
         </Badge>
       ) : null}
       {roster.missingHymnCount > 0 ? (
-        <Badge variant="destructive">
+        <Badge variant="info">
           <MusicNotesIcon />
           {roster.missingHymnCount}{" "}
           {roster.missingHymnCount === 1 ? "hymn" : "hymns"} to choose
@@ -130,7 +150,7 @@ const MemberChip = ({
     )}
   >
     <Avatar size="sm">
-      <AvatarFallback>
+      <AvatarFallback className={memberTone(member)}>
         {getInitials(member.firstName, member.lastName)}
       </AvatarFallback>
     </Avatar>
@@ -161,7 +181,7 @@ const FullTeamRow = ({
   onAddPerson?: () => void;
   team: RosterTeam;
 }) => (
-  <div className="flex flex-col gap-1.5">
+  <div className="flex flex-col gap-2 rounded-lg bg-muted/30 px-3 py-2.5">
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-medium">{teamDisplayName(team)}</span>
       {team.required ? <Badge variant="secondary">Required</Badge> : null}
@@ -275,14 +295,14 @@ export const OrderRosterSummary = ({
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {roster.cards.map((card, index) => (
-        <div className="flex flex-col gap-2" key={card.cardId}>
+        <div className="flex flex-col gap-3" key={card.cardId}>
           <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {card.cardName}
             {roster.cards.length > 1 ? ` · Timeblock ${index + 1}` : ""}
           </span>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2">
             {card.teams.map((team) => (
               <FullTeamRow
                 cardId={card.cardId}
@@ -324,7 +344,7 @@ export const OrderStatusBadge = ({
 }: {
   status: OrderOverview["status"];
 }) => (
-  <Badge variant={status === "Published" ? "default" : "secondary"}>
+  <Badge variant={status === "Published" ? "success" : "warning"}>
     {status}
   </Badge>
 );
@@ -346,6 +366,8 @@ const getServiceDateParts = (serviceDate: string) => {
 interface OrderOverviewRowProps {
   badge?: React.ReactNode;
   dimmed?: boolean;
+  /** Solid teal date tile — use for the next upcoming service. */
+  highlighted?: boolean;
   order: OrderOverview;
 }
 
@@ -356,6 +378,7 @@ interface OrderOverviewRowProps {
 export const OrderOverviewRow = ({
   badge,
   dimmed = false,
+  highlighted = false,
   order,
 }: OrderOverviewRowProps) => {
   const { dayNumber, monthShort, weekdayShort } = getServiceDateParts(
@@ -365,20 +388,27 @@ export const OrderOverviewRow = ({
   return (
     <Link
       className={cn(
-        "flex items-start gap-4 p-4 transition-colors hover:bg-muted/50",
+        "flex items-start gap-4 p-4 transition-colors hover:bg-accent/50",
         dimmed && "opacity-70"
       )}
       params={{ orderId: order.id }}
       to="/orders/$orderId"
     >
-      <span className="flex w-12 shrink-0 flex-col items-center rounded-lg border py-2">
-        <span className="text-[0.625rem] font-medium text-muted-foreground uppercase">
+      <span
+        className={cn(
+          "flex w-12 shrink-0 flex-col items-center rounded-lg border py-2",
+          highlighted
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-primary/25 bg-primary/8 text-primary"
+        )}
+      >
+        <span className="text-[0.625rem] font-medium uppercase opacity-80">
           {weekdayShort}
         </span>
         <span className="text-xl leading-tight font-semibold tabular-nums">
           {dayNumber}
         </span>
-        <span className="text-[0.625rem] text-muted-foreground uppercase">
+        <span className="text-[0.625rem] uppercase opacity-80">
           {monthShort}
         </span>
       </span>

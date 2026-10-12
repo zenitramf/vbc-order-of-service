@@ -465,7 +465,7 @@ const ActivityForm = ({
                       className={cn(
                         "inline-flex",
                         selectedHymnNeedsLyrics
-                          ? "text-amber-600 dark:text-amber-400"
+                          ? "text-warning"
                           : "text-muted-foreground hover:text-foreground"
                       )}
                       params={{ hymnId: selectedHymn.id }}
@@ -676,7 +676,7 @@ const createActivityColumns = ({
                     <span className="mt-0.5 inline-flex shrink-0">
                       <WarningCircleIcon
                         aria-label="Lyrics need to be added"
-                        className="size-4 text-amber-600 dark:text-amber-400"
+                        className="size-4 text-warning"
                       />
                     </span>
                   </TooltipTrigger>

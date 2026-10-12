@@ -250,12 +250,12 @@ const ScheduleDateGroup = ({
           {formatServiceDate(date)}
         </span>
         {needsAssignment ? (
-          <Badge variant="destructive">
+          <Badge variant="warning">
             <WarningCircleIcon />
             Needs assignment
           </Badge>
         ) : (
-          <Badge variant="secondary">
+          <Badge variant="success">
             <CheckCircleIcon />
             All assigned
           </Badge>
@@ -668,8 +668,8 @@ const MonthPlannerPage = () => {
           const timelineBadge = (
             <>
               {isNext ? <Badge>Next</Badge> : null}
-              {isUpcoming ? <Badge variant="secondary">Upcoming</Badge> : null}
-              <Badge variant="outline">
+              {isUpcoming ? <Badge variant="info">Upcoming</Badge> : null}
+              <Badge variant={entry.templateName ? "outline" : "warning"}>
                 {entry.templateName || "Template missing"}
               </Badge>
             </>
@@ -688,7 +688,7 @@ const MonthPlannerPage = () => {
                   {formatServiceDate(entry.date)}
                 </span>
                 {timelineBadge}
-                <Badge variant="outline">Not planned</Badge>
+                <Badge variant="warning">Not planned</Badge>
                 <span className="text-muted-foreground text-sm">
                   Plan month to create
                 </span>
@@ -700,6 +700,7 @@ const MonthPlannerPage = () => {
             <OrderOverviewRow
               badge={timelineBadge}
               dimmed={isPast}
+              highlighted={isNext}
               key={entry.date}
               order={entry.order}
             />

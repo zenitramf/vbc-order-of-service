@@ -100,7 +100,6 @@ import {
   isTeamOptional,
   isTeamRequired,
   memberTeamNames,
-  normalizeServiceCardTeams,
   pruneStaleAssignments,
   setAssignmentMemberIds,
   syncOrderTeamsFromTemplate,
@@ -108,6 +107,11 @@ import {
   validateTeamMember,
   validateTeamParent,
 } from "~/lib/teams-logic";
+import {
+  decodeDbText,
+  normalizeTemplate,
+  parseTemplateJson,
+} from "~/lib/template-json";
 import { buildTestEmailMessage } from "~/lib/test-email";
 
 const getPdfBucket = (): R2Bucket => {
@@ -141,38 +145,13 @@ const slugify = (value: string) =>
     .replaceAll(/[^a-z0-9]+/gu, "-")
     .replaceAll(/^-+|-+$/gu, "") || uuidv4();
 
-const normalizeTemplate = (
-  template: OrderServiceTemplateJson,
-  fallbackName: string
-): OrderServiceTemplateJson => ({
-  name: template.name?.trim() || fallbackName,
-  service_type: (template.service_type ?? []).map((segment) => ({
-    activities: (segment.activities ?? []).map((activity) => ({
-      activityName: activity.activityName?.trim() || "Activity",
-      activityType: activity.activityType?.trim() || "custom",
-      id: activity.id || uuidv4(),
-      ...(activity.hymnId ? { hymnId: activity.hymnId } : {}),
-      ...(activity.notes ? { notes: activity.notes } : {}),
-    })),
-    id: segment.id || uuidv4(),
-    typeName: segment.typeName?.trim() || "Service Segment",
-    ...normalizeServiceCardTeams(segment),
-  })),
-});
-
 const countActivities = (template: OrderServiceTemplateJson) =>
   template.service_type.reduce(
     (total, segment) => total + segment.activities.length,
     0
   );
 
-const parseTemplateJson = (value: string, fallbackName: string) =>
-  normalizeTemplate(
-    JSON.parse(value) as OrderServiceTemplateJson,
-    fallbackName
-  );
-
-const asString = (value: unknown) => (typeof value === "string" ? value : "");
+const asString = (value: unknown): string => decodeDbText(value);
 
 const asNumber = (value: unknown) =>
   typeof value === "number"
