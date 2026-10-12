@@ -2,18 +2,24 @@
 import {
   ArrowRightIcon,
   MusicNotesIcon,
+  PlusIcon,
   WarningCircleIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { Link } from "@tanstack/react-router";
 import * as React from "react";
 
+import { TeamMemberDialog } from "~/components/order-team-assignment";
 import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import type {
   OrderOverview,
   OrderRoster,
+  RosterCard,
   RosterMember,
   RosterTeam,
+  TeamMemberSummary,
 } from "~/lib/order-service-types";
 import { getInitials } from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
@@ -72,33 +78,125 @@ export const RosterAttention = ({ roster }: { roster: OrderRoster }) => {
   );
 };
 
-const MemberChip = ({ member }: { member: RosterMember }) => (
-  <span className="inline-flex items-center gap-1.5 rounded-full border bg-background py-0.5 pr-2.5 pl-0.5 text-xs font-medium">
+/**
+ * Inline people editing for the full roster: add through the picker, remove
+ * from a chip. Absent on read-only surfaces (dashboard, month planner).
+ */
+export interface RosterEditing {
+  onToggleMember: (
+    cardId: string,
+    teamId: string,
+    memberId: string,
+    assigned: boolean
+  ) => void;
+  teamMembers: TeamMemberSummary[];
+}
+
+/** Current team members plus stale assignees, for the picker. */
+const assignableMembers = (
+  editing: RosterEditing,
+  team: RosterTeam
+): TeamMemberSummary[] => {
+  const current = editing.teamMembers.filter((member) =>
+    member.teamIds.includes(team.teamId)
+  );
+  const currentIds = new Set(current.map((member) => member.id));
+  const membersById = new Map(
+    editing.teamMembers.map((member) => [member.id, member])
+  );
+  const staleAssigned = team.members
+    .map((member) => membersById.get(member.id))
+    .filter(
+      (member): member is TeamMemberSummary =>
+        member !== undefined && !currentIds.has(member.id)
+    );
+
+  return [...current, ...staleAssigned];
+};
+
+const MemberChip = ({
+  member,
+  onRemove,
+  teamName,
+}: {
+  member: RosterMember;
+  onRemove?: () => void;
+  teamName?: string;
+}) => (
+  <span
+    className={cn(
+      "inline-flex items-center gap-1.5 rounded-full border bg-background py-0.5 pl-0.5 text-xs font-medium",
+      onRemove ? "pr-0.5" : "pr-2.5"
+    )}
+  >
     <Avatar size="sm">
       <AvatarFallback>
         {getInitials(member.firstName, member.lastName)}
       </AvatarFallback>
     </Avatar>
     {formatRosterMemberName(member)}
+    {onRemove ? (
+      <Button
+        aria-label={`Remove ${formatRosterMemberName(member)} from ${teamName ?? "this team"}`}
+        className="rounded-full"
+        onClick={onRemove}
+        size="icon-xs"
+        type="button"
+        variant="ghost"
+      >
+        <XIcon />
+      </Button>
+    ) : null}
   </span>
 );
 
-const FullTeamRow = ({ team }: { team: RosterTeam }) => (
+const FullTeamRow = ({
+  cardId,
+  editing,
+  onAddPerson,
+  team,
+}: {
+  cardId: string;
+  editing?: RosterEditing;
+  onAddPerson?: () => void;
+  team: RosterTeam;
+}) => (
   <div className="flex flex-col gap-1.5">
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-sm font-medium">{teamDisplayName(team)}</span>
       {team.required ? <Badge variant="secondary">Required</Badge> : null}
       <TeamMissingBadge team={team} />
     </div>
-    {team.members.length === 0 ? (
-      <span className="text-sm text-muted-foreground">No one assigned</span>
-    ) : (
-      <span className="flex flex-wrap gap-1.5">
-        {team.members.map((member) => (
-          <MemberChip key={member.id} member={member} />
-        ))}
-      </span>
-    )}
+    <span className="flex flex-wrap items-center gap-1.5">
+      {team.members.length === 0 ? (
+        <span className="text-sm text-muted-foreground">No one assigned</span>
+      ) : (
+        team.members.map((member) => (
+          <MemberChip
+            key={member.id}
+            member={member}
+            onRemove={
+              editing
+                ? () =>
+                    editing.onToggleMember(
+                      cardId,
+                      team.teamId,
+                      member.id,
+                      false
+                    )
+                : undefined
+            }
+            teamName={teamDisplayName(team)}
+          />
+        ))
+      )}
+      {editing ? (
+        <Button onClick={onAddPerson} size="sm" type="button" variant="outline">
+          <PlusIcon data-icon="inline-start" />
+          Add person
+        </Button>
+      ) : null}
+    </span>
   </div>
 );
 
@@ -128,12 +226,19 @@ const CompactTeamLine = ({
  * timeblock; "compact" shows one line per team for list rows.
  */
 export const OrderRosterSummary = ({
+  editing,
   roster,
   variant = "full",
 }: {
+  editing?: RosterEditing;
   roster: OrderRoster;
   variant?: "compact" | "full";
 }) => {
+  const [picker, setPicker] = React.useState<{
+    card: RosterCard;
+    team: RosterTeam;
+  } | null>(null);
+
   if (!roster.hasTeams) {
     return (
       <span className="text-sm text-muted-foreground">
@@ -160,6 +265,15 @@ export const OrderRosterSummary = ({
     );
   }
 
+  // Resolve the picker against the live roster so checkboxes reflect toggles
+  // made while it is open, even though `picker` holds a stale snapshot.
+  const pickerCard = picker
+    ? roster.cards.find((card) => card.cardId === picker.card.cardId)
+    : undefined;
+  const pickerTeam = pickerCard?.teams.find(
+    (team) => team.teamId === picker?.team.teamId
+  );
+
   return (
     <div className="flex flex-col gap-4">
       {roster.cards.map((card, index) => (
@@ -170,11 +284,37 @@ export const OrderRosterSummary = ({
           </span>
           <div className="flex flex-col gap-3">
             {card.teams.map((team) => (
-              <FullTeamRow key={team.teamId} team={team} />
+              <FullTeamRow
+                cardId={card.cardId}
+                editing={editing}
+                key={team.teamId}
+                onAddPerson={() => setPicker({ card, team })}
+                team={team}
+              />
             ))}
           </div>
         </div>
       ))}
+      {editing && pickerCard && pickerTeam ? (
+        <TeamMemberDialog
+          assignedMemberIds={pickerTeam.members.map((member) => member.id)}
+          cardName={pickerCard.cardName}
+          key={`${pickerCard.cardId}-${pickerTeam.teamId}`}
+          members={assignableMembers(editing, pickerTeam)}
+          onClose={() => setPicker(null)}
+          onToggleMember={(memberId, checked) =>
+            editing.onToggleMember(
+              pickerCard.cardId,
+              pickerTeam.teamId,
+              memberId,
+              checked
+            )
+          }
+          required={pickerTeam.required}
+          requiredCount={pickerTeam.requiredCount}
+          teamName={teamDisplayName(pickerTeam)}
+        />
+      ) : null}
     </div>
   );
 };

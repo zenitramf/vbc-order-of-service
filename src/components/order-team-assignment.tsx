@@ -45,6 +45,7 @@ import type {
 import {
   addTeamAssignment,
   filterTeamMembers,
+  getAssignableTeamMembers,
   getAssignmentMemberIds,
   getCardTeamIds,
   getInitials,
@@ -53,7 +54,7 @@ import {
   isTeamOptional,
   isTeamRequired,
   removeTeamAssignment,
-  setAssignmentMemberIds,
+  toggleAssignmentMember,
 } from "~/lib/teams-logic";
 import { cn } from "~/lib/utils";
 
@@ -205,7 +206,7 @@ interface TeamMemberDialogProps {
   teamName: string;
 }
 
-const TeamMemberDialog = ({
+export const TeamMemberDialog = ({
   assignedMemberIds,
   cardName,
   members,
@@ -352,19 +353,8 @@ export const OrderTeamAssignment = ({
     getAssignmentMemberIds(segment, teamId)
       .map((memberId) => membersById.get(memberId))
       .filter((member) => member !== undefined);
-  // Show current team members plus anyone still assigned who has since left the
-  // team, so stale assignments stay visible and can be unchecked.
-  const membersForTeam = (teamId: string) => {
-    const current = teamMembers.filter((member) =>
-      member.teamIds.includes(teamId)
-    );
-    const currentIds = new Set(current.map((member) => member.id));
-    const staleAssigned = assignedMembersForTeam(teamId).filter(
-      (member) => !currentIds.has(member.id)
-    );
-
-    return [...current, ...staleAssigned];
-  };
+  const membersForTeam = (teamId: string) =>
+    getAssignableTeamMembers(teamMembers, segment, teamId);
 
   const updateTeamAssignments = (
     teamAssignments: ServiceTypeCard["teamAssignments"]
@@ -374,16 +364,10 @@ export const OrderTeamAssignment = ({
     teamId: string,
     memberId: string,
     checked: boolean
-  ) => {
-    const current = getAssignmentMemberIds(segment, teamId);
-    const nextMemberIds = checked
-      ? [...current, memberId]
-      : current.filter((id) => id !== memberId);
-
+  ) =>
     updateTeamAssignments(
-      setAssignmentMemberIds(segment.teamAssignments, teamId, nextMemberIds)
+      toggleAssignmentMember(segment.teamAssignments, teamId, memberId, checked)
     );
-  };
 
   return (
     <div className="flex flex-col gap-3">

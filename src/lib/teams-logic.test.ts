@@ -12,6 +12,7 @@ import {
   buildTeamTree,
   filterTeamMembers,
   findMissingRequiredTeams,
+  getAssignableTeamMembers,
   getAssignmentMemberIds,
   getCardTeamIds,
   getInitials,
@@ -28,6 +29,8 @@ import {
   setAssignmentMemberIds,
   syncOrderTeamsFromTemplate,
   teamsById,
+  toggleAssignmentMember,
+  toggleOrderTeamMember,
   validateTeamMember,
   validateTeamParent,
 } from "~/lib/teams-logic";
@@ -318,6 +321,95 @@ describe("assignment helpers", () => {
     expect(setAssignmentMemberIds(undefined, "musicians", ["m1"])).toEqual([
       { memberIds: ["m1"], teamId: "musicians" },
     ]);
+  });
+});
+
+describe("toggleAssignmentMember / toggleOrderTeamMember", () => {
+  it("adds a member to a team that has no assignment yet", () => {
+    expect(toggleAssignmentMember(undefined, "ushers", "m1", true)).toEqual([
+      { memberIds: ["m1"], teamId: "ushers" },
+    ]);
+  });
+
+  it("does not duplicate a member who is already assigned", () => {
+    expect(
+      toggleAssignmentMember(
+        [{ memberIds: ["m1"], teamId: "ushers" }],
+        "ushers",
+        "m1",
+        true
+      )
+    ).toEqual([{ memberIds: ["m1"], teamId: "ushers" }]);
+  });
+
+  it("removing the last member keeps the team row (empty assignment)", () => {
+    expect(
+      toggleAssignmentMember(
+        [{ memberIds: ["m1"], teamId: "ushers" }],
+        "ushers",
+        "m1",
+        false
+      )
+    ).toEqual([{ memberIds: [], teamId: "ushers" }]);
+  });
+
+  it("updates only the matching card and team on an order", () => {
+    const value = order([
+      card({
+        id: "card-1",
+        requiredTeamIds: ["ushers"],
+        teamAssignments: [{ memberIds: ["m1"], teamId: "ushers" }],
+      }),
+      card({
+        id: "card-2",
+        requiredTeamIds: ["ushers"],
+        teamAssignments: [{ memberIds: ["m2"], teamId: "ushers" }],
+        typeName: "Sunday Evening Service",
+      }),
+    ]);
+
+    const added = toggleOrderTeamMember(value, "card-2", "ushers", "m3", true);
+    expect(added.service_type[0]?.teamAssignments).toEqual([
+      { memberIds: ["m1"], teamId: "ushers" },
+    ]);
+    expect(added.service_type[1]?.teamAssignments).toEqual([
+      { memberIds: ["m2", "m3"], teamId: "ushers" },
+    ]);
+
+    const removed = toggleOrderTeamMember(
+      value,
+      "card-1",
+      "ushers",
+      "m1",
+      false
+    );
+    expect(removed.service_type[0]?.teamAssignments).toEqual([
+      { memberIds: [], teamId: "ushers" },
+    ]);
+    // The input order is never mutated.
+    expect(value.service_type[0]?.teamAssignments).toEqual([
+      { memberIds: ["m1"], teamId: "ushers" },
+    ]);
+  });
+});
+
+describe("getAssignableTeamMembers", () => {
+  const members = [
+    { id: "m1", teamIds: ["ushers"] },
+    { id: "m2", teamIds: ["counters"] },
+    { id: "m3", teamIds: [] as string[] },
+  ];
+
+  it("lists current team members plus stale assignees who left the team", () => {
+    const value = card({
+      teamAssignments: [{ memberIds: ["m3", "gone"], teamId: "ushers" }],
+    });
+
+    expect(
+      getAssignableTeamMembers(members, value, "ushers").map(
+        (person) => person.id
+      )
+    ).toEqual(["m1", "m3"]);
   });
 });
 

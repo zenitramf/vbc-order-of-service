@@ -341,6 +341,80 @@ export const setAssignmentMemberIds = (
   return [...others, { memberIds: uniqueStrings(memberIds), teamId }];
 };
 
+/**
+ * Add or remove one member from a team's assignment. Unlike
+ * `setAssignmentMemberIds`, removing the last member keeps an empty
+ * assignment so the team stays visible on the card (required, optional, and
+ * ad-hoc teams alike) and can be staffed again.
+ */
+export const toggleAssignmentMember = (
+  assignments: TeamAssignment[] | undefined,
+  teamId: string,
+  memberId: string,
+  assigned: boolean
+): TeamAssignment[] => {
+  const current =
+    assignments?.find((assignment) => assignment.teamId === teamId)
+      ?.memberIds ?? [];
+  const memberIds = assigned
+    ? uniqueStrings([...current, memberId])
+    : current.filter((id) => id !== memberId);
+  const others = (assignments ?? []).filter(
+    (assignment) => assignment.teamId !== teamId
+  );
+
+  return [...others, { memberIds, teamId }];
+};
+
+/** Add or remove one member from one team of one card on an order. */
+export const toggleOrderTeamMember = (
+  order: OrderServiceTemplateJson,
+  cardId: string,
+  teamId: string,
+  memberId: string,
+  assigned: boolean
+): OrderServiceTemplateJson => ({
+  ...order,
+  service_type: order.service_type.map((card) =>
+    card.id === cardId
+      ? {
+          ...card,
+          teamAssignments: toggleAssignmentMember(
+            card.teamAssignments,
+            teamId,
+            memberId,
+            assigned
+          ),
+        }
+      : card
+  ),
+});
+
+/**
+ * People who can be picked for a team on a card: everyone currently on the
+ * team, plus anyone still assigned who has since left it, so stale
+ * assignments stay visible and can be unchecked.
+ */
+export const getAssignableTeamMembers = <
+  T extends Pick<TeamMember, "id" | "teamIds">,
+>(
+  members: readonly T[],
+  card: ServiceTypeCard,
+  teamId: string
+): T[] => {
+  const current = members.filter((member) => member.teamIds.includes(teamId));
+  const currentIds = new Set(current.map((member) => member.id));
+  const membersById = new Map(members.map((member) => [member.id, member]));
+  const staleAssigned = getAssignmentMemberIds(card, teamId)
+    .map((memberId) => membersById.get(memberId))
+    .filter(
+      (member): member is T =>
+        member !== undefined && !currentIds.has(member.id)
+    );
+
+  return [...current, ...staleAssigned];
+};
+
 export interface MissingRequiredTeam {
   cardId: string;
   cardName: string;

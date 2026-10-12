@@ -82,6 +82,7 @@ import { requirePermission } from "~/lib/route-guards";
 import {
   findMissingRequiredTeams,
   teamsById as toTeamsById,
+  toggleOrderTeamMember,
 } from "~/lib/teams-logic";
 
 const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
@@ -759,13 +760,30 @@ const OrderRoute = () => {
               <CardTitle>Who&rsquo;s serving</CardTitle>
               <CardDescription>
                 Ushers, counters, and every other team for this service, by
-                timeblock.
+                timeblock. Add or remove people here, or in the timeline below.
               </CardDescription>
             </div>
             <RosterAttention roster={roster} />
           </CardHeader>
           <CardContent>
-            <OrderRosterSummary roster={roster} />
+            <OrderRosterSummary
+              editing={{
+                onToggleMember: (cardId, teamId, memberId, assigned) =>
+                  setOrderJson((current) =>
+                    current
+                      ? toggleOrderTeamMember(
+                          current,
+                          cardId,
+                          teamId,
+                          memberId,
+                          assigned
+                        )
+                      : current
+                  ),
+                teamMembers,
+              }}
+              roster={roster}
+            />
           </CardContent>
         </Card>
       ) : null}
