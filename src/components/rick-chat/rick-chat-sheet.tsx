@@ -46,6 +46,10 @@ import {
 } from "~/components/ui/sheet";
 import { Spinner } from "~/components/ui/spinner";
 import { Textarea } from "~/components/ui/textarea";
+import {
+  collectRickEntityNames,
+  describeRickToolCall,
+} from "~/lib/rick-tool-summary";
 import { cn } from "~/lib/utils";
 
 import {
@@ -137,11 +141,12 @@ interface ToolApprovalRequest {
 }
 
 interface ToolPartProps {
+  entityNames: ReadonlyMap<string, string>;
   onApproval: (request: ToolApprovalRequest) => void;
   part: UIMessage["parts"][number];
 }
 
-const ToolPart = ({ onApproval, part }: ToolPartProps) => {
+const ToolPart = ({ entityNames, onApproval, part }: ToolPartProps) => {
   if (!isToolUIPart(part)) {
     return null;
   }
@@ -149,6 +154,10 @@ const ToolPart = ({ onApproval, part }: ToolPartProps) => {
   const state = getToolPartState(part);
   const approval = getToolApproval(part);
   const input = getToolInput(part);
+  const approvalSummary =
+    state === "waiting-approval"
+      ? describeRickToolCall(getToolName(part), input, entityNames)
+      : undefined;
   const errorText =
     "errorText" in part && typeof part.errorText === "string"
       ? part.errorText
@@ -156,24 +165,37 @@ const ToolPart = ({ onApproval, part }: ToolPartProps) => {
 
   return (
     <div className="w-full rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-      <div className="flex items-center gap-2">
-        <span className="font-medium">{toolLabel(getToolName(part))}</span>
-        {STATE_LABELS[state] ? (
-          <span className="text-muted-foreground text-xs">
-            {STATE_LABELS[state]}
-          </span>
-        ) : null}
-      </div>
-      {state === "waiting-approval" && approval ? (
-        <div className="mt-2 space-y-2">
-          <p className="text-muted-foreground text-xs">
-            This will change data in the portal. Approve to continue.
+      {/* While awaiting approval the summary headline below replaces this
+          generic label, which would only repeat it. */}
+      {state === "waiting-approval" && approvalSummary ? null : (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{toolLabel(getToolName(part))}</span>
+          {STATE_LABELS[state] ? (
+            <span className="text-muted-foreground text-xs">
+              {STATE_LABELS[state]}
+            </span>
+          ) : null}
+        </div>
+      )}
+      {state === "waiting-approval" && approval && approvalSummary ? (
+        <div className="space-y-2">
+          <p
+            className={cn(
+              approvalSummary.destructive && "font-medium text-destructive"
+            )}
+          >
+            {approvalSummary.headline}
           </p>
-          {input === undefined ? null : (
-            <pre className="max-h-32 overflow-auto rounded bg-background/70 p-2 text-xs">
-              {JSON.stringify(input, null, 2)}
-            </pre>
-          )}
+          {approvalSummary.details.length > 0 ? (
+            <ul className="list-disc space-y-0.5 pl-4 text-muted-foreground text-xs">
+              {approvalSummary.details.map((detail, index) => (
+                <li key={`${index}-${detail}`}>{detail}</li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="text-muted-foreground text-xs">
+            Approve to make this change in the portal.
+          </p>
           <div className="flex gap-2">
             <Button
               onClick={() => onApproval({ approved: true, id: approval.id })}
@@ -277,11 +299,16 @@ const PendingAttachment = ({ file, onRemove }: PendingAttachmentProps) => {
 };
 
 interface ChatMessageProps {
+  entityNames: ReadonlyMap<string, string>;
   message: UIMessage;
   onApproval: (request: ToolApprovalRequest) => void;
 }
 
-const ChatMessage = ({ message, onApproval }: ChatMessageProps) => {
+const ChatMessage = ({
+  entityNames,
+  message,
+  onApproval,
+}: ChatMessageProps) => {
   const isUser = message.role === "user";
 
   return (
@@ -356,6 +383,7 @@ const ChatMessage = ({ message, onApproval }: ChatMessageProps) => {
           if (isToolUIPart(part)) {
             return (
               <ToolPart
+                entityNames={entityNames}
                 key={`${message.id}-tool-${index}`}
                 onApproval={onApproval}
                 part={part}
@@ -468,6 +496,20 @@ const RickChatSession = ({ userId }: { userId: string }) => {
     0
   );
 
+  // Names from earlier tool results let an approval card say which order,
+  // hymn, or person an ID-only tool call (delete, publish, …) acts on.
+  const entityNames = useMemo(
+    () =>
+      collectRickEntityNames(
+        messages.flatMap((message) =>
+          message.parts.flatMap((part) =>
+            isToolUIPart(part) && "output" in part ? [part.output] : []
+          )
+        )
+      ),
+    [messages]
+  );
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [partCount, isStreaming]);
@@ -564,6 +606,7 @@ const RickChatSession = ({ userId }: { userId: string }) => {
             .filter((message) => message.parts.length > 0)
             .map((message) => (
               <ChatMessage
+                entityNames={entityNames}
                 key={message.id}
                 message={message}
                 onApproval={(request) => {
