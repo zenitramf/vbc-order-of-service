@@ -407,6 +407,17 @@ export interface SaveEmailSettingsInput {
   smtpUser?: string;
 }
 
+/** A hymn source tag (e.g. “Living Hymns”) with how many hymns use it. */
+export interface HymnSourceRecord extends ReferenceOption {
+  hymnCount: number;
+}
+
+export interface SaveHymnSourceInput {
+  /** Omit to create a new source tag; pass to rename an existing one. */
+  id?: string;
+  name: string;
+}
+
 export interface SaveHymnInput {
   hymnNumber: string;
   id?: string;

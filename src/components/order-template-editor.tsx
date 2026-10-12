@@ -41,6 +41,7 @@ import type { ColumnDef, Row } from "@tanstack/react-table";
 import * as React from "react";
 import { v4 as uuidv4 } from "uuid";
 
+import { AddHymnDialog, AddHymnFlow } from "~/components/add-hymn-flow";
 import { OrderTeamAssignment } from "~/components/order-team-assignment";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -107,6 +108,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { mergeHymnOptions } from "~/lib/hymn-sources";
 import { getMusicKeyLabel } from "~/lib/music-keys";
 import type {
   HymnOption,
@@ -222,6 +224,8 @@ const segmentTeamsNeedAttention = (segment: ServiceTypeCard) =>
 
 interface EditorProps {
   activityTypes: ReferenceOption[];
+  /** Shows “Add new hymn” in the hymn picker (needs hymns:create). */
+  allowHymnCreation?: boolean;
   allowHymnSelection?: boolean;
   allowTeamAssignment?: boolean;
   allowTeamDefinition?: boolean;
@@ -241,16 +245,20 @@ interface ActivityFormProps {
   /** Renders the hymn popup inside this node so it scrolls within a dialog. */
   comboboxContainer?: HTMLElement | null;
   hymnOptions: HymnOption[];
+  /** Opens the quick-add hymn flow, prefilled with the search text. */
+  onAddHymn?: (initialName: string) => void;
   onUpdate: (activity: OrderActivity) => void;
 }
 
 interface SegmentEditorProps {
   activityTypes: ReferenceOption[];
+  allowHymnCreation: boolean;
   allowHymnSelection: boolean;
   allowTeamAssignment: boolean;
   allowTeamDefinition: boolean;
   hymnOptions: HymnOption[];
   onAddActivity: () => void;
+  onHymnCreated: (hymn: HymnOption) => void;
   onRemove: () => void;
   onUpdateSegment: (segment: ServiceTypeCard) => void;
   segment: ServiceTypeCard;
@@ -317,6 +325,8 @@ interface HymnComboboxProps {
   hymnOptions: HymnOption[];
   id?: string;
   invalid?: boolean;
+  /** Opens the quick-add hymn flow, prefilled with the search text. */
+  onAddHymn?: (initialName: string) => void;
   onChange: (hymnId: string | undefined) => void;
 }
 
@@ -327,8 +337,11 @@ const HymnCombobox = ({
   hymnOptions,
   id,
   invalid = false,
+  onAddHymn,
   onChange,
 }: HymnComboboxProps) => {
+  const [open, setOpen] = React.useState(false);
+  const [searchText, setSearchText] = React.useState("");
   const hymnOptionGroups = React.useMemo(
     () => groupHymnOptionsBySource(hymnOptions),
     [hymnOptions]
@@ -337,12 +350,21 @@ const HymnCombobox = ({
     hymnOptionGroups
       .flatMap((group) => group.items)
       .find((hymn) => hymn.value === hymnId) ?? null;
+  const trimmedSearch = searchText.trim();
+
+  const handleAddHymn = () => {
+    setOpen(false);
+    onAddHymn?.(trimmedSearch);
+  };
 
   return (
     <Combobox
       isItemEqualToValue={(item, value) => item.value === value.value}
       items={hymnOptionGroups}
+      onInputValueChange={(inputValue) => setSearchText(inputValue)}
+      onOpenChange={setOpen}
       onValueChange={(hymn) => onChange(hymn?.value)}
+      open={open}
       value={selectedHymn}
     >
       <ComboboxInput
@@ -352,7 +374,36 @@ const HymnCombobox = ({
         placeholder="Choose a hymn"
       />
       <ComboboxContent container={comboboxContainer}>
-        <ComboboxEmpty>No hymns found.</ComboboxEmpty>
+        <ComboboxEmpty>
+          {onAddHymn ? (
+            <span className="flex flex-col items-center gap-2 py-1">
+              <span>No hymns found.</span>
+              <Button
+                onClick={(event) => {
+                  // Pointer presses are handled on pointer down below;
+                  // detail 0 is a keyboard-activated click.
+                  if (event.detail === 0) {
+                    handleAddHymn();
+                  }
+                }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  handleAddHymn();
+                }}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                <PlusIcon data-icon="inline-start" />
+                {trimmedSearch
+                  ? `Add “${trimmedSearch}” as new hymn`
+                  : "Add new hymn"}
+              </Button>
+            </span>
+          ) : (
+            "No hymns found."
+          )}
+        </ComboboxEmpty>
         <ComboboxList>
           {(group, index) => (
             <ComboboxGroup key={group.value} items={group.items}>
@@ -397,6 +448,7 @@ const ActivityForm = ({
   allowHymnSelection,
   comboboxContainer,
   hymnOptions,
+  onAddHymn,
   onUpdate,
 }: ActivityFormProps) => {
   const selectedHymn = hymnOptions.find((hymn) => hymn.id === activity.hymnId);
@@ -496,6 +548,18 @@ const ActivityForm = ({
                 </Tooltip>
               </TooltipProvider>
             ) : null}
+            {onAddHymn ? (
+              <Button
+                className="ml-auto"
+                onClick={() => onAddHymn("")}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <PlusIcon data-icon="inline-start" />
+                Add new hymn
+              </Button>
+            ) : null}
           </div>
           <HymnCombobox
             comboboxContainer={comboboxContainer}
@@ -503,6 +567,7 @@ const ActivityForm = ({
             hymnOptions={hymnOptions}
             id={`${activity.id}-hymn`}
             invalid={needsHymnSelection}
+            onAddHymn={onAddHymn}
             onChange={(hymnId) => onUpdate({ ...activity, hymnId })}
           />
           {needsHymnSelection ? (
@@ -530,51 +595,82 @@ const ActivityForm = ({
 interface ActivityManageDialogProps {
   activity: OrderActivity;
   activityTypes: ReferenceOption[];
+  allowHymnCreation: boolean;
   allowHymnSelection: boolean;
   hymnOptions: HymnOption[];
   onClose: () => void;
+  onHymnCreated: (hymn: HymnOption) => void;
   onUpdate: (activity: OrderActivity) => void;
 }
 
 const ActivityManageDialog = ({
   activity,
   activityTypes,
+  allowHymnCreation,
   allowHymnSelection,
   hymnOptions,
   onClose,
+  onHymnCreated,
   onUpdate,
 }: ActivityManageDialogProps) => {
   const [container, setContainer] = React.useState<HTMLElement | null>(null);
+  // Null shows the activity form; a string swaps this same dialog to the
+  // quick-add hymn flow (prefilled with that text) instead of stacking a
+  // second dialog, so the activity being edited is never lost.
+  const [addHymnName, setAddHymnName] = React.useState<string | null>(null);
 
   return (
     <Dialog
       onOpenChange={(open) => {
         if (!open) {
-          onClose();
+          if (addHymnName === null) {
+            onClose();
+          } else {
+            setAddHymnName(null);
+          }
         }
       }}
       open
     >
       <DialogContent className="sm:max-w-2xl" ref={setContainer}>
-        <DialogHeader>
-          <DialogTitle>Manage activity</DialogTitle>
-          <DialogDescription>
-            Update the details for this activity.
-          </DialogDescription>
-        </DialogHeader>
-        <ActivityForm
-          activity={activity}
-          activityTypes={activityTypes}
-          allowHymnSelection={allowHymnSelection}
-          comboboxContainer={container}
-          hymnOptions={hymnOptions}
-          onUpdate={onUpdate}
-        />
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button">Done</Button>
-          </DialogClose>
-        </DialogFooter>
+        {addHymnName === null ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Manage activity</DialogTitle>
+              <DialogDescription>
+                Update the details for this activity.
+              </DialogDescription>
+            </DialogHeader>
+            <ActivityForm
+              activity={activity}
+              activityTypes={activityTypes}
+              allowHymnSelection={allowHymnSelection}
+              comboboxContainer={container}
+              hymnOptions={hymnOptions}
+              onAddHymn={
+                allowHymnCreation
+                  ? (initialName) => setAddHymnName(initialName)
+                  : undefined
+              }
+              onUpdate={onUpdate}
+            />
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button">Done</Button>
+              </DialogClose>
+            </DialogFooter>
+          </>
+        ) : (
+          <AddHymnFlow
+            initialName={addHymnName}
+            onCancel={() => setAddHymnName(null)}
+            onCreated={(hymn) => {
+              onHymnCreated(hymn);
+              onUpdate({ ...activity, hymnId: hymn.id });
+              setAddHymnName(null);
+            }}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -613,6 +709,8 @@ interface ActivityColumnsOptions {
   hymnOptions: HymnOption[];
   /** Timeline rows pick hymns in place instead of via the Manage dialog. */
   inlineHymnEditing: boolean;
+  /** Opens quick-add for this activity; omit when hymn creation is off. */
+  onAddHymn?: (activity: OrderActivity, initialName: string) => void;
   onManage: (activityId: string) => void;
   onRemove: (activityId: string) => void;
   onUpdate: (activity: OrderActivity) => void;
@@ -625,6 +723,7 @@ const createActivityColumns = ({
   hymnLabels,
   hymnOptions,
   inlineHymnEditing,
+  onAddHymn,
   onManage,
   onRemove,
   onUpdate,
@@ -780,6 +879,11 @@ const createActivityColumns = ({
               hymnId={activity.hymnId}
               hymnOptions={hymnOptions}
               invalid={!activity.hymnId}
+              onAddHymn={
+                onAddHymn
+                  ? (initialName) => onAddHymn(activity, initialName)
+                  : undefined
+              }
               onChange={(hymnId) => onUpdate({ ...activity, hymnId })}
             />
           </div>
@@ -841,9 +945,11 @@ const SortableActivityRow = ({ onManage, row }: SortableActivityRowProps) => {
 interface SegmentActivitiesTableProps {
   activities: OrderActivity[];
   activityTypes: ReferenceOption[];
+  allowHymnCreation: boolean;
   allowHymnSelection: boolean;
   hymnOptions: HymnOption[];
   inlineHymnEditing?: boolean;
+  onHymnCreated: (hymn: HymnOption) => void;
   onRemove: (activityId: string) => void;
   onReorder: (activeId: string, overId: string) => void;
   onUpdate: (activity: OrderActivity) => void;
@@ -853,9 +959,11 @@ interface SegmentActivitiesTableProps {
 const SegmentActivitiesTable = ({
   activities,
   activityTypes,
+  allowHymnCreation,
   allowHymnSelection,
   hymnOptions,
   inlineHymnEditing = false,
+  onHymnCreated,
   onRemove,
   onReorder,
   onUpdate,
@@ -864,6 +972,10 @@ const SegmentActivitiesTable = ({
   const [manageActivityId, setManageActivityId] = React.useState<string | null>(
     null
   );
+  const [addHymnFor, setAddHymnFor] = React.useState<{
+    activityId: string;
+    initialName: string;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -896,12 +1008,17 @@ const SegmentActivitiesTable = ({
         hymnLabels,
         hymnOptions,
         inlineHymnEditing,
+        onAddHymn: allowHymnCreation
+          ? (activity, initialName) =>
+              setAddHymnFor({ activityId: activity.id, initialName })
+          : undefined,
         onManage: setManageActivityId,
         onRemove,
         onUpdate,
       }),
     [
       activityTypeNames,
+      allowHymnCreation,
       allowHymnSelection,
       hymnHasLyrics,
       hymnLabels,
@@ -991,11 +1108,33 @@ const SegmentActivitiesTable = ({
         <ActivityManageDialog
           activity={manageActivity}
           activityTypes={activityTypes}
+          allowHymnCreation={allowHymnCreation}
           allowHymnSelection={allowHymnSelection}
           hymnOptions={hymnOptions}
           key={`${segmentId}-${manageActivity.id}`}
           onClose={() => setManageActivityId(null)}
+          onHymnCreated={onHymnCreated}
           onUpdate={onUpdate}
+        />
+      ) : null}
+
+      {addHymnFor ? (
+        <AddHymnDialog
+          initialName={addHymnFor.initialName}
+          key={`${segmentId}-add-hymn-${addHymnFor.activityId}`}
+          onClose={() => setAddHymnFor(null)}
+          onCreated={(hymn) => {
+            onHymnCreated(hymn);
+            const activity = activities.find(
+              (item) => item.id === addHymnFor.activityId
+            );
+
+            if (activity) {
+              onUpdate({ ...activity, hymnId: hymn.id });
+            }
+
+            setAddHymnFor(null);
+          }}
         />
       ) : null}
     </>
@@ -1394,11 +1533,13 @@ const SegmentTeamDefinition = ({
 
 const SegmentEditor = ({
   activityTypes,
+  allowHymnCreation,
   allowHymnSelection,
   allowTeamAssignment,
   allowTeamDefinition,
   hymnOptions,
   onAddActivity,
+  onHymnCreated,
   onRemove,
   onUpdateSegment,
   segment,
@@ -1533,8 +1674,10 @@ const SegmentEditor = ({
             <SegmentActivitiesTable
               activities={segment.activities}
               activityTypes={activityTypes}
+              allowHymnCreation={allowHymnCreation}
               allowHymnSelection={allowHymnSelection}
               hymnOptions={hymnOptions}
+              onHymnCreated={onHymnCreated}
               onRemove={(activityId) =>
                 onUpdateSegment(removeActivity(segment, activityId))
               }
@@ -1588,6 +1731,7 @@ interface TimelineSegmentEditorProps extends SegmentEditorProps {
  */
 const TimelineSegmentEditor = ({
   activityTypes,
+  allowHymnCreation,
   allowHymnSelection,
   allowTeamAssignment,
   hymnOptions,
@@ -1595,6 +1739,7 @@ const TimelineSegmentEditor = ({
   isFirst,
   isLast,
   onAddActivity,
+  onHymnCreated,
   onMove,
   onRemove,
   onUpdateSegment,
@@ -1750,9 +1895,11 @@ const TimelineSegmentEditor = ({
           <SegmentActivitiesTable
             activities={segment.activities}
             activityTypes={activityTypes}
+            allowHymnCreation={allowHymnCreation}
             allowHymnSelection={allowHymnSelection}
             hymnOptions={hymnOptions}
             inlineHymnEditing
+            onHymnCreated={onHymnCreated}
             onRemove={(activityId) =>
               onUpdateSegment(removeActivity(segment, activityId))
             }
@@ -1794,6 +1941,7 @@ const EMPTY_TEAM_MEMBERS: TeamMemberSummary[] = [];
 
 export const OrderTemplateEditor = ({
   activityTypes,
+  allowHymnCreation = false,
   allowHymnSelection = false,
   allowTeamAssignment = false,
   allowTeamDefinition = false,
@@ -1805,14 +1953,30 @@ export const OrderTemplateEditor = ({
   value,
 }: EditorProps) => {
   const isTimeline = layout === "timeline";
+  // Hymns added from the picker are merged over the loaded options so they
+  // can be selected right away, without reloading the route.
+  const [createdHymnOptions, setCreatedHymnOptions] = React.useState<
+    HymnOption[]
+  >([]);
+  const effectiveHymnOptions = React.useMemo(
+    () => mergeHymnOptions(hymnOptions, createdHymnOptions),
+    [createdHymnOptions, hymnOptions]
+  );
+  const handleHymnCreated = React.useCallback((hymn: HymnOption) => {
+    setCreatedHymnOptions((current) => [
+      ...current.filter((item) => item.id !== hymn.id),
+      hymn,
+    ]);
+  }, []);
 
   const renderSegment = (segment: ServiceTypeCard, index: number) => {
     const sharedProps: SegmentEditorProps = {
       activityTypes,
+      allowHymnCreation: allowHymnCreation && allowHymnSelection,
       allowHymnSelection,
       allowTeamAssignment,
       allowTeamDefinition,
-      hymnOptions,
+      hymnOptions: effectiveHymnOptions,
       onAddActivity: () =>
         onChange(
           updateSegment(value, segment.id, (currentSegment) => ({
@@ -1820,6 +1984,7 @@ export const OrderTemplateEditor = ({
             activities: [...currentSegment.activities, createActivity()],
           }))
         ),
+      onHymnCreated: handleHymnCreated,
       onRemove: () =>
         onChange({
           ...value,
