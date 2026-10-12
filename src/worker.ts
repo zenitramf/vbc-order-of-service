@@ -169,7 +169,6 @@ export default {
       return;
     }
 
-    // Image-gen is consumed by vbc-oos-announcement-image-gen (separate Worker).
     for (const message of batch.messages) {
       message.ack();
     }

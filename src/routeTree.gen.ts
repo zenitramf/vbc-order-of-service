@@ -10,12 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as PresentationRouteImport } from './routes/presentation'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as ApiR2AssetRouteImport } from './routes/api/r2-asset'
-import { Route as ApiPresentationAssetRouteImport } from './routes/api/presentation-asset'
 import { Route as ApiMcpRouteImport } from './routes/api/mcp'
 import { Route as AuthenticatedPlannerRouteImport } from './routes/_authenticated/planner'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -24,9 +21,7 @@ import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedMembersIndexRouteImport } from './routes/_authenticated/members/index'
-import { Route as AuthenticatedLibraryIndexRouteImport } from './routes/_authenticated/library/index'
 import { Route as AuthenticatedHymnsIndexRouteImport } from './routes/_authenticated/hymns/index'
-import { Route as AuthenticatedAnnouncementsIndexRouteImport } from './routes/_authenticated/announcements/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AuthenticatedTemplatesNewRouteImport } from './routes/_authenticated/templates/new'
@@ -40,8 +35,6 @@ import { Route as AuthenticatedMembersNewRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMembersMemberIdRouteImport } from './routes/_authenticated/members/$memberId'
 import { Route as AuthenticatedHymnsNewRouteImport } from './routes/_authenticated/hymns/new'
 import { Route as AuthenticatedHymnsHymnIdRouteImport } from './routes/_authenticated/hymns/$hymnId'
-import { Route as AuthenticatedAnnouncementsDeckRouteImport } from './routes/_authenticated/announcements/deck'
-import { Route as AuthenticatedAnnouncementsAnnouncementIdRouteImport } from './routes/_authenticated/announcements/$announcementId'
 import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_authenticated/admin/users/index'
 import { Route as AuthenticatedAdminRolesIndexRouteImport } from './routes/_authenticated/admin/roles/index'
 import { Route as AuthenticatedAdminUsersNewRouteImport } from './routes/_authenticated/admin/users/new'
@@ -52,11 +45,6 @@ import { Route as AuthenticatedAdminRolesRoleIdRouteImport } from './routes/_aut
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PresentationRoute = PresentationRouteImport.update({
-  id: '/presentation',
-  path: '/presentation',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -72,16 +60,6 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRoute,
-} as any)
-const ApiR2AssetRoute = ApiR2AssetRouteImport.update({
-  id: '/api/r2-asset',
-  path: '/api/r2-asset',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPresentationAssetRoute = ApiPresentationAssetRouteImport.update({
-  id: '/api/presentation-asset',
-  path: '/api/presentation-asset',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpRoute = ApiMcpRouteImport.update({
   id: '/api/mcp',
@@ -127,23 +105,11 @@ const AuthenticatedMembersIndexRoute =
     path: '/members/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedLibraryIndexRoute =
-  AuthenticatedLibraryIndexRouteImport.update({
-    id: '/library/',
-    path: '/library/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedHymnsIndexRoute = AuthenticatedHymnsIndexRouteImport.update({
   id: '/hymns/',
   path: '/hymns/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedAnnouncementsIndexRoute =
-  AuthenticatedAnnouncementsIndexRouteImport.update({
-    id: '/announcements/',
-    path: '/announcements/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -215,18 +181,6 @@ const AuthenticatedHymnsHymnIdRoute =
     path: '/hymns/$hymnId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const AuthenticatedAnnouncementsDeckRoute =
-  AuthenticatedAnnouncementsDeckRouteImport.update({
-    id: '/announcements/deck',
-    path: '/announcements/deck',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedAnnouncementsAnnouncementIdRoute =
-  AuthenticatedAnnouncementsAnnouncementIdRouteImport.update({
-    id: '/announcements/$announcementId',
-    path: '/announcements/$announcementId',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
 const AuthenticatedAdminUsersIndexRoute =
   AuthenticatedAdminUsersIndexRouteImport.update({
     id: '/users/',
@@ -267,15 +221,10 @@ const AuthenticatedAdminRolesRoleIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/login': typeof LoginRoute
-  '/presentation': typeof PresentationRoute
   '/reset-password': typeof ResetPasswordRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
-  '/api/presentation-asset': typeof ApiPresentationAssetRoute
-  '/api/r2-asset': typeof ApiR2AssetRoute
-  '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  '/announcements/deck': typeof AuthenticatedAnnouncementsDeckRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -289,9 +238,7 @@ export interface FileRoutesByFullPath {
   '/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
-  '/announcements/': typeof AuthenticatedAnnouncementsIndexRoute
   '/hymns/': typeof AuthenticatedHymnsIndexRoute
-  '/library/': typeof AuthenticatedLibraryIndexRoute
   '/members/': typeof AuthenticatedMembersIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -306,15 +253,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
-  '/presentation': typeof PresentationRoute
   '/reset-password': typeof ResetPasswordRoute
   '/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
-  '/api/presentation-asset': typeof ApiPresentationAssetRoute
-  '/api/r2-asset': typeof ApiR2AssetRoute
   '/': typeof AuthenticatedIndexRoute
-  '/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  '/announcements/deck': typeof AuthenticatedAnnouncementsDeckRoute
   '/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -328,9 +270,7 @@ export interface FileRoutesByTo {
   '/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
-  '/announcements': typeof AuthenticatedAnnouncementsIndexRoute
   '/hymns': typeof AuthenticatedHymnsIndexRoute
-  '/library': typeof AuthenticatedLibraryIndexRoute
   '/members': typeof AuthenticatedMembersIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
@@ -347,16 +287,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
-  '/presentation': typeof PresentationRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/planner': typeof AuthenticatedPlannerRoute
   '/api/mcp': typeof ApiMcpRoute
-  '/api/presentation-asset': typeof ApiPresentationAssetRoute
-  '/api/r2-asset': typeof ApiR2AssetRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
-  '/_authenticated/announcements/$announcementId': typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  '/_authenticated/announcements/deck': typeof AuthenticatedAnnouncementsDeckRoute
   '/_authenticated/hymns/$hymnId': typeof AuthenticatedHymnsHymnIdRoute
   '/_authenticated/hymns/new': typeof AuthenticatedHymnsNewRoute
   '/_authenticated/members/$memberId': typeof AuthenticatedMembersMemberIdRoute
@@ -370,9 +305,7 @@ export interface FileRoutesById {
   '/_authenticated/templates/new': typeof AuthenticatedTemplatesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
-  '/_authenticated/announcements/': typeof AuthenticatedAnnouncementsIndexRoute
   '/_authenticated/hymns/': typeof AuthenticatedHymnsIndexRoute
-  '/_authenticated/library/': typeof AuthenticatedLibraryIndexRoute
   '/_authenticated/members/': typeof AuthenticatedMembersIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -390,15 +323,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/login'
-    | '/presentation'
     | '/reset-password'
     | '/admin'
     | '/planner'
     | '/api/mcp'
-    | '/api/presentation-asset'
-    | '/api/r2-asset'
-    | '/announcements/$announcementId'
-    | '/announcements/deck'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -412,9 +340,7 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/api/auth/$'
     | '/admin/'
-    | '/announcements/'
     | '/hymns/'
-    | '/library/'
     | '/members/'
     | '/profile/'
     | '/settings/'
@@ -429,15 +355,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
-    | '/presentation'
     | '/reset-password'
     | '/planner'
     | '/api/mcp'
-    | '/api/presentation-asset'
-    | '/api/r2-asset'
     | '/'
-    | '/announcements/$announcementId'
-    | '/announcements/deck'
     | '/hymns/$hymnId'
     | '/hymns/new'
     | '/members/$memberId'
@@ -451,9 +372,7 @@ export interface FileRouteTypes {
     | '/templates/new'
     | '/api/auth/$'
     | '/admin'
-    | '/announcements'
     | '/hymns'
-    | '/library'
     | '/members'
     | '/profile'
     | '/settings'
@@ -469,16 +388,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_authenticated'
     | '/login'
-    | '/presentation'
     | '/reset-password'
     | '/_authenticated/admin'
     | '/_authenticated/planner'
     | '/api/mcp'
-    | '/api/presentation-asset'
-    | '/api/r2-asset'
     | '/_authenticated/'
-    | '/_authenticated/announcements/$announcementId'
-    | '/_authenticated/announcements/deck'
     | '/_authenticated/hymns/$hymnId'
     | '/_authenticated/hymns/new'
     | '/_authenticated/members/$memberId'
@@ -492,9 +406,7 @@ export interface FileRouteTypes {
     | '/_authenticated/templates/new'
     | '/api/auth/$'
     | '/_authenticated/admin/'
-    | '/_authenticated/announcements/'
     | '/_authenticated/hymns/'
-    | '/_authenticated/library/'
     | '/_authenticated/members/'
     | '/_authenticated/profile/'
     | '/_authenticated/settings/'
@@ -511,11 +423,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
-  PresentationRoute: typeof PresentationRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiMcpRoute: typeof ApiMcpRoute
-  ApiPresentationAssetRoute: typeof ApiPresentationAssetRoute
-  ApiR2AssetRoute: typeof ApiR2AssetRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -526,13 +435,6 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/presentation': {
-      id: '/presentation'
-      path: '/presentation'
-      fullPath: '/presentation'
-      preLoaderRoute: typeof PresentationRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -555,20 +457,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
-    }
-    '/api/r2-asset': {
-      id: '/api/r2-asset'
-      path: '/api/r2-asset'
-      fullPath: '/api/r2-asset'
-      preLoaderRoute: typeof ApiR2AssetRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/presentation-asset': {
-      id: '/api/presentation-asset'
-      path: '/api/presentation-asset'
-      fullPath: '/api/presentation-asset'
-      preLoaderRoute: typeof ApiPresentationAssetRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/mcp': {
       id: '/api/mcp'
@@ -626,25 +514,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMembersIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/library/': {
-      id: '/_authenticated/library/'
-      path: '/library'
-      fullPath: '/library/'
-      preLoaderRoute: typeof AuthenticatedLibraryIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/hymns/': {
       id: '/_authenticated/hymns/'
       path: '/hymns'
       fullPath: '/hymns/'
       preLoaderRoute: typeof AuthenticatedHymnsIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/announcements/': {
-      id: '/_authenticated/announcements/'
-      path: '/announcements'
-      fullPath: '/announcements/'
-      preLoaderRoute: typeof AuthenticatedAnnouncementsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/admin/': {
@@ -738,20 +612,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHymnsHymnIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/announcements/deck': {
-      id: '/_authenticated/announcements/deck'
-      path: '/announcements/deck'
-      fullPath: '/announcements/deck'
-      preLoaderRoute: typeof AuthenticatedAnnouncementsDeckRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/announcements/$announcementId': {
-      id: '/_authenticated/announcements/$announcementId'
-      path: '/announcements/$announcementId'
-      fullPath: '/announcements/$announcementId'
-      preLoaderRoute: typeof AuthenticatedAnnouncementsAnnouncementIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/admin/users/': {
       id: '/_authenticated/admin/users/'
       path: '/users'
@@ -824,8 +684,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedPlannerRoute: typeof AuthenticatedPlannerRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
-  AuthenticatedAnnouncementsAnnouncementIdRoute: typeof AuthenticatedAnnouncementsAnnouncementIdRoute
-  AuthenticatedAnnouncementsDeckRoute: typeof AuthenticatedAnnouncementsDeckRoute
   AuthenticatedHymnsHymnIdRoute: typeof AuthenticatedHymnsHymnIdRoute
   AuthenticatedHymnsNewRoute: typeof AuthenticatedHymnsNewRoute
   AuthenticatedMembersMemberIdRoute: typeof AuthenticatedMembersMemberIdRoute
@@ -837,9 +695,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedTeamsNewRoute: typeof AuthenticatedTeamsNewRoute
   AuthenticatedTemplatesTemplateIdRoute: typeof AuthenticatedTemplatesTemplateIdRoute
   AuthenticatedTemplatesNewRoute: typeof AuthenticatedTemplatesNewRoute
-  AuthenticatedAnnouncementsIndexRoute: typeof AuthenticatedAnnouncementsIndexRoute
   AuthenticatedHymnsIndexRoute: typeof AuthenticatedHymnsIndexRoute
-  AuthenticatedLibraryIndexRoute: typeof AuthenticatedLibraryIndexRoute
   AuthenticatedMembersIndexRoute: typeof AuthenticatedMembersIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedSettingsIndexRoute: typeof AuthenticatedSettingsIndexRoute
@@ -851,9 +707,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedPlannerRoute: AuthenticatedPlannerRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
-  AuthenticatedAnnouncementsAnnouncementIdRoute:
-    AuthenticatedAnnouncementsAnnouncementIdRoute,
-  AuthenticatedAnnouncementsDeckRoute: AuthenticatedAnnouncementsDeckRoute,
   AuthenticatedHymnsHymnIdRoute: AuthenticatedHymnsHymnIdRoute,
   AuthenticatedHymnsNewRoute: AuthenticatedHymnsNewRoute,
   AuthenticatedMembersMemberIdRoute: AuthenticatedMembersMemberIdRoute,
@@ -865,9 +718,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedTeamsNewRoute: AuthenticatedTeamsNewRoute,
   AuthenticatedTemplatesTemplateIdRoute: AuthenticatedTemplatesTemplateIdRoute,
   AuthenticatedTemplatesNewRoute: AuthenticatedTemplatesNewRoute,
-  AuthenticatedAnnouncementsIndexRoute: AuthenticatedAnnouncementsIndexRoute,
   AuthenticatedHymnsIndexRoute: AuthenticatedHymnsIndexRoute,
-  AuthenticatedLibraryIndexRoute: AuthenticatedLibraryIndexRoute,
   AuthenticatedMembersIndexRoute: AuthenticatedMembersIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedSettingsIndexRoute: AuthenticatedSettingsIndexRoute,
@@ -882,11 +733,8 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
-  PresentationRoute: PresentationRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiMcpRoute: ApiMcpRoute,
-  ApiPresentationAssetRoute: ApiPresentationAssetRoute,
-  ApiR2AssetRoute: ApiR2AssetRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

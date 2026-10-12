@@ -79,7 +79,7 @@ const useColorScheme = (): "dark" | "light" => {
 };
 
 /**
- * CodeMirror editor for announcement advanced views (project JSON or HTML).
+ * CodeMirror editor for advanced views (project JSON or HTML).
  * Supports read-only mode for export HTML previews.
  */
 export const HtmlCodeEditor = ({

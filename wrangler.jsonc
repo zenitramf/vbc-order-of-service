@@ -23,21 +23,13 @@
       "bucket_name": "vbc-order-of-service-pdfs",
     },
   ],
-  // AI inference (layout + background images) runs on vbc-oos-announcement-image-gen.
-  // Main app only produces to oos-announcement-image-gen.
   "queues": {
     "producers": [
       {
         "binding": "OOS_EMAIL_SENDER",
         "queue": "oos-email-sender",
       },
-      {
-        "binding": "OOS_ANNOUNCEMENT_IMAGE_GEN",
-        "queue": "oos-announcement-image-gen",
-      },
     ],
-    // Image-gen consumer lives on vbc-oos-announcement-image-gen (Phase B).
-    // Main app only produces to oos-announcement-image-gen.
     "consumers": [
       {
         "queue": "oos-email-sender",

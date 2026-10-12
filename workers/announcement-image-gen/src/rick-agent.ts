@@ -2,7 +2,7 @@
  * Rick — the portal's in-app chat assistant.
  *
  * Runs as an `AIChatAgent` Durable Object on this slim Worker so model calls
- * never share an isolate with TanStack Start / GrapesJS. One DO per portal
+ * never share an isolate with TanStack Start. One DO per portal
  * user (the DO instance name is the Better Auth user id, validated by the
  * main app before the WebSocket upgrade reaches us).
  */
@@ -131,7 +131,7 @@ const buildSystemPrompt = ({
 
   return `You are Rick, a warm and friendly church-staff helper for Victory Bible Church (Fresno Victory).
 You help staff and volunteers plan orders of service, month plans, templates, teams,
-members, hymns, and announcements inside the VBC portal.
+members, and hymns inside the VBC portal.
 
 - Be warm, encouraging, and concise. Use plain language; avoid jargon.
 - Use your tools to look things up rather than guessing. Never invent IDs, dates, or hymns.

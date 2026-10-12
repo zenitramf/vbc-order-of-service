@@ -99,16 +99,16 @@ pnpm preview
 
 ```sh
 pnpm run db:migrate:remote
-# Image-gen queue consumer first (claims oos-announcement-image-gen), then app.
+# Rick agent Worker first (creates the Durable Object class), then app.
 pnpm run deploy:all
 # Or separately:
 #   pnpm run deploy:image-gen
 #   pnpm run deploy
 ```
 
-Announcement AI backgrounds run on a dedicated slim Worker
-(`vbc-oos-announcement-image-gen`) that writes JPEGs to R2. The main app only
-enqueues jobs and serves results from R2.
+The Rick chat agent runs on a dedicated slim Worker
+(`vbc-oos-announcement-image-gen`, a historical name) as a Durable Object;
+the main app authorizes users and routes chat traffic to it.
 
 ## Cloudflare Bindings
 

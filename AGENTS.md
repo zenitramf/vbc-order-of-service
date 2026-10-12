@@ -19,19 +19,21 @@ For all limits and quotas, retrieve from the product's `/platform/limits/` page.
 
 Run `wrangler types` after changing bindings in wrangler.jsonc.
 
-## Multi-Worker deploy (announcement image gen + Rick)
+## Multi-Worker deploy (Rick)
 
-AI background generation and the Rick chat agent run on a **separate slim
-Worker** so payloads never share the TanStack Start isolate (128 MB limit).
+The Rick chat agent runs on a **separate slim Worker** so model calls never
+share the TanStack Start isolate (128 MB limit). The sidecar keeps its
+historical name — it used to also run announcement image generation, which
+was removed — so the cross-script Durable Object binding does not move.
 
-| Worker                           | Role                                                                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `vbc-order-of-service`           | App HTTP + email queue; **produces** announcement AI jobs (no `env.AI`); authorizes Rick and routes to the agent DO |
-| `vbc-oos-announcement-image-gen` | **Consumes** queue → background images + layout plans → R2; hosts the `RickAgent` Durable Object                    |
+| Worker                           | Role                                                         |
+| -------------------------------- | ------------------------------------------------------------ |
+| `vbc-order-of-service`           | App HTTP + email queue; authorizes Rick and routes to the DO |
+| `vbc-oos-announcement-image-gen` | Hosts the `RickAgent` Durable Object                         |
 
 ```bash
-pnpm deploy:image-gen   # deploy consumer + Rick DO first (creates the DO class)
-pnpm deploy             # main app (producer only for image-gen)
+pnpm deploy:image-gen   # deploy Rick DO worker first (creates the DO class)
+pnpm deploy             # main app
 # or
 pnpm deploy:all
 ```
@@ -43,8 +45,7 @@ pnpm deploy:all
 - Sidecar: `RICK_AGENT` DO binding + `v1-rick-agent` SQLite migration;
   `PORTAL` service binding back to the main app; `RICK_AGENT_TOKEN_SECRET`
   (must be the same value), `OPENROUTER_API_KEY` (Rick's model calls),
-  `RICK_MODEL`, `AI_GATEWAY_ID` (image gen only — Rick no longer uses AI
-  Gateway; unified billing caps paid models at 50 req/min per account).
+  `RICK_MODEL`.
 - `workers_dev: false` on the sidecar: the agent is only reachable through the
   main app's cross-script DO binding.
 - Rick calls the portal's `/api/mcp` with a 5-minute HMAC token

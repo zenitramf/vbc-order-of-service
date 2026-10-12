@@ -4,9 +4,7 @@ import {
   FastForwardIcon,
   GearIcon,
   HouseIcon,
-  ImageIcon,
   ListChecksIcon,
-  MegaphoneIcon,
   MusicNotesIcon,
   ShieldCheckIcon,
   UserCircleIcon,
@@ -102,20 +100,6 @@ const resourceItems: NavItem[] = [
     resource: "hymns",
     to: "/hymns",
   },
-  {
-    action: "view",
-    icon: MegaphoneIcon,
-    label: "Announcements",
-    resource: "announcements",
-    to: "/announcements",
-  },
-  {
-    action: "view",
-    icon: ImageIcon,
-    label: "Image Library",
-    resource: "library",
-    to: "/library",
-  },
 ];
 
 const peopleItems: NavItem[] = [
@@ -151,9 +135,6 @@ const routeLabels = new Map([
   ["new", "New"],
   ["templates", "Templates"],
   ["hymns", "Hymns"],
-  ["announcements", "Announcements"],
-  ["deck", "Presentation deck"],
-  ["library", "Image Library"],
   ["teams", "Teams"],
   ["members", "Team Members"],
   ["admin", "Admin"],
