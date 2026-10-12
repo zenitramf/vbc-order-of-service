@@ -30,6 +30,11 @@ import {
   requireSessionMiddleware,
 } from "~/lib/auth.functions";
 import { getStoredEmailSettings, sendSmtpEmail } from "~/lib/email-sender";
+import {
+  hymnSourceDeleteError,
+  hymnSourceIdForName,
+  validateHymnSourceName,
+} from "~/lib/hymn-sources";
 import { buildOrderRoster } from "~/lib/order-roster";
 import type {
   CraftMyPdfOrderPayload,
@@ -45,6 +50,7 @@ import type {
   HymnLanguage,
   HymnOption,
   HymnRecord,
+  HymnSourceRecord,
   MonthPlanData,
   MonthPlanningDayConfig,
   MonthPlanningSettings,
@@ -65,6 +71,7 @@ import type {
   RenameHymnFileInput,
   SaveEmailSettingsInput,
   SaveHymnInput,
+  SaveHymnSourceInput,
   SaveMonthScheduleInput,
   SaveOrderInput,
   SaveTemplateInput,
@@ -2608,6 +2615,16 @@ export const saveHymn = createServerFn({ method: "POST" })
       throw new Error("Language must be english or spanish.");
     }
 
+    const source = await db
+      .select({ id: hymnSources.id })
+      .from(hymnSources)
+      .where(eq(hymnSources.id, data.sourceId))
+      .get();
+
+    if (!source) {
+      throw new Error("Choose a source tag for this hymn.");
+    }
+
     const values = {
       hymnNumber: data.hymnNumber.trim(),
       id,
@@ -2645,6 +2662,88 @@ export const deleteHymn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ success: true }> => {
     const db = getAppDb();
     await db.delete(hymns).where(eq(hymns.id, data));
+
+    return { success: true };
+  });
+
+export const getHymnSources = createServerFn({ method: "GET" })
+  .middleware([requireSessionMiddleware])
+  .handler(async (): Promise<HymnSourceRecord[]> => {
+    const db = getAppDb();
+    const results = await db.all<Record<string, unknown>>(
+      sql`SELECT hymn_sources.id, hymn_sources.name,
+        (SELECT COUNT(*) FROM hymns WHERE hymns.source_id = hymn_sources.id) AS hymn_count
+        FROM hymn_sources
+        ORDER BY hymn_sources.name`
+    );
+
+    return results.map((row) => ({
+      hymnCount: asNumber(row.hymn_count),
+      id: asString(row.id),
+      name: asString(row.name),
+    }));
+  });
+
+export const saveHymnSource = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((data: SaveHymnSourceInput) => data)
+  .handler(async ({ data }): Promise<ReferenceOption> => {
+    const db = getAppDb();
+    const existing = await loadReferenceOptions(hymnSources);
+    const nameError = validateHymnSourceName(data.name, existing, data.id);
+
+    if (nameError) {
+      throw new Error(nameError);
+    }
+
+    const name = data.name.trim();
+
+    if (data.id) {
+      if (!existing.some((source) => source.id === data.id)) {
+        throw new Error("Source tag not found.");
+      }
+
+      await db
+        .update(hymnSources)
+        .set({ name })
+        .where(eq(hymnSources.id, data.id));
+
+      return { id: data.id, name };
+    }
+
+    const id = hymnSourceIdForName(name, existing);
+    await db.insert(hymnSources).values({ id, name });
+
+    return { id, name };
+  });
+
+export const deleteHymnSource = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware])
+  .validator((id: string) => id)
+  .handler(async ({ data }): Promise<{ success: true }> => {
+    const db = getAppDb();
+    const source = await db
+      .select({ name: hymnSources.name })
+      .from(hymnSources)
+      .where(eq(hymnSources.id, data))
+      .get();
+
+    if (!source) {
+      return { success: true };
+    }
+
+    const usage = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(hymns)
+      .where(eq(hymns.sourceId, data))
+      .get();
+    const deleteError = hymnSourceDeleteError(source.name, usage?.count ?? 0);
+
+    if (deleteError) {
+      throw new Error(deleteError);
+    }
+
+    await db.delete(hymnSources).where(eq(hymnSources.id, data));
 
     return { success: true };
   });

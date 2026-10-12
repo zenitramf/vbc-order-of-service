@@ -18,6 +18,10 @@ import {
 import * as React from "react";
 import { toast } from "sonner";
 
+import {
+  HymnSourceManager,
+  HymnSourceTagField,
+} from "~/components/hymn-source-manager";
 import { MusicKeySelector } from "~/components/music-key-selector";
 import {
   AlertDialog,
@@ -39,16 +43,19 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog";
+import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "~/components/ui/native-select";
 import {
   Table,
   TableBody,
@@ -156,6 +163,17 @@ export const HymnEditorPage = ({
   const [sourceId, setSourceId] = React.useState(
     hymn?.sourceId ?? referenceData.hymnSources[0]?.id ?? "living-hymns"
   );
+  const [sources, setSources] = React.useState(referenceData.hymnSources);
+  const [sourceManagerOpen, setSourceManagerOpen] = React.useState(false);
+
+  const handleSourcesChange = React.useCallback((records: typeof sources) => {
+    setSources(records);
+    setSourceId((current) =>
+      records.some((source) => source.id === current)
+        ? current
+        : (records[0]?.id ?? "")
+    );
+  }, []);
   const [language, setLanguage] = React.useState<HymnLanguage>(
     hymn?.language ?? "english"
   );
@@ -444,21 +462,13 @@ export const HymnEditorPage = ({
                   value={name}
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="source">Source tag</FieldLabel>
-                <NativeSelect
-                  className="w-full"
-                  id="source"
-                  onChange={(event) => setSourceId(event.target.value)}
-                  value={sourceId}
-                >
-                  {referenceData.hymnSources.map((source) => (
-                    <NativeSelectOption key={source.id} value={source.id}>
-                      {source.name}
-                    </NativeSelectOption>
-                  ))}
-                </NativeSelect>
-              </Field>
+              <HymnSourceTagField
+                id="source"
+                onChange={setSourceId}
+                onManageSources={() => setSourceManagerOpen(true)}
+                sources={sources}
+                value={sourceId}
+              />
               <Field>
                 <FieldLabel>Language</FieldLabel>
                 <ToggleGroup
@@ -623,6 +633,21 @@ export const HymnEditorPage = ({
           </Card>
         </aside>
       </div>
+
+      <Dialog onOpenChange={setSourceManagerOpen} open={sourceManagerOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Manage source tags</DialogTitle>
+            <DialogDescription>
+              Add, rename, or delete the books and collections hymns come from.
+              Tags still used by hymns cannot be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[65vh] overflow-y-auto pr-1">
+            <HymnSourceManager onSourcesChange={handleSourcesChange} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 };

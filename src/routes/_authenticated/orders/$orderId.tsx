@@ -57,6 +57,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { hasPermission } from "~/lib/admin-permissions";
 import { buildOrderRoster } from "~/lib/order-roster";
 import {
   getHymnOptions,
@@ -177,6 +178,8 @@ const OrderRoute = () => {
     teamMembers,
     teams,
   } = Route.useLoaderData();
+  const { permissions } = Route.useRouteContext();
+  const canCreateHymns = hasPermission(permissions, "hymns", "create");
   const router = useRouter();
   const saveOrderFn = useServerFn(saveOrder);
   const publishOrderFn = useServerFn(publishOrder);
@@ -790,6 +793,7 @@ const OrderRoute = () => {
 
       <OrderTemplateEditor
         activityTypes={referenceData.activityTypes}
+        allowHymnCreation={canCreateHymns}
         allowHymnSelection
         allowTeamAssignment
         hymnOptions={hymnOptions}
