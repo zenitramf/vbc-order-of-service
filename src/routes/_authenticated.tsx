@@ -50,19 +50,25 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "~/components/ui/sidebar";
+import { TooltipProvider } from "~/components/ui/tooltip";
 import { UserAvatarMenu } from "~/components/user-avatar-menu";
 import type { RolePermissions } from "~/lib/admin-permissions";
 import { hasPermission } from "~/lib/admin-permissions";
 import { authClient } from "~/lib/auth-client";
 import { getSessionWithPermissions } from "~/lib/auth.functions";
 
-const adminItems = [
-  { icon: UsersIcon, label: "Users", to: "/admin/users" },
-  { icon: ShieldCheckIcon, label: "Roles", to: "/admin/roles" },
-] as const;
+interface NavItem {
+  action?: string;
+  icon: typeof HouseIcon;
+  label: string;
+  /** Extra path prefix that also marks this item active. */
+  match?: string;
+  resource?: string;
+  to: string;
+}
 
-const navigationItems = [
-  { icon: HouseIcon, label: "Dashboard", to: "/" },
+/** Most-used destinations first; shown without a group label. */
+const primaryItems: NavItem[] = [
   {
     action: "view",
     icon: FastForwardIcon,
@@ -78,6 +84,10 @@ const navigationItems = [
     resource: "orders",
     to: "/planner",
   },
+  { icon: HouseIcon, label: "Dashboard", to: "/" },
+];
+
+const resourceItems: NavItem[] = [
   {
     action: "view",
     icon: ListChecksIcon,
@@ -99,9 +109,16 @@ const navigationItems = [
     resource: "announcements",
     to: "/announcements",
   },
-] as const;
+  {
+    action: "view",
+    icon: ImageIcon,
+    label: "Image Library",
+    resource: "library",
+    to: "/library",
+  },
+];
 
-const teamManagementItems = [
+const peopleItems: NavItem[] = [
   {
     action: "view",
     icon: UsersThreeIcon,
@@ -116,24 +133,12 @@ const teamManagementItems = [
     resource: "members",
     to: "/members",
   },
-] as const;
+];
 
-const libraryItems = [
-  {
-    action: "view",
-    icon: ImageIcon,
-    label: "Image Library",
-    resource: "library",
-    to: "/library",
-  },
-] as const;
-
-interface NavItem {
-  action?: string;
-  label: string;
-  resource?: string;
-  to: string;
-}
+const adminItems: NavItem[] = [
+  { icon: UsersIcon, label: "Users", to: "/admin/users" },
+  { icon: ShieldCheckIcon, label: "Roles", to: "/admin/roles" },
+];
 
 /** True when the user's permissions allow seeing a nav item. */
 const canSee = (permissions: RolePermissions, item: NavItem): boolean =>
@@ -201,172 +206,125 @@ const AppBreadcrumb = () => {
   );
 };
 
+const isItemActive = (pathname: string, item: NavItem): boolean => {
+  if (item.to === "/") {
+    return pathname === "/";
+  }
+
+  const matchPaths = [item.to, ...(item.match ? [item.match] : [])];
+
+  return matchPaths.some(
+    (matchPath) =>
+      pathname === matchPath || pathname.startsWith(`${matchPath}/`)
+  );
+};
+
+const SidebarNavGroup = ({
+  className,
+  items,
+  label,
+  pathname,
+}: {
+  className?: string;
+  items: NavItem[];
+  label?: string;
+  pathname: string;
+}) => {
+  if (items.length === 0) {
+    return null;
+  }
+
+  return (
+    <SidebarGroup className={className}>
+      {label ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <SidebarMenuItem key={item.to}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={isItemActive(pathname, item)}
+                  tooltip={item.label}
+                >
+                  <Link to={item.to}>
+                    <Icon />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  );
+};
+
 const AppSidebar = () => {
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
   const { permissions, user } = Route.useRouteContext();
-  const isAdmin = user?.role === "admin";
-  const visibleTeamItems = teamManagementItems.filter((item) =>
-    canSee(permissions, item)
-  );
-  const visibleLibraryItems = libraryItems.filter((item) =>
-    canSee(permissions, item)
-  );
-  const canSeeSettings = hasPermission(permissions, "settings", "view");
+  const visible = (items: NavItem[]) =>
+    items.filter((item) => canSee(permissions, item));
+  const configurationItems: NavItem[] = [
+    ...(hasPermission(permissions, "settings", "view")
+      ? [{ icon: GearIcon, label: "Settings", to: "/settings" }]
+      : []),
+    ...(user?.role === "admin" ? adminItems : []),
+  ];
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild size="lg">
-              <Link to="/">
-                <img
-                  alt=""
-                  className="size-8 shrink-0"
-                  src="/vbc-chip-logo.svg"
-                />
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate font-semibold">VBC Portal</span>
-                  <span className="truncate text-xs font-normal text-sidebar-foreground/70">
-                    Order of Service
+    <TooltipProvider>
+      <Sidebar collapsible="icon">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild size="lg">
+                <Link to="/">
+                  <img
+                    alt=""
+                    className="size-8 shrink-0"
+                    src="/vbc-chip-logo.svg"
+                  />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-semibold">VBC Portal</span>
+                    <span className="truncate text-xs font-normal text-sidebar-foreground/70">
+                      Order of Service
+                    </span>
                   </span>
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Plan</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navigationItems
-                .filter((item) => canSee(permissions, item))
-                .map((item) => {
-                  const Icon = item.icon;
-                  const matchPaths = [
-                    item.to,
-                    ...("match" in item ? [item.match] : []),
-                  ];
-                  const isActive =
-                    item.to === "/"
-                      ? pathname === "/"
-                      : matchPaths.some(
-                          (matchPath) =>
-                            pathname === matchPath ||
-                            pathname.startsWith(`${matchPath}/`)
-                        );
-
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link to={item.to}>
-                          <Icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {visibleTeamItems.length > 0 ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Team Management</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleTeamItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive =
-                    pathname === item.to || pathname.startsWith(`${item.to}/`);
-
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link to={item.to}>
-                          <Icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-        {visibleLibraryItems.length > 0 ? (
-          <SidebarGroup>
-            <SidebarGroupLabel>Library</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {visibleLibraryItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive =
-                    pathname === item.to || pathname.startsWith(`${item.to}/`);
-
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link to={item.to}>
-                          <Icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ) : null}
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarGroupLabel>Configuration</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {canSeeSettings ? (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link to="/settings">
-                        <GearIcon />
-                        <span>Settings</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ) : null}
-                {isAdmin
-                  ? adminItems.map((item) => {
-                      const Icon = item.icon;
-                      const isActive =
-                        pathname === item.to ||
-                        pathname.startsWith(`${item.to}/`);
-
-                      return (
-                        <SidebarMenuItem key={item.to}>
-                          <SidebarMenuButton asChild isActive={isActive}>
-                            <Link to={item.to}>
-                              <Icon />
-                              <span>{item.label}</span>
-                            </Link>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      );
-                    })
-                  : null}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter>
-        <UserAvatarMenu user={user} />
-      </SidebarFooter>
-    </Sidebar>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarNavGroup items={visible(primaryItems)} pathname={pathname} />
+          <SidebarNavGroup
+            items={visible(resourceItems)}
+            label="Resources"
+            pathname={pathname}
+          />
+          <SidebarNavGroup
+            items={visible(peopleItems)}
+            label="People"
+            pathname={pathname}
+          />
+          <SidebarNavGroup
+            className="mt-auto"
+            items={configurationItems}
+            label="Configuration"
+            pathname={pathname}
+          />
+        </SidebarContent>
+        <SidebarFooter>
+          <UserAvatarMenu user={user} />
+        </SidebarFooter>
+      </Sidebar>
+    </TooltipProvider>
   );
 };
 
