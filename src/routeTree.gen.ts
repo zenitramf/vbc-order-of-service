@@ -33,6 +33,7 @@ import { Route as AuthenticatedTemplatesNewRouteImport } from './routes/_authent
 import { Route as AuthenticatedTemplatesTemplateIdRouteImport } from './routes/_authenticated/templates/$templateId'
 import { Route as AuthenticatedTeamsNewRouteImport } from './routes/_authenticated/teams/new'
 import { Route as AuthenticatedTeamsTeamIdRouteImport } from './routes/_authenticated/teams/$teamId'
+import { Route as AuthenticatedOrdersNextRouteImport } from './routes/_authenticated/orders/next'
 import { Route as AuthenticatedOrdersNewRouteImport } from './routes/_authenticated/orders/new'
 import { Route as AuthenticatedOrdersOrderIdRouteImport } from './routes/_authenticated/orders/$orderId'
 import { Route as AuthenticatedMembersNewRouteImport } from './routes/_authenticated/members/new'
@@ -176,6 +177,11 @@ const AuthenticatedTeamsTeamIdRoute =
     path: '/teams/$teamId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedOrdersNextRoute = AuthenticatedOrdersNextRouteImport.update({
+  id: '/orders/next',
+  path: '/orders/next',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedOrdersNewRoute = AuthenticatedOrdersNewRouteImport.update({
   id: '/orders/new',
   path: '/orders/new',
@@ -276,6 +282,7 @@ export interface FileRoutesByFullPath {
   '/members/new': typeof AuthenticatedMembersNewRoute
   '/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
   '/orders/new': typeof AuthenticatedOrdersNewRoute
+  '/orders/next': typeof AuthenticatedOrdersNextRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/teams/new': typeof AuthenticatedTeamsNewRoute
   '/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
@@ -314,6 +321,7 @@ export interface FileRoutesByTo {
   '/members/new': typeof AuthenticatedMembersNewRoute
   '/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
   '/orders/new': typeof AuthenticatedOrdersNewRoute
+  '/orders/next': typeof AuthenticatedOrdersNextRoute
   '/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/teams/new': typeof AuthenticatedTeamsNewRoute
   '/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
@@ -355,6 +363,7 @@ export interface FileRoutesById {
   '/_authenticated/members/new': typeof AuthenticatedMembersNewRoute
   '/_authenticated/orders/$orderId': typeof AuthenticatedOrdersOrderIdRoute
   '/_authenticated/orders/new': typeof AuthenticatedOrdersNewRoute
+  '/_authenticated/orders/next': typeof AuthenticatedOrdersNextRoute
   '/_authenticated/teams/$teamId': typeof AuthenticatedTeamsTeamIdRoute
   '/_authenticated/teams/new': typeof AuthenticatedTeamsNewRoute
   '/_authenticated/templates/$templateId': typeof AuthenticatedTemplatesTemplateIdRoute
@@ -396,6 +405,7 @@ export interface FileRouteTypes {
     | '/members/new'
     | '/orders/$orderId'
     | '/orders/new'
+    | '/orders/next'
     | '/teams/$teamId'
     | '/teams/new'
     | '/templates/$templateId'
@@ -434,6 +444,7 @@ export interface FileRouteTypes {
     | '/members/new'
     | '/orders/$orderId'
     | '/orders/new'
+    | '/orders/next'
     | '/teams/$teamId'
     | '/teams/new'
     | '/templates/$templateId'
@@ -474,6 +485,7 @@ export interface FileRouteTypes {
     | '/_authenticated/members/new'
     | '/_authenticated/orders/$orderId'
     | '/_authenticated/orders/new'
+    | '/_authenticated/orders/next'
     | '/_authenticated/teams/$teamId'
     | '/_authenticated/teams/new'
     | '/_authenticated/templates/$templateId'
@@ -677,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeamsTeamIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/orders/next': {
+      id: '/_authenticated/orders/next'
+      path: '/orders/next'
+      fullPath: '/orders/next'
+      preLoaderRoute: typeof AuthenticatedOrdersNextRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/orders/new': {
       id: '/_authenticated/orders/new'
       path: '/orders/new'
@@ -813,6 +832,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedMembersNewRoute: typeof AuthenticatedMembersNewRoute
   AuthenticatedOrdersOrderIdRoute: typeof AuthenticatedOrdersOrderIdRoute
   AuthenticatedOrdersNewRoute: typeof AuthenticatedOrdersNewRoute
+  AuthenticatedOrdersNextRoute: typeof AuthenticatedOrdersNextRoute
   AuthenticatedTeamsTeamIdRoute: typeof AuthenticatedTeamsTeamIdRoute
   AuthenticatedTeamsNewRoute: typeof AuthenticatedTeamsNewRoute
   AuthenticatedTemplatesTemplateIdRoute: typeof AuthenticatedTemplatesTemplateIdRoute
@@ -840,6 +860,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedMembersNewRoute: AuthenticatedMembersNewRoute,
   AuthenticatedOrdersOrderIdRoute: AuthenticatedOrdersOrderIdRoute,
   AuthenticatedOrdersNewRoute: AuthenticatedOrdersNewRoute,
+  AuthenticatedOrdersNextRoute: AuthenticatedOrdersNextRoute,
   AuthenticatedTeamsTeamIdRoute: AuthenticatedTeamsTeamIdRoute,
   AuthenticatedTeamsNewRoute: AuthenticatedTeamsNewRoute,
   AuthenticatedTemplatesTemplateIdRoute: AuthenticatedTemplatesTemplateIdRoute,

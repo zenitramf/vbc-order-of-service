@@ -1,5 +1,6 @@
 import {
   ArrowRightIcon,
+  CalendarCheckIcon,
   CheckCircleIcon,
   ClockIcon,
   ListChecksIcon,
@@ -11,6 +12,12 @@ import {
 // oxlint-disable no-use-before-define
 import { Link, createFileRoute } from "@tanstack/react-router";
 
+import {
+  OrderOverviewRow,
+  OrderRosterSummary,
+  OrderStatusBadge,
+  RosterAttention,
+} from "~/components/order-roster";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -30,7 +37,7 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty";
 import { getDashboardData } from "~/lib/order-service-data";
-import type { DashboardData, OrderSummary } from "~/lib/order-service-types";
+import type { DashboardData, OrderOverview } from "~/lib/order-service-types";
 
 const millisecondsPerDay = 24 * 60 * 60 * 1000;
 
@@ -56,62 +63,167 @@ const getDaysRemaining = (value: string) => {
   );
 };
 
-const formatDaysRemaining = (daysRemaining: number) =>
-  daysRemaining === 1 ? "1 day remaining" : `${daysRemaining} days remaining`;
+const formatDaysRemaining = (daysRemaining: number) => {
+  if (daysRemaining === 0) {
+    return "Today";
+  }
 
-const UpcomingSundayCard = ({
+  if (daysRemaining === 1) {
+    return "Tomorrow";
+  }
+
+  return `In ${daysRemaining} days`;
+};
+
+const formatMonthLabel = (month: string): string => {
+  const [year, monthNumber] = month.split("-").map(Number);
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
+};
+
+const NextServiceCard = ({
+  month,
+  nextOrder,
   nextSundayDate,
-  order,
 }: {
+  month: string;
+  nextOrder: OrderOverview | null;
   nextSundayDate: string;
-  order: OrderSummary | null;
+}) => (
+  <Card>
+    <CardHeader>
+      <CardDescription>Next service</CardDescription>
+      <CardTitle className="text-2xl">
+        {formatFullDate(nextOrder?.serviceDate ?? nextSundayDate)}
+      </CardTitle>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm text-muted-foreground">
+          {nextOrder
+            ? `${formatDaysRemaining(getDaysRemaining(nextOrder.serviceDate))} · ${nextOrder.title}`
+            : "No upcoming order of service yet."}
+        </p>
+        {nextOrder ? <OrderStatusBadge status={nextOrder.status} /> : null}
+        {nextOrder ? <RosterAttention roster={nextOrder.roster} /> : null}
+      </div>
+    </CardHeader>
+    {nextOrder ? (
+      <>
+        <CardContent>
+          <OrderRosterSummary roster={nextOrder.roster} />
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button
+            asChild
+            className="h-11 px-6 text-base"
+            size="lg"
+            variant="cta"
+          >
+            <Link params={{ orderId: nextOrder.id }} to="/orders/$orderId">
+              <PencilSimpleIcon data-icon="inline-start" />
+              Open next order
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link search={{ month }} to="/planner">
+              <CalendarCheckIcon data-icon="inline-start" />
+              Month Planner
+            </Link>
+          </Button>
+        </CardFooter>
+      </>
+    ) : (
+      <>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Create the order for {formatFullDate(nextSundayDate)}, or plan the
+            whole month at once.
+          </p>
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link to="/orders/new">
+              <PlusIcon data-icon="inline-start" />
+              Create order of service
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link search={{ month }} to="/planner">
+              <CalendarCheckIcon data-icon="inline-start" />
+              Month Planner
+            </Link>
+          </Button>
+        </CardFooter>
+      </>
+    )}
+  </Card>
+);
+
+const MonthOrdersSection = ({
+  month,
+  monthOrders,
+  nextOrderId,
+}: {
+  month: string;
+  monthOrders: OrderOverview[];
+  nextOrderId?: string;
 }) => {
-  const daysRemaining = getDaysRemaining(nextSundayDate);
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <Card>
-      <CardHeader>
-        <CardDescription>Upcoming Sunday</CardDescription>
-        <CardTitle className="text-2xl">
-          {formatFullDate(nextSundayDate)}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {formatDaysRemaining(daysRemaining)}
-        </p>
+      <CardHeader className="flex flex-row items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <CardTitle>This month</CardTitle>
+          <CardDescription>
+            {formatMonthLabel(month)} — every order and who is serving.
+          </CardDescription>
+        </div>
+        <Button asChild size="sm" variant="outline">
+          <Link search={{ month }} to="/planner">
+            Plan month
+            <ArrowRightIcon data-icon="inline-end" />
+          </Link>
+        </Button>
       </CardHeader>
-      {order ? (
-        <>
-          <CardFooter>
-            <Button
-              asChild
-              className="h-11 px-6 text-base"
-              size="lg"
-              variant="cta"
-            >
-              <Link params={{ orderId: order.id }} to="/orders/$orderId">
-                <PencilSimpleIcon data-icon="inline-start" />
-                Modify Next Order of Service
-              </Link>
-            </Button>
-          </CardFooter>
-        </>
-      ) : (
-        <>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              No order of service has been created for this Sunday yet.
-            </p>
-          </CardContent>
-          <CardFooter>
-            <Button asChild>
-              <Link to="/orders/new">
-                <PlusIcon data-icon="inline-start" />
-                Create order of service
-              </Link>
-            </Button>
-          </CardFooter>
-        </>
-      )}
+      <CardContent>
+        {monthOrders.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <CalendarCheckIcon />
+              </EmptyMedia>
+              <EmptyTitle>No orders this month</EmptyTitle>
+              <EmptyDescription>
+                Plan the month to create its services, then assign teams to each
+                one.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild>
+                <Link search={{ month }} to="/planner">
+                  <CalendarCheckIcon data-icon="inline-start" />
+                  Open Month Planner
+                </Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <div className="flex flex-col divide-y">
+            {monthOrders.map((order) => (
+              <OrderOverviewRow
+                badge={order.id === nextOrderId ? <Badge>Next</Badge> : null}
+                dimmed={order.serviceDate < today}
+                key={order.id}
+                order={order}
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 };
@@ -231,9 +343,16 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      <UpcomingSundayCard
+      <NextServiceCard
+        month={data.month}
+        nextOrder={data.nextOrder}
         nextSundayDate={data.nextSundayDate}
-        order={data.nextSundayOrder}
+      />
+
+      <MonthOrdersSection
+        month={data.month}
+        monthOrders={data.monthOrders}
+        nextOrderId={data.nextOrder?.id}
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

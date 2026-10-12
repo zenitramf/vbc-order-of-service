@@ -202,18 +202,66 @@ export interface HymnOption {
   sourceName: string;
 }
 
+/** A member as named on an at-a-glance roster. */
+export interface RosterMember {
+  firstName: string;
+  id: string;
+  lastName: string;
+}
+
+/** One team's staffing on one service card, ready for display. */
+export interface RosterTeam {
+  assignedCount: number;
+  members: RosterMember[];
+  /** Required members still missing; 0 when staffed or optional. */
+  missingCount: number;
+  parentName?: string;
+  required: boolean;
+  requiredCount: number;
+  teamId: string;
+  teamName: string;
+}
+
+/** The staffed teams of a single service card (timeblock). */
+export interface RosterCard {
+  cardId: string;
+  cardName: string;
+  teams: RosterTeam[];
+}
+
+/** Who serves where on an order, plus what still needs attention. */
+export interface OrderRoster {
+  cards: RosterCard[];
+  hasTeams: boolean;
+  /** Hymn activities with no hymn selected yet. */
+  missingHymnCount: number;
+  /** (Card, team) pairs whose required team is understaffed. */
+  missingRequiredCount: number;
+}
+
+/** An order summary together with its at-a-glance roster. */
+export interface OrderOverview extends OrderSummary {
+  roster: OrderRoster;
+}
+
 export interface DashboardData {
   hymnCount: number;
+  /** Current month as YYYY-MM, for planner links. */
+  month: string;
+  /** Every order in the current month, earliest first. */
+  monthOrders: OrderOverview[];
+  /** The next service on or after today, whatever weekday it falls on. */
+  nextOrder: OrderOverview | null;
   nextSundayDate: string;
-  nextSundayOrder: OrderSummary | null;
+  nextSundayOrder: OrderOverview | null;
   planningCount: number;
-  previousOrders: OrderSummary[];
+  previousOrders: OrderOverview[];
   publishedCount: number;
   teamCount: number;
   teamMemberCount: number;
   teams: TeamSummary[];
   templateCount: number;
-  upcomingOrders: OrderSummary[];
+  upcomingOrders: OrderOverview[];
 }
 
 export interface ReferenceData {
@@ -452,7 +500,7 @@ export interface MonthPlanServiceDate {
   date: string;
   dayConfig: MonthPlanningDayConfig;
   /** The existing order for this date, when one has been created. */
-  order?: OrderSummary;
+  order?: OrderOverview;
   /** Whether an order should exist for this date per the configuration. */
   shouldExist: boolean;
   /** The template assigned to this date's weekday, when it still exists. */

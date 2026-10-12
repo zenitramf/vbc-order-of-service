@@ -30,6 +30,7 @@ import {
   requireSessionMiddleware,
 } from "~/lib/auth.functions";
 import { getStoredEmailSettings, sendSmtpEmail } from "~/lib/email-sender";
+import { buildOrderRoster } from "~/lib/order-roster";
 import type {
   CraftMyPdfOrderPayload,
   CraftMyPdfOrderPayloadActivity,
@@ -53,6 +54,7 @@ import type {
   OrderEmailDeliveryRecord,
   OrderEmailQueueMessage,
   OrderEmailStatus,
+  OrderOverview,
   OrderRecord,
   OrderServiceTemplateJson,
   OrderSummary,
@@ -853,51 +855,102 @@ export const getDashboardData = createServerFn({
   .handler(async (): Promise<DashboardData> => {
     const db = getAppDb();
     const today = new Date().toISOString().slice(0, 10);
+    const month = today.slice(0, 7);
     const nextSundayDate = getUpcomingSunday(today);
+    // oxlint-disable-next-line no-use-before-define -- helpers below are module-level consts resolved before handlers run.
+    const nextMonthStart = getNextMonthStart(month);
     const orderSelect = `
       SELECT orders_of_service.*, service_types.name AS service_type_name
       FROM orders_of_service
       JOIN service_types ON service_types.id = orders_of_service.service_type_id
     `;
 
-    const [upcoming, previous, counts, nextSunday, teamRows] =
-      await Promise.all([
-        db.all<Record<string, unknown>>(
-          sql`${sql.raw(orderSelect)} WHERE service_date >= ${today} ORDER BY service_date ASC LIMIT 8`
-        ),
-        db.all<Record<string, unknown>>(
-          sql`${sql.raw(orderSelect)} WHERE service_date < ${today} ORDER BY service_date DESC LIMIT 8`
-        ),
-        db.get<Record<string, unknown>>(
-          sql`SELECT
+    const [
+      upcoming,
+      previous,
+      counts,
+      nextSunday,
+      teamRows,
+      monthRows,
+      allTeamRows,
+      memberRows,
+    ] = await Promise.all([
+      db.all<Record<string, unknown>>(
+        sql`${sql.raw(orderSelect)} WHERE service_date >= ${today} ORDER BY service_date ASC LIMIT 8`
+      ),
+      db.all<Record<string, unknown>>(
+        sql`${sql.raw(orderSelect)} WHERE service_date < ${today} ORDER BY service_date DESC LIMIT 8`
+      ),
+      db.get<Record<string, unknown>>(
+        sql`SELECT
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Planning') AS planning_count,
             (SELECT COUNT(*) FROM orders_of_service WHERE status = 'Published') AS published_count,
             (SELECT COUNT(*) FROM order_service_templates) AS template_count,
             (SELECT COUNT(*) FROM hymns) AS hymn_count,
             (SELECT COUNT(*) FROM team_members) AS team_member_count,
             (SELECT COUNT(*) FROM teams) AS team_count`
-        ),
-        db.get<Record<string, unknown>>(
-          sql`${sql.raw(orderSelect)} WHERE service_date = ${nextSundayDate} LIMIT 1`
-        ),
-        db.all<Record<string, unknown>>(
-          sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
-        ),
-      ]);
+      ),
+      db.get<Record<string, unknown>>(
+        sql`${sql.raw(orderSelect)} WHERE service_date = ${nextSundayDate} LIMIT 1`
+      ),
+      db.all<Record<string, unknown>>(
+        sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY member_count DESC, teams.name ASC LIMIT 6`
+      ),
+      db.all<Record<string, unknown>>(
+        sql`${sql.raw(orderSelect)} WHERE service_date >= ${`${month}-01`} AND service_date < ${nextMonthStart} ORDER BY service_date ASC`
+      ),
+      db.all<Record<string, unknown>>(
+        sql`${sql.raw(TEAM_SUMMARY_SELECT)} ORDER BY teams.name ASC`
+      ),
+      db.all<Record<string, unknown>>(
+        sql`SELECT id, first_name, last_name FROM team_members`
+      ),
+    ]);
+
+    const rosterTeams = allTeamRows.map(mapTeamSummaryRow);
+    const rosterMembers = memberRows.map((row) => ({
+      firstName: asString(row.first_name),
+      id: asString(row.id),
+      lastName: asString(row.last_name),
+    }));
+    const toOverview = (row: Record<string, unknown>): OrderOverview =>
+      // oxlint-disable-next-line no-use-before-define -- defined with toOrderSummary below.
+      toOrderOverview(mapOrderRow(row), rosterTeams, rosterMembers);
+    const upcomingOrders = upcoming.map(toOverview);
 
     return {
       hymnCount: asNumber(counts?.hymn_count),
+      month,
+      monthOrders: monthRows.map(toOverview),
+      nextOrder: upcomingOrders[0] ?? null,
       nextSundayDate,
-      nextSundayOrder: nextSunday ? mapOrderRow(nextSunday) : null,
+      nextSundayOrder: nextSunday ? toOverview(nextSunday) : null,
       planningCount: asNumber(counts?.planning_count),
-      previousOrders: previous.map(mapOrderRow),
+      previousOrders: previous.map(toOverview),
       publishedCount: asNumber(counts?.published_count),
       teamCount: asNumber(counts?.team_count),
       teamMemberCount: asNumber(counts?.team_member_count),
       teams: teamRows.map(mapTeamSummaryRow),
       templateCount: asNumber(counts?.template_count),
-      upcomingOrders: upcoming.map(mapOrderRow),
+      upcomingOrders,
     };
+  });
+
+/** The next service on or after today, for "Next Service" shortcuts. */
+export const getNextOrder = createServerFn({ method: "GET" })
+  .middleware([requireSessionMiddleware])
+  .handler(async (): Promise<{ id: string; serviceDate: string } | null> => {
+    const db = getAppDb();
+    const today = new Date().toISOString().slice(0, 10);
+    const row = await db.get<Record<string, unknown>>(
+      sql`SELECT id, service_date FROM orders_of_service
+          WHERE service_date >= ${today}
+          ORDER BY service_date ASC LIMIT 1`
+    );
+
+    return row
+      ? { id: asString(row.id), serviceDate: asString(row.service_date) }
+      : null;
   });
 
 export const getTemplates = createServerFn({
@@ -1137,6 +1190,19 @@ const toOrderSummary = (order: OrderRecord): OrderSummary => ({
   status: order.status,
   title: order.title,
   updatedAt: order.updatedAt,
+});
+
+/** Summary plus the at-a-glance roster built from the order's own JSON. */
+const toOrderOverview = (
+  order: OrderRecord,
+  rosterTeams: readonly TeamSummary[],
+  rosterMembers: readonly Pick<
+    TeamMemberSummary,
+    "firstName" | "id" | "lastName"
+  >[]
+): OrderOverview => ({
+  ...toOrderSummary(order),
+  roster: buildOrderRoster(order.order, rosterTeams, rosterMembers),
 });
 
 const loadTemplatesById = async (
@@ -1436,7 +1502,15 @@ export const getMonthPlan = createServerFn({ method: "GET" })
         return {
           date,
           dayConfig,
-          ...(order ? { order: toOrderSummary(order) } : {}),
+          ...(order
+            ? {
+                order: toOrderOverview(
+                  order,
+                  teamSummaries,
+                  teamMemberSummaries
+                ),
+              }
+            : {}),
           shouldExist: true,
           templateName: template?.name ?? "",
         };
