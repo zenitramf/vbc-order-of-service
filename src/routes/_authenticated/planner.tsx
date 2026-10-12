@@ -5,7 +5,6 @@ import {
   CaretLeftIcon,
   CaretRightIcon,
   CheckCircleIcon,
-  DotsThreeVerticalIcon,
   UsersThreeIcon,
   WarningCircleIcon,
   XIcon,
@@ -20,6 +19,7 @@ import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
+import { OrderOverviewRow } from "~/components/order-roster";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import {
   Avatar,
@@ -36,12 +36,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import {
@@ -632,10 +626,6 @@ const MonthPlannerPage = () => {
     };
   }, [month, serviceDates]);
 
-  const openOrder = (orderId: string) => {
-    void navigate({ params: { orderId }, to: "/orders/$orderId" });
-  };
-
   const handlePlanMonth = async () => {
     setIsPlanning(true);
 
@@ -670,99 +660,52 @@ const MonthPlannerPage = () => {
         to choose which days to plan.
       </p>
     ) : (
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date</TableHead>
-            <TableHead>Template</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {serviceDates.map((entry) => {
-            const hasOrder = Boolean(entry.order);
-            const isNext = entry.date === nextDate;
-            const isUpcoming = entry.date === upcomingDate;
-            const isPast = entry.date < todayDate;
+      <div className="flex flex-col divide-y">
+        {serviceDates.map((entry) => {
+          const isNext = entry.date === nextDate;
+          const isUpcoming = entry.date === upcomingDate;
+          const isPast = entry.date < todayDate;
+          const timelineBadge = (
+            <>
+              {isNext ? <Badge>Next</Badge> : null}
+              {isUpcoming ? <Badge variant="secondary">Upcoming</Badge> : null}
+              <Badge variant="outline">
+                {entry.templateName || "Template missing"}
+              </Badge>
+            </>
+          );
 
+          if (!entry.order) {
             return (
-              <TableRow
+              <div
                 className={cn(
-                  hasOrder && "cursor-pointer",
+                  "flex flex-wrap items-center gap-x-3 gap-y-1.5 p-4",
                   isPast && "opacity-70"
                 )}
                 key={entry.date}
-                onClick={() => {
-                  if (entry.order) {
-                    openOrder(entry.order.id);
-                  }
-                }}
               >
-                <TableCell className="whitespace-nowrap font-medium">
-                  <span className="inline-flex items-center gap-2">
-                    {formatServiceDate(entry.date)}
-                    {isNext ? <Badge>Next</Badge> : null}
-                    {isUpcoming ? (
-                      <Badge variant="secondary">Upcoming</Badge>
-                    ) : null}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">
-                    {entry.templateName || "Template missing"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {entry.order ? (
-                    <Badge
-                      variant={
-                        entry.order.status === "Published"
-                          ? "default"
-                          : "secondary"
-                      }
-                    >
-                      {entry.order.status}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">Not planned</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {hasOrder ? (
-                    <div className="flex justify-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            aria-label="Service actions"
-                            onClick={(event) => event.stopPropagation()}
-                            size="icon"
-                            type="button"
-                            variant="ghost"
-                          >
-                            <DotsThreeVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onSelect={() => openOrder(entry.order?.id ?? "")}
-                          >
-                            Manage
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">
-                      Plan month to create
-                    </span>
-                  )}
-                </TableCell>
-              </TableRow>
+                <span className="font-medium whitespace-nowrap">
+                  {formatServiceDate(entry.date)}
+                </span>
+                {timelineBadge}
+                <Badge variant="outline">Not planned</Badge>
+                <span className="text-muted-foreground text-sm">
+                  Plan month to create
+                </span>
+              </div>
             );
-          })}
-        </TableBody>
-      </Table>
+          }
+
+          return (
+            <OrderOverviewRow
+              badge={timelineBadge}
+              dimmed={isPast}
+              key={entry.date}
+              order={entry.order}
+            />
+          );
+        })}
+      </div>
     );
 
   return (

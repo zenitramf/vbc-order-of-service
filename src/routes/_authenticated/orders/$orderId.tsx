@@ -15,7 +15,9 @@ import * as React from "react";
 import { toast } from "sonner";
 
 import { HtmlCodeEditor } from "~/components/html-code-editor";
+import { OrderRosterSummary, RosterAttention } from "~/components/order-roster";
 import { OrderTemplateEditor } from "~/components/order-template-editor";
+import { Alert, AlertDescription } from "~/components/ui/alert";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -50,22 +52,12 @@ import {
   EmptyTitle,
 } from "~/components/ui/empty";
 import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "~/components/ui/field";
-import { Input } from "~/components/ui/input";
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "~/components/ui/native-select";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
+import { buildOrderRoster } from "~/lib/order-roster";
 import {
   getHymnOptions,
   getOrder,
@@ -201,10 +193,8 @@ const OrderRoute = () => {
   const [craftMyPdfJson, setCraftMyPdfJson] = React.useState("");
   const [emailDelivery, setEmailDelivery] =
     React.useState<OrderEmailDeliveryRecord | null>(initialEmailDelivery);
-  const [title, setTitle] = React.useState(order?.title ?? "");
-  const [serviceDate, setServiceDate] = React.useState(
-    order?.serviceDate ?? ""
-  );
+  const [title] = React.useState(order?.title ?? "");
+  const [serviceDate] = React.useState(order?.serviceDate ?? "");
   const [serviceTypeId, setServiceTypeId] = React.useState(
     order?.serviceTypeId ?? ""
   );
@@ -234,11 +224,12 @@ const OrderRoute = () => {
     [referenceData.serviceTypes, serviceTypeId]
   );
 
-  const serviceDateErrorMessage = hasServiceDateConflict
-    ? getServiceDateConflictMessage(serviceDate)
-    : formError;
   const hasMissingHymnSelection = hasHymnActivityWithoutSelection(orderJson);
   const teamsLookup = React.useMemo(() => toTeamsById(teams), [teams]);
+  const roster = React.useMemo(
+    () => (orderJson ? buildOrderRoster(orderJson, teams, teamMembers) : null),
+    [orderJson, teamMembers, teams]
+  );
   const missingRequiredTeams = React.useMemo(
     () => (orderJson ? findMissingRequiredTeams(orderJson, teamsLookup) : []),
     [orderJson, teamsLookup]
@@ -652,8 +643,8 @@ const OrderRoute = () => {
             </DropdownMenu>
           </div>
           <p className="text-muted-foreground">
-            Plan service cards, select hymns, and prepare the order for
-            publishing.
+            Plan the service as one timeline: pick hymns and assign teams
+            timeblock by timeblock.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -721,6 +712,12 @@ const OrderRoute = () => {
         </div>
       </div>
 
+      {formError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      ) : null}
+
       {emailDelivery && emailDelivery.status !== "Sent" ? (
         <Card>
           <CardHeader>
@@ -755,11 +752,30 @@ const OrderRoute = () => {
         </Card>
       ) : null}
 
+      {roster?.hasTeams ? (
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <CardTitle>Who&rsquo;s serving</CardTitle>
+              <CardDescription>
+                Ushers, counters, and every other team for this service, by
+                timeblock.
+              </CardDescription>
+            </div>
+            <RosterAttention roster={roster} />
+          </CardHeader>
+          <CardContent>
+            <OrderRosterSummary roster={roster} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       <OrderTemplateEditor
         activityTypes={referenceData.activityTypes}
         allowHymnSelection
         allowTeamAssignment
         hymnOptions={hymnOptions}
+        layout="timeline"
         onChange={(value) => setOrderJson({ ...value, name: title })}
         teamMembers={teamMembers}
         teams={teams}

@@ -1,6 +1,7 @@
 // oxlint-disable no-use-before-define
 import {
   CalendarCheckIcon,
+  FastForwardIcon,
   GearIcon,
   HouseIcon,
   ImageIcon,
@@ -62,6 +63,13 @@ const adminItems = [
 
 const navigationItems = [
   { icon: HouseIcon, label: "Dashboard", to: "/" },
+  {
+    action: "view",
+    icon: FastForwardIcon,
+    label: "Next Service",
+    resource: "orders",
+    to: "/orders/next",
+  },
   {
     action: "view",
     icon: CalendarCheckIcon,

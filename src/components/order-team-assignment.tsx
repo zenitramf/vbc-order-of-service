@@ -143,16 +143,23 @@ const TeamAssignmentRow = ({
         {assignedCount === 0 ? (
           <span className="text-muted-foreground text-sm">No one assigned</span>
         ) : (
-          <AvatarGroup>
-            {assignedMembers.slice(0, MAX_VISIBLE_AVATARS).map((member) => (
-              <MemberAvatar key={member.id} member={member} />
-            ))}
-            {assignedCount > MAX_VISIBLE_AVATARS ? (
-              <AvatarGroupCount>
-                +{assignedCount - MAX_VISIBLE_AVATARS}
-              </AvatarGroupCount>
-            ) : null}
-          </AvatarGroup>
+          <span className="flex min-w-0 items-center gap-2">
+            <AvatarGroup>
+              {assignedMembers.slice(0, MAX_VISIBLE_AVATARS).map((member) => (
+                <MemberAvatar key={member.id} member={member} />
+              ))}
+              {assignedCount > MAX_VISIBLE_AVATARS ? (
+                <AvatarGroupCount>
+                  +{assignedCount - MAX_VISIBLE_AVATARS}
+                </AvatarGroupCount>
+              ) : null}
+            </AvatarGroup>
+            <span className="truncate text-sm">
+              {assignedMembers
+                .map((member) => `${member.firstName} ${member.lastName}`)
+                .join(", ")}
+            </span>
+          </span>
         )}
       </TableCell>
       <TableCell>
