@@ -27,6 +27,7 @@ import { createUnified } from "ai-gateway-provider/providers/unified";
 import { signRickAgentToken } from "../../../src/lib/rick-agent-token";
 import { createRickMcpSession } from "./rick-mcp";
 import type { RickMcpSession } from "./rick-mcp";
+import { getRickSkillRegistry } from "./rick-skills";
 
 const DEFAULT_MODEL = "openai/gpt-6-luna";
 const DAILY_MESSAGE_LIMIT = 50;
@@ -116,9 +117,11 @@ const createRickModel = (env: RickAgentEnv) => {
 const buildSystemPrompt = ({
   body,
   date,
+  skillCatalog,
 }: {
   body?: Record<string, unknown>;
   date: string;
+  skillCatalog?: string | null;
 }): string => {
   const pathname =
     typeof body?.pathname === "string" ? body.pathname : "unavailable";
@@ -141,7 +144,11 @@ members, and hymns inside the VBC portal.
 - If a tool returns a permission error, kindly explain the user doesn't have access.
 
 Current page: ${pageTitle} (${pathname}) with route params ${params}.
-Today is ${date} (America/Los_Angeles).`;
+Today is ${date} (America/Los_Angeles).${
+    skillCatalog
+      ? `\n\n${skillCatalog}\n\n- Before adding or editing hymn lyrics (save_hymn or update_hymn), activate the hymn-lyrics skill first and follow it exactly.`
+      : ""
+  }`;
 };
 
 /** A UI-message stream that contains one assistant text answer. */
@@ -212,6 +219,9 @@ export class RickAgent extends AIChatAgent<Env> {
       );
     }
 
+    const skillRegistry = getRickSkillRegistry();
+    const skillCatalog = await skillRegistry.systemPrompt();
+
     const result = streamText({
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       // One retry keeps a transient blip from failing the turn without
@@ -231,8 +241,8 @@ export class RickAgent extends AIChatAgent<Env> {
         },
       },
       stopWhen: stepCountIs(MAX_TOOL_STEPS),
-      system: buildSystemPrompt({ body: options?.body, date }),
-      tools: session.tools,
+      system: buildSystemPrompt({ body: options?.body, date, skillCatalog }),
+      tools: { ...session.tools, ...skillRegistry.tools() },
     });
 
     return result.toUIMessageStreamResponse({

@@ -111,6 +111,9 @@ const fileToBase64 = async (file: File): Promise<string> => {
 
 const EMPTY_HYMN_FILES: HymnFileRecord[] = [];
 
+const errorMessage = (error: unknown, fallback: string): string =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 const openHymnFile = (
   base64: string,
   contentType: string,
@@ -204,6 +207,10 @@ export const HymnEditorPage = ({
         },
       });
       await navigate({ params: { hymnId: result.id }, to: "/hymns/$hymnId" });
+    } catch (saveError) {
+      toast.error(
+        errorMessage(saveError, "Unable to save that hymn. Try again.")
+      );
     } finally {
       setIsSaving(false);
     }
@@ -525,7 +532,9 @@ export const HymnEditorPage = ({
                   value={lyricsMarkdown}
                 />
                 <FieldDescription>
-                  Add Verse 1, Chorus, Verse 2, etc.
+                  Add Verse 1, Chorus, Verse 2, etc. — one label per line,
+                  chorus once only. Lyrics are put into this layout on save, for
+                  Spanish hymns too.
                 </FieldDescription>
               </Field>
               {hymn?.id ? (

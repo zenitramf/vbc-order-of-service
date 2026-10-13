@@ -52,6 +52,20 @@ pnpm deploy:all
   (`src/lib/rick-agent-token.ts`), so every tool runs with the user's role
   permissions. `requireSessionMiddleware` accepts the token in addition to
   sessions and API keys.
+- Rick has bundled Agent Skills (sources under
+  `workers/announcement-image-gen/src/skills/<name>/SKILL.md`, served by the
+  manifest-backed registry in `rick-skills.ts`, which mirrors the
+  `agents/skills` `SkillRegistry` contract without importing it — that
+  module drags in the optional `just-bash`/`@cloudflare/codemode` peers for
+  its experimental script runner and breaks both bundlers).
+  Frontmatter is restricted to single-line `name`/`description` scalars.
+  After editing a
+  skill, run `pnpm generate:rick-skills` — the sidecar deploys with plain
+  `wrangler deploy`, so skills reach it through the generated
+  `rick-skills-manifest.ts`, not the `agents:skills` Vite import. A vitest
+  sync test fails if the manifest is stale. Currently shipped:
+  `hymn-lyrics` (standard Verse/Chorus lyrics layout; the layout itself is
+  enforced for humans and AI in `saveHymn` via `src/lib/hymn-lyrics-format.ts`).
 
 ### Local development
 

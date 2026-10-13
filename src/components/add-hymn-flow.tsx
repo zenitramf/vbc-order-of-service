@@ -265,7 +265,8 @@ export const AddHymnFlow = ({
             />
             <FieldDescription>
               Optional for now — hymns without lyrics are flagged until lyrics
-              are added.
+              are added. Lyrics are put into the Verse 1 / Chorus / Verse 2
+              layout on save, chorus once only.
             </FieldDescription>
           </Field>
         </FieldGroup>

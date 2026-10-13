@@ -30,6 +30,7 @@ import {
   requireSessionMiddleware,
 } from "~/lib/auth.functions";
 import { getStoredEmailSettings, sendSmtpEmail } from "~/lib/email-sender";
+import { normalizeHymnLyricsOrThrow } from "~/lib/hymn-lyrics-format";
 import {
   hymnSourceDeleteError,
   hymnSourceIdForName,
@@ -2604,12 +2605,16 @@ export const saveHymn = createServerFn({ method: "POST" })
       throw new Error("Choose a source tag for this hymn.");
     }
 
+    // One enforced lyrics layout for every writer — the human editors and
+    // Rick's MCP tools both save through here.
+    const lyricsMarkdown = normalizeHymnLyricsOrThrow(data.lyricsMarkdown);
+
     const values = {
       hymnNumber: data.hymnNumber.trim(),
       id,
       language,
       lastPlayed: data.lastPlayed.trim(),
-      lyricsMarkdown: data.lyricsMarkdown,
+      lyricsMarkdown,
       musicKey: data.musicKey.trim(),
       name: data.name.trim() || "Untitled Hymn",
       sourceId: data.sourceId,

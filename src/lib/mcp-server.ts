@@ -14,6 +14,7 @@ import { hasPermission, parsePermissions } from "~/lib/admin-permissions";
 import { resolveApiKey } from "~/lib/api-key-server";
 import { filterHymns } from "~/lib/hymn-filters";
 import type { HymnListFilters } from "~/lib/hymn-filters";
+import { HYMN_LYRICS_FORMAT_HINT } from "~/lib/hymn-lyrics-format";
 import { isSupportedMusicKey } from "~/lib/music-keys";
 import {
   addMemberToTeam,
@@ -140,7 +141,9 @@ const saveHymnInput = z.object({
   id: z.string().optional(),
   language: z.enum(["english", "spanish"]).default("english"),
   lastPlayed: z.string(),
-  lyricsMarkdown: z.string(),
+  lyricsMarkdown: z
+    .string()
+    .describe(`Hymn lyrics. ${HYMN_LYRICS_FORMAT_HINT}`),
   musicKey: z.string(),
   name: z.string(),
   sourceId: z.string(),
@@ -489,7 +492,7 @@ const createMcpServer = (context: McpContext): McpServer => {
   );
   register(
     "save_hymn",
-    "Create or update hymn metadata.",
+    `Create or update hymn metadata. ${HYMN_LYRICS_FORMAT_HINT} The layout is enforced on save.`,
     saveHymnInput,
     "hymns",
     "update",
@@ -497,11 +500,14 @@ const createMcpServer = (context: McpContext): McpServer => {
   );
   register(
     "update_hymn",
-    "Partially update hymn lyrics or key.",
+    `Partially update hymn lyrics or key. When setting lyrics, replace the whole lyrics text. ${HYMN_LYRICS_FORMAT_HINT} The layout is enforced on save.`,
     z.object({
       id: z.string().min(1),
       key: z.string().optional(),
-      lyrics: z.string().optional(),
+      lyrics: z
+        .string()
+        .describe(`Full replacement hymn lyrics. ${HYMN_LYRICS_FORMAT_HINT}`)
+        .optional(),
     }),
     "hymns",
     "update",

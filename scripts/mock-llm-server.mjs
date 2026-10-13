@@ -7,6 +7,10 @@
  *
  * It streams a short reply, and scripts `list_orders` / `delete_order` tool
  * calls so the MCP tools and the approval UI can be validated end to end.
+ * Ask about "lyrics" for a hymn (e.g. “add lyrics to hymn <id>”) and it
+ * scripts activate_skill → update_hymn (deliberately messy lyrics with a
+ * repeated chorus) → get_hymn, so the hymn-lyrics skill and the portal's
+ * lyrics-layout enforcement can be validated end to end.
  */
 import { createServer } from "node:http";
 
@@ -138,6 +142,67 @@ const summarizeToolResult = (messages) => {
   return "I checked the portal and got a result back.";
 };
 
+/** Deliberately non-canonical: Spanish labels, chorus repeated after Verse 2. */
+const MESSY_LYRICS = `[Estrofa 1]
+Cristo tanto me amó,
+Que en la cruz por mí murió;
+
+Coro:
+Al Cordero gloria,
+¡Dad al Cordero gloria!
+
+[Estrofa 2]
+Dios al mundo descendió;
+Mas con poder resucitó.
+
+Coro:
+Al Cordero gloria,
+¡Dad al Cordero gloria!`;
+
+const calledToolNames = (messages) => {
+  const names = new Set();
+
+  for (const message of messages) {
+    if (message.role !== "assistant" || !Array.isArray(message.tool_calls)) {
+      continue;
+    }
+
+    for (const call of message.tool_calls) {
+      if (typeof call?.function?.name === "string") {
+        names.add(call.function.name);
+      }
+    }
+  }
+
+  return names;
+};
+
+const findHymnId = (userText) => {
+  const match = /\bhymn\s+(?<id>[\w-]{6,})/u.exec(userText);
+
+  return match?.groups?.id ?? "demo-hymn";
+};
+
+const summarizeHymnLyrics = (messages) => {
+  const lastTool = [...messages].toReversed().find((m) => m.role === "tool");
+  const text = textOf(lastTool?.content);
+
+  try {
+    const parsed = JSON.parse(text);
+    const lyrics =
+      typeof parsed?.lyricsMarkdown === "string" ? parsed.lyricsMarkdown : "";
+    const chorusCount = (lyrics.match(/^Chorus$/gmu) ?? []).length;
+
+    if (lyrics) {
+      return `Done — the stored lyrics are in the standard layout and “Chorus” appears ${chorusCount} time(s). They begin: ${lyrics.split("\n").slice(0, 3).join(" / ")}`;
+    }
+  } catch {
+    // fall through to a generic answer
+  }
+
+  return "Done — I saved those lyrics and read the hymn back.";
+};
+
 const findOrderId = (messages) => {
   for (const message of [...messages].toReversed()) {
     if (message.role !== "tool") {
@@ -197,6 +262,30 @@ const respond = async (req, res) => {
     .find((message) => message.role === "user");
   const userText = textOf(lastUser?.content).toLowerCase();
   const hasToolResult = messages.some((message) => message.role === "tool");
+
+  // Hymn-lyrics skill flow: activate → save messy lyrics → read back.
+  if (/lyric/u.test(userText)) {
+    const called = calledToolNames(messages);
+    const hymnId = findHymnId(userText);
+
+    if (!called.has("activate_skill")) {
+      streamToolCall(res, "activate_skill", { name: "hymn-lyrics" });
+      return;
+    }
+
+    if (!called.has("update_hymn")) {
+      streamToolCall(res, "update_hymn", { id: hymnId, lyrics: MESSY_LYRICS });
+      return;
+    }
+
+    if (!called.has("get_hymn")) {
+      streamToolCall(res, "get_hymn", { id: hymnId });
+      return;
+    }
+
+    streamText(res, summarizeHymnLyrics(messages));
+    return;
+  }
 
   const summary = summarizeToolResult(messages);
 
