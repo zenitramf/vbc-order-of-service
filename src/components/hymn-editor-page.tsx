@@ -1,5 +1,7 @@
 // oxlint-disable complexity, react/no-unstable-nested-components
 import {
+  CheckIcon,
+  CopySimpleIcon,
   DownloadSimpleIcon,
   EyeIcon,
   FloppyDiskIcon,
@@ -188,6 +190,28 @@ export const HymnEditorPage = ({
   const [fileToDelete, setFileToDelete] = React.useState<string | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [lyricsCopied, setLyricsCopied] = React.useState(false);
+  const lyricsCopiedTimeoutRef = React.useRef(0);
+
+  React.useEffect(
+    () => () => window.clearTimeout(lyricsCopiedTimeoutRef.current),
+    []
+  );
+
+  const handleCopyLyrics = async () => {
+    try {
+      await navigator.clipboard.writeText(lyricsMarkdown);
+      setLyricsCopied(true);
+      window.clearTimeout(lyricsCopiedTimeoutRef.current);
+      lyricsCopiedTimeoutRef.current = window.setTimeout(
+        () => setLyricsCopied(false),
+        2000
+      );
+      toast.success("Lyrics copied to clipboard.");
+    } catch {
+      toast.error("Unable to copy lyrics. Please try again.");
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -524,7 +548,24 @@ export const HymnEditorPage = ({
                 </FieldDescription>
               </Field>
               <Field>
-                <FieldLabel htmlFor="lyrics">Lyrics</FieldLabel>
+                <div className="flex items-center justify-between">
+                  <FieldLabel htmlFor="lyrics">Lyrics</FieldLabel>
+                  <Button
+                    aria-label="Copy lyrics"
+                    disabled={!lyricsMarkdown}
+                    onClick={() => void handleCopyLyrics()}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    {lyricsCopied ? (
+                      <CheckIcon data-icon="inline-start" />
+                    ) : (
+                      <CopySimpleIcon data-icon="inline-start" />
+                    )}
+                    {lyricsCopied ? "Copied" : "Copy"}
+                  </Button>
+                </div>
                 <Textarea
                   id="lyrics"
                   onChange={(event) => setLyricsMarkdown(event.target.value)}
