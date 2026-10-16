@@ -30,8 +30,8 @@ import {
   requireSessionMiddleware,
 } from "~/lib/auth.functions";
 import {
+  getMicrosoftGraphCredentials,
   getStoredEmailSettings,
-  getStoredEntraOAuthCredentials,
   sendSmtpEmail,
 } from "~/lib/email-sender";
 import type { ExchangeOAuthCredentials } from "~/lib/exchange-oauth";
@@ -100,7 +100,9 @@ import type {
 } from "~/lib/order-service-types";
 import {
   canUploadOrderToSharePoint,
+  downloadOrderPdfFromSharePoint,
   getSharePointPdfFilename,
+  hasSharePointOrderPdf,
   uploadOrderPdfToSharePoint,
 } from "~/lib/sharepoint-upload";
 import {
@@ -175,7 +177,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const EMAIL_SETTINGS_KEY = "email.smtp";
 const MONTH_PLANNING_KEY = "monthPlanning";
 const DEFAULT_SUNDAY_TEMPLATE_ID = "default-sunday-service";
-const SERVICE_PDFS_BUCKET_NAME = "vbc-order-of-service-pdfs";
 
 /** Sunday is pre-selected and assigned the seeded Sunday template by default. */
 const DEFAULT_MONTH_PLANNING_SETTINGS: MonthPlanningSettings = {
@@ -336,6 +337,7 @@ const mapOrderRow = (row: Record<string, unknown>): OrderRecord => {
     serviceDate: asString(row.service_date),
     serviceTypeId: asString(row.service_type_id),
     serviceTypeName: asString(row.service_type_name),
+    sharepointItemId: asString(row.sharepoint_item_id) || undefined,
     sharepointUploadedAt: asString(row.sharepoint_uploaded_at) || undefined,
     status: asString(row.status) as ServiceStatus,
     templateId: asString(row.template_id) || undefined,
@@ -583,23 +585,23 @@ const getEnvValue = (key: string): string | undefined => {
 };
 
 /**
- * Upload the published order PDF to SharePoint. Never throws: publishing
- * already succeeded by the time this runs, so every skip or failure is
- * reported through the result for the UI to surface.
+ * Upload the published order PDF to SharePoint. Never throws: every skip or
+ * failure is reported through the result for the UI to surface.
  *
- * Graph runs as the same Entra app registration as SMTP OAuth, using the
- * credentials saved in the email settings. The `GRAPH_*` Worker secrets are
- * only a fallback for when no Entra credentials are stored there.
+ * Graph runs as the Entra app stored with the email settings, with the
+ * `GRAPH_*` Worker secrets as fallback (`getMicrosoftGraphCredentials`). A
+ * credential read failure is an auth failure, not a missing configuration,
+ * so the UI does not silently treat the upload as unconfigured.
  */
 const uploadPublishedPdfToSharePoint = async (
   order: OrderRecord,
-  pdfObjectKey: string,
+  filename: string,
   pdfBytes: ArrayBuffer
 ): Promise<SharePointUploadResult> => {
   let credentials: ExchangeOAuthCredentials | null;
 
   try {
-    credentials = await getStoredEntraOAuthCredentials(env);
+    credentials = await getMicrosoftGraphCredentials(env);
   } catch (error) {
     console.error(
       "Unable to read the stored Entra credentials for SharePoint.",
@@ -608,33 +610,85 @@ const uploadPublishedPdfToSharePoint = async (
     return { reason: "auth-failed", uploaded: false };
   }
 
-  if (!credentials) {
-    const tenantId = getEnvValue("GRAPH_TENANT_ID");
-    const clientId = getEnvValue("GRAPH_CLIENT_ID");
-    const clientSecret = getEnvValue("GRAPH_CLIENT_SECRET");
-    credentials =
-      tenantId && clientId && clientSecret
-        ? { clientId, clientSecret, tenantId }
-        : null;
-  }
-
   return uploadOrderPdfToSharePoint({
     credentials,
-    filename: getSharePointPdfFilename(pdfObjectKey),
+    filename,
     pdfBytes,
     serviceDate: order.serviceDate,
   });
 };
 
+/** Graph credentials for reads, where a failure simply means unavailable. */
+const resolveGraphCredentials =
+  async (): Promise<ExchangeOAuthCredentials | null> => {
+    try {
+      return await getMicrosoftGraphCredentials(env);
+    } catch (error) {
+      console.error(
+        "Unable to read the stored Entra credentials for SharePoint.",
+        error
+      );
+      return null;
+    }
+  };
+
 /** Record that an order's published PDF is now in SharePoint. */
 const markOrderSharePointUploaded = async (
   db: AppDatabase,
-  orderId: string
+  orderId: string,
+  itemId?: string
 ): Promise<void> => {
   await db
     .update(ordersOfService)
-    .set({ sharepointUploadedAt: nowIso() })
+    .set({
+      ...(itemId ? { sharepointItemId: itemId } : {}),
+      sharepointUploadedAt: nowIso(),
+    })
     .where(eq(ordersOfService.id, orderId));
+};
+
+/** Filename of the published PDF in SharePoint, downloads, and email. */
+const getPublishedPdfFilename = (order: OrderRecord): string =>
+  getSharePointPdfFilename(order.pdfObjectKey ?? getPdfObjectKey(order));
+
+const hasSharePointPdf = (order: OrderRecord): boolean =>
+  Boolean(order.sharepointItemId || order.sharepointUploadedAt);
+
+/** Whether the order has a published PDF in SharePoint or the R2 fallback. */
+const hasStoredPdf = (order: OrderRecord): boolean =>
+  Boolean(order.pdfObjectKey || hasSharePointPdf(order));
+
+/**
+ * The published order PDF bytes: SharePoint first, the legacy R2 copy as
+ * fallback for orders not backfilled yet. Null when neither store yields it.
+ */
+const fetchPublishedPdfBytes = async (
+  order: OrderRecord
+): Promise<{ bytes: ArrayBuffer; filename: string } | null> => {
+  const filename = getPublishedPdfFilename(order);
+
+  if (hasSharePointPdf(order)) {
+    const bytes = await downloadOrderPdfFromSharePoint({
+      credentials: await resolveGraphCredentials(),
+      filename,
+      itemId: order.sharepointItemId,
+      serviceDate: order.serviceDate,
+    });
+
+    if (bytes) {
+      return { bytes, filename };
+    }
+  }
+
+  if (order.pdfObjectKey) {
+    const object = await getPdfBucket().get(order.pdfObjectKey);
+
+    if (object) {
+      return { bytes: await object.arrayBuffer(), filename };
+    }
+  }
+
+  return null;
 };
 
 const loadHymnsById = async (
@@ -1920,12 +1974,27 @@ export const publishOrder = createServerFn({ method: "POST" })
     const pdfObjectKey = getPdfObjectKey(order);
     const pdfFilename = getSharePointPdfFilename(pdfObjectKey);
     const pdfBytes = await pdfResponse.arrayBuffer();
-    await getPdfBucket().put(pdfObjectKey, pdfBytes, {
-      httpMetadata: {
-        contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
-        contentType: "application/pdf",
-      },
-    });
+
+    // SharePoint is the primary PDF store, so it gets the PDF first. R2
+    // only receives a copy when the SharePoint upload did not happen: that
+    // fallback copy is what downloads, email, and the manual "Send to
+    // SharePoint" retry read from until the order is backfilled.
+    const sharepointUpload = await uploadPublishedPdfToSharePoint(
+      order,
+      pdfFilename,
+      pdfBytes
+    );
+    let storedPdfObjectKey: string | undefined;
+
+    if (!sharepointUpload.uploaded) {
+      await getPdfBucket().put(pdfObjectKey, pdfBytes, {
+        httpMetadata: {
+          contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
+          contentType: "application/pdf",
+        },
+      });
+      storedPdfObjectKey = pdfObjectKey;
+    }
 
     const hymnIds = new Set<string>();
 
@@ -1941,8 +2010,16 @@ export const publishOrder = createServerFn({ method: "POST" })
       db
         .update(ordersOfService)
         .set({
-          pdfObjectKey,
+          ...(storedPdfObjectKey ? { pdfObjectKey: storedPdfObjectKey } : {}),
           publishedAt: timestamp,
+          ...(sharepointUpload.uploaded
+            ? {
+                sharepointUploadedAt: timestamp,
+                ...(sharepointUpload.itemId
+                  ? { sharepointItemId: sharepointUpload.itemId }
+                  : {}),
+              }
+            : {}),
           status: "Published",
           updatedAt: timestamp,
         })
@@ -1968,21 +2045,7 @@ export const publishOrder = createServerFn({ method: "POST" })
       statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
     );
 
-    const sharepointUpload = await uploadPublishedPdfToSharePoint(
-      order,
-      pdfObjectKey,
-      pdfBytes
-    );
-
-    if (sharepointUpload.uploaded) {
-      // The order is published either way; a flag-write failure only leaves
-      // the manual SharePoint action available for a retry.
-      await markOrderSharePointUploaded(db, orderId).catch((error: unknown) =>
-        console.error("Unable to record the SharePoint upload.", error)
-      );
-    }
-
-    return { id: orderId, pdfObjectKey, sharepointUpload };
+    return { id: orderId, pdfObjectKey: storedPdfObjectKey, sharepointUpload };
   });
 
 export const getPublishedOrderPdf = createServerFn({
@@ -1993,28 +2056,27 @@ export const getPublishedOrderPdf = createServerFn({
   .handler(async ({ data }): Promise<{ base64: string; filename: string }> => {
     const order = await getOrder({ data });
 
-    if (!order || !order.pdfObjectKey) {
+    if (!order || !hasStoredPdf(order)) {
       throw new Error("Published PDF was not found for this order of service.");
     }
 
-    const object = await getPdfBucket().get(order.pdfObjectKey);
+    const pdf = await fetchPublishedPdfBytes(order);
 
-    if (!object) {
-      throw new Error("Published PDF was not found in R2 storage.");
+    if (!pdf) {
+      throw new Error("Published PDF was not found in storage.");
     }
 
-    const buffer = Buffer.from(await object.arrayBuffer());
-
     return {
-      base64: buffer.toString("base64"),
-      filename: order.pdfObjectKey,
+      base64: Buffer.from(pdf.bytes).toString("base64"),
+      filename: pdf.filename,
     };
   });
 
 /**
- * Manually upload an already-published order's stored PDF to SharePoint.
- * This is how orders published before SharePoint uploads existed (or whose
- * publish-time upload failed) get sent. No-ops once the flag is set.
+ * Manually upload an already-published order's R2 fallback PDF to
+ * SharePoint. This is how orders published before SharePoint uploads
+ * existed (or whose publish-time upload failed) get backfilled. No-ops
+ * once the uploaded flag is set.
  */
 export const uploadOrderToSharePoint = createServerFn({ method: "POST" })
   .middleware([requireSessionMiddleware, requirePublishPermissionMiddleware])
@@ -2045,12 +2107,12 @@ export const uploadOrderToSharePoint = createServerFn({ method: "POST" })
 
     const sharepointUpload = await uploadPublishedPdfToSharePoint(
       order,
-      order.pdfObjectKey,
+      getSharePointPdfFilename(order.pdfObjectKey),
       await object.arrayBuffer()
     );
 
     if (sharepointUpload.uploaded) {
-      await markOrderSharePointUploaded(db, order.id);
+      await markOrderSharePointUploaded(db, order.id, sharepointUpload.itemId);
     }
 
     return sharepointUpload;
@@ -2076,7 +2138,7 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
     const db = getAppDb();
     const order = await getOrder({ data });
 
-    if (!order || order.status !== "Published" || !order.pdfObjectKey) {
+    if (!order || order.status !== "Published" || !hasStoredPdf(order)) {
       throw new Error("Publish and save the order PDF before sending email.");
     }
 
@@ -2119,10 +2181,23 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
       throw new Error("At least one email recipient must be configured.");
     }
 
-    const object = await getPdfBucket().head(order.pdfObjectKey);
+    const pdfFilename = getPublishedPdfFilename(order);
 
-    if (!object) {
-      throw new Error("Published PDF was not found in R2 storage.");
+    if (order.pdfObjectKey) {
+      const object = await getPdfBucket().head(order.pdfObjectKey);
+
+      if (!object) {
+        throw new Error("Published PDF was not found in R2 storage.");
+      }
+    } else if (
+      !(await hasSharePointOrderPdf({
+        credentials: await resolveGraphCredentials(),
+        filename: pdfFilename,
+        itemId: order.sharepointItemId,
+        serviceDate: order.serviceDate,
+      }))
+    ) {
+      throw new Error("Published PDF was not found in SharePoint.");
     }
 
     const deliveryId = uuidv4();
@@ -2130,10 +2205,13 @@ export const sendOrderEmail = createServerFn({ method: "POST" })
     const timestamp = nowIso();
     const message: OrderEmailQueueMessage = {
       attachment: {
-        bucket: SERVICE_PDFS_BUCKET_NAME,
         contentType: "application/pdf",
-        filename: order.pdfObjectKey,
-        objectKey: order.pdfObjectKey,
+        filename: pdfFilename,
+        ...(order.pdfObjectKey ? { objectKey: order.pdfObjectKey } : {}),
+        serviceDate: order.serviceDate,
+        ...(order.sharepointItemId
+          ? { sharepointItemId: order.sharepointItemId }
+          : {}),
       },
       body: "See attachment",
       deliveryId,

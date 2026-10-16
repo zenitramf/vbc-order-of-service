@@ -6,11 +6,17 @@ import {
   SHAREPOINT_SITE_ID,
   buildSharePointCreateYearFolderBody,
   buildSharePointCreateYearFolderUrl,
+  buildSharePointDownloadByPathUrl,
+  buildSharePointFileByPathUrl,
+  buildSharePointItemContentUrl,
+  buildSharePointItemUrl,
   buildSharePointUploadUrl,
   buildSharePointYearFolderUrl,
   canUploadOrderToSharePoint,
+  downloadOrderPdfFromSharePoint,
   getSharePointPdfFilename,
   getSharePointServiceYear,
+  hasSharePointOrderPdf,
   uploadOrderPdfToSharePoint,
 } from "~/lib/sharepoint-upload";
 
@@ -20,6 +26,7 @@ const CREDENTIALS = {
   tenantId: "graph-tenant-id",
 };
 const PDF_BYTES = new TextEncoder().encode("%PDF-test-bytes");
+const DRIVE_ITEM_ID = "drive-item-id";
 const WEB_URL =
   "https://fresnovictory.sharepoint.com/sites/VictoryBaptistChurchofFresno/Shared%20Documents/Media%20Ministry/Order%20of%20Service/2026/2026-10-11%20-%20Sunday%20Order.pdf";
 
@@ -55,7 +62,10 @@ const stubGraphFetch = (options: GraphStubOptions = {}) => {
           { status: createFolderStatus }
         );
       } else if (init?.method === "PUT") {
-        response = Response.json({ webUrl: WEB_URL }, { status: uploadStatus });
+        response = Response.json(
+          { id: DRIVE_ITEM_ID, webUrl: WEB_URL },
+          { status: uploadStatus }
+        );
       } else {
         response = Response.json(
           folderStatus === 200
@@ -163,7 +173,11 @@ describe("uploadOrderPdfToSharePoint", () => {
 
     const result = await uploadOrderPdfToSharePoint(uploadInput);
 
-    expect(result).toEqual({ uploaded: true, webUrl: WEB_URL });
+    expect(result).toEqual({
+      itemId: DRIVE_ITEM_ID,
+      uploaded: true,
+      webUrl: WEB_URL,
+    });
     const calls = fetchMock.mock.calls as [string, RequestInit][];
     expect(calls).toHaveLength(3);
     expect(calls[1][0]).toBe(buildSharePointYearFolderUrl("2026"));
@@ -186,7 +200,11 @@ describe("uploadOrderPdfToSharePoint", () => {
       serviceDate: "2027-01-03",
     });
 
-    expect(result).toEqual({ uploaded: true, webUrl: WEB_URL });
+    expect(result).toEqual({
+      itemId: DRIVE_ITEM_ID,
+      uploaded: true,
+      webUrl: WEB_URL,
+    });
     const calls = fetchMock.mock.calls as [string, RequestInit][];
     expect(calls).toHaveLength(4);
     expect(calls[2][0]).toBe(buildSharePointCreateYearFolderUrl());
@@ -203,6 +221,7 @@ describe("uploadOrderPdfToSharePoint", () => {
     stubGraphFetch({ createFolderStatus: 409, folderStatus: 404 });
 
     await expect(uploadOrderPdfToSharePoint(uploadInput)).resolves.toEqual({
+      itemId: DRIVE_ITEM_ID,
       uploaded: true,
       webUrl: WEB_URL,
     });
@@ -248,5 +267,200 @@ describe("uploadOrderPdfToSharePoint", () => {
       reason: "upload-failed",
       uploaded: false,
     });
+  });
+});
+
+interface GraphDownloadStubOptions {
+  fileStatus?: number;
+  itemContentStatus?: number;
+  itemStatus?: number;
+  pathContentStatus?: number;
+  tokenStatus?: number;
+}
+
+const stubGraphDownloadFetch = (options: GraphDownloadStubOptions = {}) => {
+  const {
+    fileStatus = 200,
+    itemContentStatus = 200,
+    itemStatus = 200,
+    pathContentStatus = 200,
+    tokenStatus = 200,
+  } = options;
+  const fetchMock = vi.fn(
+    (url: string, _init?: RequestInit): Promise<Response> => {
+      let response: Response;
+
+      if (url.includes("login.microsoftonline.com")) {
+        response =
+          tokenStatus === 200
+            ? Response.json({ access_token: "graph-token", expires_in: 3599 })
+            : Response.json(
+                { error: "invalid_client" },
+                { status: tokenStatus }
+              );
+      } else if (url.endsWith(`/items/${DRIVE_ITEM_ID}/content`)) {
+        response =
+          itemContentStatus === 200
+            ? new Response("%PDF-test-bytes")
+            : Response.json(
+                { error: "missing" },
+                { status: itemContentStatus }
+              );
+      } else if (url.endsWith(`/items/${DRIVE_ITEM_ID}`)) {
+        response = Response.json(
+          itemStatus === 200 ? { id: DRIVE_ITEM_ID } : { error: "missing" },
+          { status: itemStatus }
+        );
+      } else if (url.endsWith(":/content")) {
+        response =
+          pathContentStatus === 200
+            ? new Response("%PDF-test-bytes")
+            : Response.json(
+                { error: "missing" },
+                { status: pathContentStatus }
+              );
+      } else {
+        response = Response.json(
+          fileStatus === 200 ? { id: DRIVE_ITEM_ID } : { error: "missing" },
+          { status: fileStatus }
+        );
+      }
+
+      return Promise.resolve(response);
+    }
+  );
+  vi.stubGlobal("fetch", fetchMock);
+
+  return fetchMock;
+};
+
+const downloadInput = {
+  credentials: CREDENTIALS,
+  filename: "2026-10-11 - Sunday Order.pdf",
+  itemId: DRIVE_ITEM_ID,
+  serviceDate: "2026-10-11",
+};
+
+describe("sharepoint download builders", () => {
+  it("builds item and path content URLs for the verified site", () => {
+    expect(buildSharePointItemUrl(DRIVE_ITEM_ID)).toBe(
+      `https://graph.microsoft.com/v1.0/sites/${SHAREPOINT_SITE_ID}/drive/items/${DRIVE_ITEM_ID}`
+    );
+    expect(buildSharePointItemContentUrl(DRIVE_ITEM_ID)).toBe(
+      `https://graph.microsoft.com/v1.0/sites/${SHAREPOINT_SITE_ID}/drive/items/${DRIVE_ITEM_ID}/content`
+    );
+    expect(
+      buildSharePointFileByPathUrl("2026", "2026-10-11 - Sunday Order.pdf")
+    ).toBe(
+      `https://graph.microsoft.com/v1.0/sites/${SHAREPOINT_SITE_ID}/drive/root:/Media%20Ministry/Order%20of%20Service/2026/2026-10-11%20-%20Sunday%20Order.pdf`
+    );
+    expect(
+      buildSharePointDownloadByPathUrl("2026", "2026-10-11 - Sunday Order.pdf")
+    ).toBe(buildSharePointUploadUrl("2026", "2026-10-11 - Sunday Order.pdf"));
+  });
+});
+
+describe("downloadOrderPdfFromSharePoint", () => {
+  it("downloads the PDF by drive item id", async () => {
+    const fetchMock = stubGraphDownloadFetch();
+
+    const result = await downloadOrderPdfFromSharePoint(downloadInput);
+
+    expect(result).not.toBeNull();
+    expect(new Uint8Array(result as ArrayBuffer)).toEqual(PDF_BYTES);
+    const calls = fetchMock.mock.calls as [string, RequestInit][];
+    expect(calls).toHaveLength(2);
+    expect(calls[1][0]).toBe(buildSharePointItemContentUrl(DRIVE_ITEM_ID));
+  });
+
+  it("downloads the PDF by year folder path when no item id is stored", async () => {
+    const fetchMock = stubGraphDownloadFetch();
+
+    const result = await downloadOrderPdfFromSharePoint({
+      ...downloadInput,
+      itemId: undefined,
+    });
+
+    expect(new Uint8Array(result as ArrayBuffer)).toEqual(PDF_BYTES);
+    const calls = fetchMock.mock.calls as [string, RequestInit][];
+    expect(calls).toHaveLength(2);
+    expect(calls[1][0]).toBe(
+      buildSharePointDownloadByPathUrl("2026", downloadInput.filename)
+    );
+  });
+
+  it("falls back to the path download when the item id no longer resolves", async () => {
+    const fetchMock = stubGraphDownloadFetch({ itemContentStatus: 404 });
+
+    const result = await downloadOrderPdfFromSharePoint(downloadInput);
+
+    expect(new Uint8Array(result as ArrayBuffer)).toEqual(PDF_BYTES);
+    const calls = fetchMock.mock.calls as [string, RequestInit][];
+    expect(calls).toHaveLength(3);
+    expect(calls[2][0]).toBe(
+      buildSharePointDownloadByPathUrl("2026", downloadInput.filename)
+    );
+  });
+
+  it("returns null when the PDF is missing by id and by path", async () => {
+    stubGraphDownloadFetch({ itemContentStatus: 404, pathContentStatus: 404 });
+
+    await expect(
+      downloadOrderPdfFromSharePoint(downloadInput)
+    ).resolves.toBeNull();
+  });
+
+  it("returns null without calling fetch when Graph is not configured", async () => {
+    const fetchMock = stubGraphDownloadFetch();
+
+    await expect(
+      downloadOrderPdfFromSharePoint({ ...downloadInput, credentials: null })
+    ).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null when Entra rejects the token request", async () => {
+    stubGraphDownloadFetch({ tokenStatus: 401 });
+
+    await expect(
+      downloadOrderPdfFromSharePoint(downloadInput)
+    ).resolves.toBeNull();
+  });
+});
+
+describe("hasSharePointOrderPdf", () => {
+  it("confirms the PDF exists by drive item id", async () => {
+    const fetchMock = stubGraphDownloadFetch();
+
+    await expect(hasSharePointOrderPdf(downloadInput)).resolves.toBe(true);
+    const calls = fetchMock.mock.calls as [string, RequestInit][];
+    expect(calls[1][0]).toBe(buildSharePointItemUrl(DRIVE_ITEM_ID));
+  });
+
+  it("confirms the PDF exists by path when no item id is stored", async () => {
+    const fetchMock = stubGraphDownloadFetch();
+
+    await expect(
+      hasSharePointOrderPdf({ ...downloadInput, itemId: undefined })
+    ).resolves.toBe(true);
+    const calls = fetchMock.mock.calls as [string, RequestInit][];
+    expect(calls[1][0]).toBe(
+      buildSharePointFileByPathUrl("2026", downloadInput.filename)
+    );
+  });
+
+  it("reports false when the item is missing", async () => {
+    stubGraphDownloadFetch({ itemStatus: 404 });
+
+    await expect(hasSharePointOrderPdf(downloadInput)).resolves.toBe(false);
+  });
+
+  it("reports false without calling fetch when Graph is not configured", async () => {
+    const fetchMock = stubGraphDownloadFetch();
+
+    await expect(
+      hasSharePointOrderPdf({ ...downloadInput, credentials: null })
+    ).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

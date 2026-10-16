@@ -81,8 +81,15 @@ export interface OrderSummary {
 
 export interface OrderRecord extends OrderSummary {
   order: OrderServiceTemplateJson;
+  /**
+   * R2 key of the published PDF. Only set for orders whose SharePoint upload
+   * has not happened yet (legacy orders and publish-time upload failures);
+   * SharePoint is the primary store.
+   */
   pdfObjectKey?: string;
   publishedAt?: string;
+  /** SharePoint driveItem id of the published PDF, for Graph downloads. */
+  sharepointItemId?: string;
   /** Set once the published PDF has been uploaded to SharePoint. */
   sharepointUploadedAt?: string;
   serviceTypeId: string;
@@ -101,10 +108,16 @@ export interface OrderEmailDeliveryRecord {
 
 export interface OrderEmailQueueMessage {
   attachment: {
-    bucket: string;
+    /** R2-era bucket name; accepted on consume for in-flight messages. */
+    bucket?: string;
     contentType: "application/pdf";
     filename: string;
-    objectKey: string;
+    /** R2 object key, when the PDF has an R2 copy (legacy or fallback). */
+    objectKey?: string;
+    /** Order service date (YYYY-MM-DD), for SharePoint path downloads. */
+    serviceDate?: string;
+    /** SharePoint driveItem id, when the PDF is stored in SharePoint. */
+    sharepointItemId?: string;
   };
   body: "See attachment";
   deliveryId: string;
@@ -351,6 +364,8 @@ export type SharePointUploadSkipReason =
   | "upload-failed";
 
 export interface SharePointUploadResult {
+  /** SharePoint driveItem id of the uploaded PDF, when Graph returned it. */
+  itemId?: string;
   reason?: SharePointUploadSkipReason;
   uploaded: boolean;
   webUrl?: string;

@@ -6,8 +6,8 @@ import { serviceStatuses, serviceTypes } from "./reference";
 
 /**
  * Mirrors migrations 0001 (templates, orders, hymn_plays), 0003 (unique
- * service_date), 0004 (pdf_object_key), 0006 (order_email_deliveries) and
- * 0022 (sharepoint_uploaded_at).
+ * service_date), 0004 (pdf_object_key), 0006 (order_email_deliveries),
+ * 0022 (sharepoint_uploaded_at) and 0023 (sharepoint_item_id).
  *
  * `templateJson` / `orderJson` stay physical TEXT — the app parses/normalizes
  * them with helpers in order-service-data.ts, so there is no data-move.
@@ -48,6 +48,7 @@ export const ordersOfService = sqliteTable(
     serviceTypeId: text("service_type_id")
       .notNull()
       .references(() => serviceTypes.id),
+    sharepointItemId: text("sharepoint_item_id"),
     sharepointUploadedAt: text("sharepoint_uploaded_at"),
     status: text("status")
       .notNull()

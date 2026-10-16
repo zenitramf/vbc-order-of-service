@@ -218,6 +218,40 @@ export const getStoredEntraOAuthCredentials = async (
   };
 };
 
+const getGraphEnvValue = (
+  env: Env,
+  key: "GRAPH_CLIENT_ID" | "GRAPH_CLIENT_SECRET" | "GRAPH_TENANT_ID"
+): string | undefined => {
+  const value = (env as unknown as Record<string, unknown>)[key];
+
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+};
+
+/**
+ * Credentials for Microsoft Graph calls (SharePoint uploads and downloads):
+ * the Entra app stored with the email settings when present, otherwise the
+ * `GRAPH_*` Worker secrets. Returns null when neither source is complete.
+ */
+export const getMicrosoftGraphCredentials = async (
+  env: Env
+): Promise<ExchangeOAuthCredentials | null> => {
+  const stored = await getStoredEntraOAuthCredentials(env);
+
+  if (stored) {
+    return stored;
+  }
+
+  const tenantId = getGraphEnvValue(env, "GRAPH_TENANT_ID");
+  const clientId = getGraphEnvValue(env, "GRAPH_CLIENT_ID");
+  const clientSecret = getGraphEnvValue(env, "GRAPH_CLIENT_SECRET");
+
+  return tenantId && clientId && clientSecret
+    ? { clientId, clientSecret, tenantId }
+    : null;
+};
+
 const resolveTransportAuth = async (
   env: Env,
   settings: ResolvedEmailSettings,

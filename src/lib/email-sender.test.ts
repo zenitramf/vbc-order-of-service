@@ -2,7 +2,10 @@ import { Buffer } from "node:buffer";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getStoredEntraOAuthCredentials } from "~/lib/email-sender";
+import {
+  getMicrosoftGraphCredentials,
+  getStoredEntraOAuthCredentials,
+} from "~/lib/email-sender";
 
 const dbState = vi.hoisted(() => ({
   row: null as { value: string } | null,
@@ -110,5 +113,52 @@ describe("getStoredEntraOAuthCredentials", () => {
     });
 
     await expect(getStoredEntraOAuthCredentials(env)).rejects.toThrow();
+  });
+});
+
+const graphEnv = {
+  DB: {},
+  EMAIL_SETTINGS_ENCRYPTION_KEY: ENCRYPTION_KEY,
+  GRAPH_CLIENT_ID: "graph-env-client-id",
+  GRAPH_CLIENT_SECRET: "graph-env-secret",
+  GRAPH_TENANT_ID: "graph-env-tenant-id",
+} as unknown as Env;
+
+describe("getMicrosoftGraphCredentials", () => {
+  it("prefers the stored Entra credentials over the GRAPH_* secrets", async () => {
+    storeSettings({
+      oauthClientId: "entra-client-id",
+      oauthClientSecretEncrypted: await encryptSetting("entra-secret-value"),
+      oauthTenantId: "entra-tenant-id",
+      smtpAuthType: "oauth2",
+    });
+
+    await expect(getMicrosoftGraphCredentials(graphEnv)).resolves.toEqual({
+      clientId: "entra-client-id",
+      clientSecret: "entra-secret-value",
+      tenantId: "entra-tenant-id",
+    });
+  });
+
+  it("falls back to the GRAPH_* secrets when nothing is stored", async () => {
+    dbState.row = null;
+
+    await expect(getMicrosoftGraphCredentials(graphEnv)).resolves.toEqual({
+      clientId: "graph-env-client-id",
+      clientSecret: "graph-env-secret",
+      tenantId: "graph-env-tenant-id",
+    });
+  });
+
+  it("returns null when neither source is complete", async () => {
+    dbState.row = null;
+
+    await expect(getMicrosoftGraphCredentials(env)).resolves.toBeNull();
+    await expect(
+      getMicrosoftGraphCredentials({
+        ...graphEnv,
+        GRAPH_CLIENT_SECRET: "  ",
+      } as unknown as Env)
+    ).resolves.toBeNull();
   });
 });

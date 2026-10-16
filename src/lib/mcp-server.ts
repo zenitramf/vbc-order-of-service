@@ -362,7 +362,15 @@ const createMcpServer = (context: McpContext): McpServer => {
       const order = (await callServerFn(getOrder, data.orderId)) as Awaited<
         ReturnType<typeof getOrder>
       >;
-      if (!order || order.status !== "Published" || !order.pdfObjectKey) {
+      if (
+        !order ||
+        order.status !== "Published" ||
+        !(
+          order.pdfObjectKey ||
+          order.sharepointItemId ||
+          order.sharepointUploadedAt
+        )
+      ) {
         throw new Error("Publish and save the order PDF before sending email.");
       }
       const settings = (await callServerFn(getEmailSettings)) as Awaited<

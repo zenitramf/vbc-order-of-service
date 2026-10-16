@@ -3,13 +3,16 @@ import type { ExchangeOAuthCredentials } from "~/lib/exchange-oauth";
 import type { SharePointUploadResult } from "~/lib/order-service-types";
 
 /**
- * Uploading a published order PDF to SharePoint via Microsoft Graph.
+ * Storing published order PDFs in SharePoint via Microsoft Graph.
  *
  * Target: the VictoryBaptistChurchofFresno site's default drive (Documents /
  * Shared Documents), under `Media Ministry/Order of Service/<Year>/`, where
- * `<Year>` comes from the order's service date. Pure builders keep the URLs
- * and payloads covered by tests; the upload itself never throws because
- * publishing has already succeeded by the time it runs.
+ * `<Year>` comes from the order's service date. SharePoint is the primary
+ * PDF store: publishing uploads there and records the driveItem id, and
+ * downloads, email attachments, and existence checks read it back. Pure
+ * builders keep the URLs and payloads covered by tests; the upload itself
+ * never throws because publishing has already succeeded by the time it runs,
+ * and downloads return null so callers can fall back to a legacy R2 copy.
  */
 
 export const SHAREPOINT_SITE_ID =
@@ -33,8 +36,9 @@ export const getSharePointServiceYear = (serviceDate: string): string =>
 
 /**
  * Whether an order still needs its SharePoint upload: only published orders
- * with a stored PDF, and only until the uploaded flag (`sharepoint_uploaded_at`)
- * is set. Drives both the manual upload action and its button visibility.
+ * with an R2 fallback copy to push from, and only until the uploaded flag
+ * (`sharepoint_uploaded_at`) is set. Drives both the manual upload action
+ * and its button visibility.
  */
 export const canUploadOrderToSharePoint = (order: {
   pdfObjectKey?: string;
@@ -45,7 +49,7 @@ export const canUploadOrderToSharePoint = (order: {
   Boolean(order.pdfObjectKey) &&
   !order.sharepointUploadedAt;
 
-/** SharePoint filename: the basename of the existing R2 PDF object key. */
+/** SharePoint filename: the basename of a PDF object key. */
 export const getSharePointPdfFilename = (pdfObjectKey: string): string =>
   pdfObjectKey.split("/").at(-1) ?? pdfObjectKey;
 
@@ -67,11 +71,28 @@ export const buildSharePointCreateYearFolderBody = (year: string) => ({
   name: year,
 });
 
-export const buildSharePointUploadUrl = (
+export const buildSharePointFileByPathUrl = (
   year: string,
   filename: string
 ): string =>
-  `${GRAPH_API_BASE_URL}/sites/${SHAREPOINT_SITE_ID}/drive/root:/${encodeGraphPath(`${ORDER_OF_SERVICE_FOLDER_PATH}/${year}/${filename}`)}:/content`;
+  `${GRAPH_API_BASE_URL}/sites/${SHAREPOINT_SITE_ID}/drive/root:/${encodeGraphPath(`${ORDER_OF_SERVICE_FOLDER_PATH}/${year}/${filename}`)}`;
+
+export const buildSharePointUploadUrl = (
+  year: string,
+  filename: string
+): string => `${buildSharePointFileByPathUrl(year, filename)}:/content`;
+
+/** Same URL as the upload, read with GET (Graph redirects to the bytes). */
+export const buildSharePointDownloadByPathUrl = (
+  year: string,
+  filename: string
+): string => `${buildSharePointFileByPathUrl(year, filename)}:/content`;
+
+export const buildSharePointItemUrl = (itemId: string): string =>
+  `${GRAPH_API_BASE_URL}/sites/${SHAREPOINT_SITE_ID}/drive/items/${itemId}`;
+
+export const buildSharePointItemContentUrl = (itemId: string): string =>
+  `${buildSharePointItemUrl(itemId)}/content`;
 
 const isGraphConfigured = (
   credentials: ExchangeOAuthCredentials | null | undefined
@@ -81,6 +102,22 @@ const isGraphConfigured = (
     credentials.clientId.trim() &&
     credentials.clientSecret.trim()
   );
+
+/** Graph access token, or null when unconfigured or Entra rejects the app. */
+const getGraphAccessTokenOrNull = async (
+  credentials: ExchangeOAuthCredentials | null | undefined
+): Promise<string | null> => {
+  if (!isGraphConfigured(credentials)) {
+    return null;
+  }
+
+  try {
+    return await getMicrosoftGraphAccessToken(credentials);
+  } catch (error) {
+    console.error("Unable to get a Microsoft Graph access token.", error);
+    return null;
+  }
+};
 
 /** True when the year folder exists or was created (409 = already exists). */
 const ensureSharePointYearFolder = async (
@@ -121,12 +158,9 @@ export const uploadOrderPdfToSharePoint = async (input: {
     return { reason: "not-configured", uploaded: false };
   }
 
-  let accessToken: string;
+  const accessToken = await getGraphAccessTokenOrNull(input.credentials);
 
-  try {
-    accessToken = await getMicrosoftGraphAccessToken(input.credentials);
-  } catch (error) {
-    console.error("Unable to get a Microsoft Graph access token.", error);
+  if (!accessToken) {
     return { reason: "auth-failed", uploaded: false };
   }
 
@@ -159,16 +193,116 @@ export const uploadOrderPdfToSharePoint = async (input: {
     }
 
     const payload = (await response.json().catch(() => null)) as {
+      id?: unknown;
       webUrl?: unknown;
     } | null;
+    const itemId =
+      typeof payload?.id === "string" && payload.id.length > 0
+        ? payload.id
+        : undefined;
     const webUrl =
       typeof payload?.webUrl === "string" && payload.webUrl.length > 0
         ? payload.webUrl
         : undefined;
 
-    return { uploaded: true, ...(webUrl ? { webUrl } : {}) };
+    return {
+      uploaded: true,
+      ...(itemId ? { itemId } : {}),
+      ...(webUrl ? { webUrl } : {}),
+    };
   } catch (error) {
     console.error("Unable to upload the order PDF to SharePoint.", error);
     return { reason: "upload-failed", uploaded: false };
+  }
+};
+
+interface SharePointOrderPdfInput {
+  credentials: ExchangeOAuthCredentials | null | undefined;
+  filename: string;
+  itemId?: string;
+  serviceDate: string;
+}
+
+const fetchSharePointContent = async (
+  accessToken: string,
+  url: string
+): Promise<ArrayBuffer | null> => {
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  return response.ok ? response.arrayBuffer() : null;
+};
+
+/**
+ * Download a published order PDF from SharePoint. Prefers the stored
+ * driveItem id (stable across renames) and falls back to the year-folder
+ * path for orders uploaded before item ids were recorded. Never throws:
+ * null means unavailable, so callers can fall back to a legacy R2 copy.
+ */
+export const downloadOrderPdfFromSharePoint = async (
+  input: SharePointOrderPdfInput
+): Promise<ArrayBuffer | null> => {
+  const accessToken = await getGraphAccessTokenOrNull(input.credentials);
+
+  if (!accessToken) {
+    return null;
+  }
+
+  try {
+    if (input.itemId) {
+      const byItem = await fetchSharePointContent(
+        accessToken,
+        buildSharePointItemContentUrl(input.itemId)
+      );
+
+      if (byItem) {
+        return byItem;
+      }
+    }
+
+    return await fetchSharePointContent(
+      accessToken,
+      buildSharePointDownloadByPathUrl(
+        getSharePointServiceYear(input.serviceDate),
+        input.filename
+      )
+    );
+  } catch (error) {
+    console.error("Unable to download the order PDF from SharePoint.", error);
+    return null;
+  }
+};
+
+/**
+ * Whether the order PDF is present in SharePoint, via a metadata lookup by
+ * driveItem id or year-folder path. False covers both missing files and
+ * unavailable Graph credentials.
+ */
+export const hasSharePointOrderPdf = async (
+  input: SharePointOrderPdfInput
+): Promise<boolean> => {
+  const accessToken = await getGraphAccessTokenOrNull(input.credentials);
+
+  if (!accessToken) {
+    return false;
+  }
+
+  const url = input.itemId
+    ? buildSharePointItemUrl(input.itemId)
+    : buildSharePointFileByPathUrl(
+        getSharePointServiceYear(input.serviceDate),
+        input.filename
+      );
+
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error("Unable to check the order PDF in SharePoint.", error);
+    return false;
   }
 };

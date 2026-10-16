@@ -5,8 +5,15 @@ import { eq, sql } from "drizzle-orm";
 
 import { createDb } from "~/db/client";
 import { orderEmailDeliveries } from "~/db/schema";
-import { sendSmtpEmail } from "~/lib/email-sender";
+import {
+  getMicrosoftGraphCredentials,
+  sendSmtpEmail,
+} from "~/lib/email-sender";
 import type { OrderEmailQueueMessage } from "~/lib/order-service-types";
+import {
+  downloadOrderPdfFromSharePoint,
+  getSharePointPdfFilename,
+} from "~/lib/sharepoint-upload";
 
 const getErrorMessage = (error: unknown, fallbackMessage: string) =>
   error instanceof Error && error.message ? error.message : fallbackMessage;
@@ -44,20 +51,45 @@ export class OrderEmailStatusDurableObject extends DurableObject<Env> {
     try {
       await updateDeliveryStatus(this.env, message.deliveryId, "Sending");
 
-      const object = await this.env.SERVICE_PDFS.get(
-        message.attachment.objectKey
-      );
+      const { attachment } = message;
+      let pdfBytes: ArrayBuffer | null = null;
 
-      if (!object) {
-        throw new Error("Published PDF was not found in R2 storage.");
+      // SharePoint is the primary PDF store. The R2 object key covers
+      // orders not backfilled yet and messages queued before SharePoint
+      // storage existed.
+      if (attachment.sharepointItemId || attachment.serviceDate) {
+        const credentials = await getMicrosoftGraphCredentials(this.env).catch(
+          (error: unknown) => {
+            console.error(
+              "Unable to read the Graph credentials for the email attachment.",
+              error
+            );
+            return null;
+          }
+        );
+        pdfBytes = await downloadOrderPdfFromSharePoint({
+          credentials,
+          filename: getSharePointPdfFilename(attachment.filename),
+          itemId: attachment.sharepointItemId,
+          serviceDate: attachment.serviceDate ?? "",
+        });
+      }
+
+      if (!pdfBytes && attachment.objectKey) {
+        const object = await this.env.SERVICE_PDFS.get(attachment.objectKey);
+        pdfBytes = object ? await object.arrayBuffer() : null;
+      }
+
+      if (!pdfBytes) {
+        throw new Error("Published PDF was not found in storage.");
       }
 
       await sendSmtpEmail(this.env, {
         attachments: [
           {
-            content: Buffer.from(await object.arrayBuffer()),
-            contentType: message.attachment.contentType,
-            filename: message.attachment.filename,
+            content: Buffer.from(pdfBytes),
+            contentType: attachment.contentType,
+            filename: attachment.filename,
           },
         ],
         settingsKey: message.smtpSettingsKey ?? message.settingsKey,
