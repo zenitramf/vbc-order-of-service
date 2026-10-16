@@ -29,7 +29,12 @@ import {
   requireSendEmailPermissionMiddleware,
   requireSessionMiddleware,
 } from "~/lib/auth.functions";
-import { getStoredEmailSettings, sendSmtpEmail } from "~/lib/email-sender";
+import {
+  getStoredEmailSettings,
+  getStoredEntraOAuthCredentials,
+  sendSmtpEmail,
+} from "~/lib/email-sender";
+import type { ExchangeOAuthCredentials } from "~/lib/exchange-oauth";
 import { normalizeHymnLyricsOrThrow } from "~/lib/hymn-lyrics-format";
 import {
   hymnSourceDeleteError,
@@ -78,15 +83,13 @@ import type {
   SaveTemplateInput,
   SaveTeamInput,
   SaveTeamMemberInput,
-  SaveTeamsSettingsInput,
   SendOrderToCraftMyPdfInput,
+  SharePointUploadResult,
   Team,
   TeamMember,
   TeamMembershipInput,
   TeamMemberSummary,
   TeamRecord,
-  TeamsPostResult,
-  TeamsSettingsRecord,
   TeamSummary,
   TemplateOption,
   UploadHymnFileInput,
@@ -96,11 +99,9 @@ import type {
   TemplateSummary,
 } from "~/lib/order-service-types";
 import {
-  TEAMS_CHANNEL_EMAIL_KEY,
-  buildTeamsChannelMessage,
-  isValidChannelEmail,
-  normalizeChannelEmail,
-} from "~/lib/teams-channel";
+  getSharePointPdfFilename,
+  uploadOrderPdfToSharePoint,
+} from "~/lib/sharepoint-upload";
 import {
   findMissingRequiredTeams,
   getAssignmentMemberIds,
@@ -291,63 +292,6 @@ const isSmtpConfigured = (
       : storedSettings.smtpTokenConfigured;
 
   return Boolean(storedSettings.smtpUserConfigured && credentialsReady);
-};
-
-/**
- * Queue a post of the published order PDF to the Microsoft Teams channel.
- * Never throws: publishing already succeeded by the time this runs, so every
- * skip or queue failure is reported through the result for the UI to surface.
- */
-const queueTeamsChannelPost = async (
-  db: AppDatabase,
-  order: OrderRecord,
-  pdfObjectKey: string
-): Promise<TeamsPostResult> => {
-  const teamsRow = await db
-    .select({ value: appSettings.value })
-    .from(appSettings)
-    .where(eq(appSettings.key, TEAMS_CHANNEL_EMAIL_KEY))
-    .get();
-  const channelEmail = normalizeChannelEmail(teamsRow?.value ?? "");
-
-  if (!channelEmail) {
-    return { queued: false, reason: "not-configured" };
-  }
-
-  if (!isValidChannelEmail(channelEmail)) {
-    return { queued: false, reason: "invalid-email" };
-  }
-
-  const settingsRow = await db
-    .select({ value: appSettings.value })
-    .from(appSettings)
-    .where(eq(appSettings.key, EMAIL_SETTINGS_KEY))
-    .get();
-  const storedSettings = settingsRow
-    ? (JSON.parse(settingsRow.value) as Partial<EmailSettingsRecord>)
-    : {};
-
-  if (!isSmtpConfigured(storedSettings)) {
-    return { queued: false, reason: "smtp-not-configured" };
-  }
-
-  try {
-    await getEmailQueue().send(
-      buildTeamsChannelMessage({
-        bucket: SERVICE_PDFS_BUCKET_NAME,
-        channelEmail,
-        filename: pdfObjectKey,
-        objectKey: pdfObjectKey,
-        orderId: order.id,
-        serviceDate: order.serviceDate,
-      }),
-      { contentType: "json" }
-    );
-  } catch {
-    return { channelEmail, queued: false, reason: "queue-failed" };
-  }
-
-  return { channelEmail, queued: true };
 };
 
 const loadReferenceOptions = async (
@@ -634,6 +578,50 @@ const getEnvValue = (key: string): string | undefined => {
   const trimmedValue = value.trim();
 
   return trimmedValue.length > 0 ? trimmedValue : undefined;
+};
+
+/**
+ * Upload the published order PDF to SharePoint. Never throws: publishing
+ * already succeeded by the time this runs, so every skip or failure is
+ * reported through the result for the UI to surface.
+ *
+ * Graph runs as the same Entra app registration as SMTP OAuth, using the
+ * credentials saved in the email settings. The `GRAPH_*` Worker secrets are
+ * only a fallback for when no Entra credentials are stored there.
+ */
+const uploadPublishedPdfToSharePoint = async (
+  order: OrderRecord,
+  pdfObjectKey: string,
+  pdfBytes: ArrayBuffer
+): Promise<SharePointUploadResult> => {
+  let credentials: ExchangeOAuthCredentials | null;
+
+  try {
+    credentials = await getStoredEntraOAuthCredentials(env);
+  } catch (error) {
+    console.error(
+      "Unable to read the stored Entra credentials for SharePoint.",
+      error
+    );
+    return { reason: "auth-failed", uploaded: false };
+  }
+
+  if (!credentials) {
+    const tenantId = getEnvValue("GRAPH_TENANT_ID");
+    const clientId = getEnvValue("GRAPH_CLIENT_ID");
+    const clientSecret = getEnvValue("GRAPH_CLIENT_SECRET");
+    credentials =
+      tenantId && clientId && clientSecret
+        ? { clientId, clientSecret, tenantId }
+        : null;
+  }
+
+  return uploadOrderPdfToSharePoint({
+    credentials,
+    filename: getSharePointPdfFilename(pdfObjectKey),
+    pdfBytes,
+    serviceDate: order.serviceDate,
+  });
 };
 
 const loadHymnsById = async (
@@ -1917,9 +1905,9 @@ export const publishOrder = createServerFn({ method: "POST" })
     }
 
     const pdfObjectKey = getPdfObjectKey(order);
-    const pdfFilename =
-      pdfObjectKey.split("/").at(-1) ?? "Order of Service.pdf";
-    await getPdfBucket().put(pdfObjectKey, pdfResponse.body, {
+    const pdfFilename = getSharePointPdfFilename(pdfObjectKey);
+    const pdfBytes = await pdfResponse.arrayBuffer();
+    await getPdfBucket().put(pdfObjectKey, pdfBytes, {
       httpMetadata: {
         contentDisposition: `attachment; filename="${pdfFilename.replaceAll('"', "'")}"`,
         contentType: "application/pdf",
@@ -1967,9 +1955,13 @@ export const publishOrder = createServerFn({ method: "POST" })
       statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]
     );
 
-    const teamsPost = await queueTeamsChannelPost(db, order, pdfObjectKey);
+    const sharepointUpload = await uploadPublishedPdfToSharePoint(
+      order,
+      pdfObjectKey,
+      pdfBytes
+    );
 
-    return { id: orderId, pdfObjectKey, teamsPost };
+    return { id: orderId, pdfObjectKey, sharepointUpload };
   });
 
 export const getPublishedOrderPdf = createServerFn({
@@ -2325,56 +2317,6 @@ export const deleteEmailRecipient = createServerFn({
     await db
       .delete(emailRecipients)
       .where(eq(emailRecipients.email, data.trim().toLowerCase()));
-
-    return { success: true };
-  });
-
-export const getTeamsSettings = createServerFn({
-  method: "GET",
-})
-  .middleware([requireSessionMiddleware])
-  .handler(async (): Promise<TeamsSettingsRecord> => {
-    const row = await getAppDb()
-      .select({ value: appSettings.value })
-      .from(appSettings)
-      .where(eq(appSettings.key, TEAMS_CHANNEL_EMAIL_KEY))
-      .get();
-
-    return { channelEmail: normalizeChannelEmail(row?.value ?? "") };
-  });
-
-export const saveTeamsSettings = createServerFn({ method: "POST" })
-  .middleware([requireSessionMiddleware])
-  .validator((data: SaveTeamsSettingsInput) => data)
-  .handler(async ({ data }): Promise<{ success: true }> => {
-    const channelEmail = normalizeChannelEmail(data.channelEmail ?? "");
-
-    if (channelEmail && !isValidChannelEmail(channelEmail)) {
-      throw new Error("Teams channel email must be a valid email address.");
-    }
-
-    const db = getAppDb();
-
-    if (!channelEmail) {
-      await db
-        .delete(appSettings)
-        .where(eq(appSettings.key, TEAMS_CHANNEL_EMAIL_KEY));
-
-      return { success: true };
-    }
-
-    const timestamp = nowIso();
-    await db
-      .insert(appSettings)
-      .values({
-        key: TEAMS_CHANNEL_EMAIL_KEY,
-        updatedAt: timestamp,
-        value: channelEmail,
-      })
-      .onConflictDoUpdate({
-        set: { updatedAt: timestamp, value: channelEmail },
-        target: appSettings.key,
-      });
 
     return { success: true };
   });

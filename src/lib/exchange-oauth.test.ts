@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  MICROSOFT_GRAPH_SCOPE,
   clearExchangeOAuthCache,
   getExchangeSmtpAccessToken,
+  getMicrosoftGraphAccessToken,
 } from "~/lib/exchange-oauth";
 
 const CREDENTIALS = {
@@ -111,6 +113,36 @@ describe("exchange oauth", () => {
       "token-a"
     );
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("requests the Graph scope and caches it separately from SMTP", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({ access_token: "smtp-token", expires_in: 3599 })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ access_token: "graph-token", expires_in: 3599 })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getExchangeSmtpAccessToken(CREDENTIALS)).resolves.toBe(
+      "smtp-token"
+    );
+    await expect(getMicrosoftGraphAccessToken(CREDENTIALS)).resolves.toBe(
+      "graph-token"
+    );
+    await expect(getMicrosoftGraphAccessToken(CREDENTIALS)).resolves.toBe(
+      "graph-token"
+    );
+    await expect(getExchangeSmtpAccessToken(CREDENTIALS)).resolves.toBe(
+      "smtp-token"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, graphInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const body = new URLSearchParams(graphInit.body as string);
+    expect(body.get("scope")).toBe(MICROSOFT_GRAPH_SCOPE);
+    expect(body.get("scope")).toBe("https://graph.microsoft.com/.default");
   });
 
   it("throws a descriptive error without leaking the secret", async () => {

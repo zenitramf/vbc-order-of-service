@@ -125,29 +125,7 @@ export interface PlainEmailQueueMessage {
   type: "plain";
 }
 
-/**
- * Queue message that posts a published order PDF to the Microsoft Teams
- * channel. It is delivered as an email to the channel's email address, which
- * Teams renders as a channel post with the PDF attached.
- */
-export interface TeamsChannelQueueMessage {
-  attachment: {
-    bucket: string;
-    contentType: "application/pdf";
-    filename: string;
-    objectKey: string;
-  };
-  orderId: string;
-  subject: string;
-  text: string;
-  to: string;
-  type: "teams-channel";
-}
-
-export type EmailQueueMessage =
-  | OrderEmailQueueMessage
-  | PlainEmailQueueMessage
-  | TeamsChannelQueueMessage;
+export type EmailQueueMessage = OrderEmailQueueMessage | PlainEmailQueueMessage;
 
 export type HymnLanguage = "english" | "spanish";
 
@@ -364,31 +342,23 @@ export interface EmailSettingsRecord {
   smtpUserConfigured: boolean;
 }
 
-export interface TeamsSettingsRecord {
-  channelEmail: string;
-}
-
-export interface SaveTeamsSettingsInput {
-  channelEmail: string;
-}
-
-export type TeamsPostSkipReason =
-  | "invalid-email"
+export type SharePointUploadSkipReason =
+  | "auth-failed"
+  | "folder-failed"
   | "not-configured"
-  | "queue-failed"
-  | "smtp-not-configured";
+  | "upload-failed";
 
-export interface TeamsPostResult {
-  channelEmail?: string;
-  queued: boolean;
-  reason?: TeamsPostSkipReason;
+export interface SharePointUploadResult {
+  reason?: SharePointUploadSkipReason;
+  uploaded: boolean;
+  webUrl?: string;
 }
 
 export interface PublishOrderResult {
   dryRun?: boolean;
   id: string;
   pdfObjectKey?: string;
-  teamsPost?: TeamsPostResult;
+  sharepointUpload?: SharePointUploadResult;
 }
 
 export interface SaveEmailSettingsInput {

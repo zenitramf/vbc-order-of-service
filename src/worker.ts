@@ -1,5 +1,3 @@
-import { Buffer } from "node:buffer";
-
 import serverEntry from "@tanstack/react-start/server-entry";
 import { routeAgentRequest } from "agents";
 
@@ -10,7 +8,6 @@ import type {
   EmailQueueMessage,
   OrderEmailQueueMessage,
   PlainEmailQueueMessage,
-  TeamsChannelQueueMessage,
 } from "~/lib/order-service-types";
 
 export { OrderEmailStatusDurableObject };
@@ -65,46 +62,6 @@ const isPlainEmailMessage = (body: unknown): body is PlainEmailQueueMessage =>
   "subject" in body &&
   "text" in body;
 
-const isTeamsChannelMessage = (
-  body: unknown
-): body is TeamsChannelQueueMessage =>
-  typeof body === "object" &&
-  body !== null &&
-  "type" in body &&
-  body.type === "teams-channel" &&
-  "to" in body &&
-  "attachment" in body;
-
-const processTeamsChannelMessage = async (
-  body: TeamsChannelQueueMessage,
-  env: Env
-): Promise<void> => {
-  try {
-    const object = await env.SERVICE_PDFS.get(body.attachment.objectKey);
-
-    if (!object) {
-      throw new Error("Published PDF was not found in R2 storage.");
-    }
-
-    await sendSmtpEmail(env, {
-      attachments: [
-        {
-          content: Buffer.from(await object.arrayBuffer()),
-          contentType: body.attachment.contentType,
-          filename: body.attachment.filename,
-        },
-      ],
-      subject: body.subject,
-      text: body.text,
-      to: [body.to],
-    });
-  } catch (error) {
-    // Teams posts have no delivery row to record failures against, so surface
-    // them in Workers Logs instead.
-    console.error("Unable to post order to Teams channel.", error);
-  }
-};
-
 const processEmailBatch = async (
   batch: MessageBatch<EmailQueueMessage>,
   env: Env
@@ -116,12 +73,6 @@ const processEmailBatch = async (
       if (isOrderEmailMessage(body)) {
         const stub = env.ORDER_EMAIL_STATUS.getByName(body.orderId);
         await stub.processEmail(body);
-        return;
-      }
-
-      if (isTeamsChannelMessage(body)) {
-        await processTeamsChannelMessage(body, env);
-        message.ack();
         return;
       }
 

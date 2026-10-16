@@ -1,10 +1,10 @@
 /**
- * Microsoft Entra access tokens for Exchange Online SMTP (SASL XOAUTH2).
+ * Microsoft Entra access tokens via the OAuth2 client-credentials grant.
  *
- * Uses the OAuth2 client-credentials grant against the tenant token endpoint
- * with the `SMTP.SendAsApp` application permission. Tokens are cached in
- * isolate memory until shortly before expiry so queued sends rarely pay for a
- * token request.
+ * Used for Exchange Online SMTP (SASL XOAUTH2, `SMTP.SendAsApp`) and for
+ * Microsoft Graph app-only calls (for example SharePoint uploads). Tokens
+ * are cached in isolate memory until shortly before expiry, keyed by tenant,
+ * client, and scope so different scopes never share a cached token.
  */
 
 export interface ExchangeOAuthCredentials {
@@ -18,7 +18,8 @@ interface CachedToken {
   expiresAtMs: number;
 }
 
-const EXCHANGE_SMTP_SCOPE = "https://outlook.office365.com/.default";
+export const EXCHANGE_SMTP_SCOPE = "https://outlook.office365.com/.default";
+export const MICROSOFT_GRAPH_SCOPE = "https://graph.microsoft.com/.default";
 /** Refresh tokens expiring within this window so sends never use a stale one. */
 const TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;
 const FALLBACK_TOKEN_TTL_SECONDS = 3600;
@@ -45,12 +46,21 @@ const readTokenErrorDetail = async (response: Response): Promise<string> => {
   return detail ? ` ${detail}` : "";
 };
 
-export const getExchangeSmtpAccessToken = async (
-  credentials: ExchangeOAuthCredentials
+const getScopeLabel = (scope: string): string =>
+  scope === EXCHANGE_SMTP_SCOPE ? "SMTP" : "Microsoft Graph";
+
+const getTokenLabel = (scope: string): string =>
+  scope === EXCHANGE_SMTP_SCOPE
+    ? "an SMTP access token"
+    : "a Microsoft Graph access token";
+
+export const getMicrosoftAccessToken = async (
+  credentials: ExchangeOAuthCredentials,
+  scope: string
 ): Promise<string> => {
   const tenantId = credentials.tenantId.trim();
   const clientId = credentials.clientId.trim();
-  const cacheKey = `${tenantId}\n${clientId}`;
+  const cacheKey = `${tenantId}\n${clientId}\n${scope}`;
   const cached = tokenCache.get(cacheKey);
 
   if (cached && cached.expiresAtMs - Date.now() > TOKEN_REFRESH_SKEW_MS) {
@@ -61,7 +71,7 @@ export const getExchangeSmtpAccessToken = async (
     client_id: clientId,
     client_secret: credentials.clientSecret,
     grant_type: "client_credentials",
-    scope: EXCHANGE_SMTP_SCOPE,
+    scope,
   });
   const response = await fetch(
     `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
@@ -75,7 +85,7 @@ export const getExchangeSmtpAccessToken = async (
   if (!response.ok) {
     const detail = await readTokenErrorDetail(response);
     throw new Error(
-      `Microsoft Entra rejected the SMTP OAuth request (HTTP ${response.status}).${detail}`
+      `Microsoft Entra rejected the ${getScopeLabel(scope)} OAuth request (HTTP ${response.status}).${detail}`
     );
   }
 
@@ -88,7 +98,7 @@ export const getExchangeSmtpAccessToken = async (
     typeof payload.access_token !== "string" ||
     payload.access_token.length === 0
   ) {
-    throw new Error("Microsoft Entra did not return an SMTP access token.");
+    throw new Error(`Microsoft Entra did not return ${getTokenLabel(scope)}.`);
   }
 
   const ttlSeconds =
@@ -102,3 +112,12 @@ export const getExchangeSmtpAccessToken = async (
 
   return payload.access_token;
 };
+
+export const getExchangeSmtpAccessToken = (
+  credentials: ExchangeOAuthCredentials
+): Promise<string> => getMicrosoftAccessToken(credentials, EXCHANGE_SMTP_SCOPE);
+
+export const getMicrosoftGraphAccessToken = (
+  credentials: ExchangeOAuthCredentials
+): Promise<string> =>
+  getMicrosoftAccessToken(credentials, MICROSOFT_GRAPH_SCOPE);

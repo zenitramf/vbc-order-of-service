@@ -5,6 +5,7 @@ import nodemailer from "nodemailer";
 
 import { createDb } from "~/db/client";
 import { getExchangeSmtpAccessToken } from "~/lib/exchange-oauth";
+import type { ExchangeOAuthCredentials } from "~/lib/exchange-oauth";
 import type { SmtpAuthType } from "~/lib/order-service-types";
 
 /**
@@ -178,6 +179,42 @@ export const getStoredEmailSettings = async (
     oauthTenantId: settings.oauthTenantId,
     smtpAuthType,
     smtpTokenEncrypted: settings.smtpTokenEncrypted,
+  };
+};
+
+/**
+ * The Entra app credentials stored with the SMTP OAuth settings, for
+ * Microsoft Graph calls made with the same app registration (for example
+ * SharePoint uploads). Returns null when no complete Entra credential set is
+ * stored; a stored secret that cannot be decrypted throws so callers can
+ * report an auth failure instead of a missing configuration.
+ */
+export const getStoredEntraOAuthCredentials = async (
+  env: Env
+): Promise<ExchangeOAuthCredentials | null> => {
+  const settings = await getStoredEmailSettings(env, EMAIL_SETTINGS_KEY).catch(
+    () => null
+  );
+
+  if (
+    !(
+      settings?.oauthTenantId &&
+      settings.oauthClientId &&
+      settings.oauthClientSecretEncrypted
+    )
+  ) {
+    return null;
+  }
+
+  const clientSecret = await decryptSetting(
+    env,
+    settings.oauthClientSecretEncrypted
+  );
+
+  return {
+    clientId: settings.oauthClientId,
+    clientSecret,
+    tenantId: settings.oauthTenantId,
   };
 };
 

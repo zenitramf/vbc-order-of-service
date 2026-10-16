@@ -11,3 +11,18 @@ RICK_AGENT_TOKEN_SECRET=replace-with-openssl-rand-hex-32
 # orphans already-stored credentials (re-save them in Settings afterwards).
 # Production: `wrangler secret put EMAIL_SETTINGS_ENCRYPTION_KEY`.
 EMAIL_SETTINGS_ENCRYPTION_KEY=replace-with-openssl-rand-base64-32
+
+# Microsoft Graph uploads of published order PDFs to SharePoint (Media
+# Ministry/Order of Service/<Year>/) run as the same Entra app registration
+# as SMTP OAuth, using the tenant/client/secret saved in Settings (email
+# settings) — no separate secrets needed. That registration needs the
+# Microsoft Graph Application permission Files.ReadWrite.All with admin
+# consent (or Sites.Selected plus a write grant on the
+# VictoryBaptistChurchofFresno site), in addition to SMTP.SendAsApp. The
+# GRAPH_* secrets below are only a fallback for when no Entra credentials
+# are stored in the email settings; if neither source has them the upload
+# is skipped (publishing still succeeds).
+# Production fallback: `wrangler secret put GRAPH_TENANT_ID` (and the other two).
+GRAPH_TENANT_ID=replace-with-entra-tenant-id
+GRAPH_CLIENT_ID=replace-with-entra-client-id
+GRAPH_CLIENT_SECRET=replace-with-entra-client-secret

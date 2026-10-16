@@ -77,7 +77,7 @@ import type {
   OrderEmailDeliveryRecord,
   OrderServiceTemplateJson,
   ServiceStatus,
-  TeamsPostSkipReason,
+  SharePointUploadSkipReason,
 } from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
 import {
@@ -124,19 +124,21 @@ const hasHymnActivityWithoutSelection = (
 const MISSING_HYMN_SELECTION_MESSAGE =
   "Select a hymn for every hymn activity before publishing or sending.";
 
-const getTeamsPostSkippedMessage = (reason: TeamsPostSkipReason): string => {
+const getSharePointUploadSkippedMessage = (
+  reason: SharePointUploadSkipReason
+): string => {
   switch (reason) {
-    case "invalid-email": {
-      return "Published, but the Teams channel email is invalid. Update it in Settings.";
+    case "auth-failed": {
+      return "Published, but SharePoint sign-in failed, so the PDF was not uploaded. Check the Entra app credentials in Settings and its Graph consent.";
     }
-    case "smtp-not-configured": {
-      return "Published, but SMTP is not configured, so the Teams post was skipped.";
+    case "folder-failed": {
+      return "Published, but the SharePoint year folder could not be found or created, so the PDF was not uploaded.";
     }
-    case "queue-failed": {
-      return "Published, but the Teams post could not be queued. Check Workers Logs.";
+    case "upload-failed": {
+      return "Published, but the SharePoint upload failed. Check Workers Logs.";
     }
     default: {
-      return "Published, but the Teams post was skipped.";
+      return "Published, but the SharePoint upload was skipped.";
     }
   }
 };
@@ -357,14 +359,21 @@ const OrderRoute = () => {
       const result = await publishOrderFn({ data: currentOrderId });
       setStatus("Published");
 
-      const { teamsPost } = result;
+      const { sharepointUpload } = result;
 
-      if (teamsPost?.queued) {
+      if (sharepointUpload?.uploaded) {
         toast.success(
-          `Published and posted to the Teams channel (${teamsPost.channelEmail}).`
+          sharepointUpload.webUrl
+            ? `Published and uploaded to SharePoint: ${sharepointUpload.webUrl}`
+            : "Published and uploaded to SharePoint."
         );
-      } else if (teamsPost?.reason && teamsPost.reason !== "not-configured") {
-        toast.warning(getTeamsPostSkippedMessage(teamsPost.reason));
+      } else if (
+        sharepointUpload?.reason &&
+        sharepointUpload.reason !== "not-configured"
+      ) {
+        toast.warning(
+          getSharePointUploadSkippedMessage(sharepointUpload.reason)
+        );
       }
 
       await router.invalidate();
