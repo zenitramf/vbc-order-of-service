@@ -1,4 +1,5 @@
 import {
+  ArrowSquareOutIcon,
   CalendarBlankIcon,
   CodeIcon,
   CopyIcon,
@@ -125,6 +126,21 @@ const hasHymnActivityWithoutSelection = (
 
 const MISSING_HYMN_SELECTION_MESSAGE =
   "Select a hymn for every hymn activity before publishing or sending.";
+
+/** Toast action linking to the uploaded SharePoint file, instead of a raw URL. */
+const sharePointToastAction = (webUrl: string) => (
+  <a
+    aria-label="Open in SharePoint"
+    className="inline-flex shrink-0 items-center gap-1 font-medium underline-offset-2 hover:underline"
+    href={webUrl}
+    rel="noopener noreferrer"
+    target="_blank"
+    title="Open in SharePoint"
+  >
+    <ArrowSquareOutIcon className="size-4" />
+    Open
+  </a>
+);
 
 const getSharePointUploadSkippedMessage = (
   reason: SharePointUploadSkipReason,
@@ -381,9 +397,10 @@ const OrderRoute = () => {
       if (sharepointUpload?.uploaded) {
         setSharepointUploaded(true);
         toast.success(
+          "Published and uploaded to SharePoint.",
           sharepointUpload.webUrl
-            ? `Published and uploaded to SharePoint: ${sharepointUpload.webUrl}`
-            : "Published and uploaded to SharePoint."
+            ? { action: sharePointToastAction(sharepointUpload.webUrl) }
+            : undefined
         );
       } else if (
         sharepointUpload?.reason &&
@@ -535,9 +552,10 @@ const OrderRoute = () => {
       if (result.uploaded) {
         setSharepointUploaded(true);
         toast.success(
+          "Uploaded to SharePoint.",
           result.webUrl
-            ? `Uploaded to SharePoint: ${result.webUrl}`
-            : "Uploaded to SharePoint."
+            ? { action: sharePointToastAction(result.webUrl) }
+            : undefined
         );
       } else if (result.reason && result.reason !== "not-configured") {
         toast.warning(getSharePointUploadSkippedMessage(result.reason, false));

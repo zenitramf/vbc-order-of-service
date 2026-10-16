@@ -41,8 +41,7 @@ const RootAppChrome = () => {
 
   return (
     <>
-      {/* Offset so toasts clear the fixed Rick chat launcher (bottom-right). */}
-      <Toaster offset={{ bottom: 88, right: 24 }} />
+      <Toaster offset={{ right: 24, top: 24 }} position="top-right" />
       {/* Bottom-left so devtools never overlaps the Rick launcher/composer. */}
       <TanStackRouterDevtools position="bottom-left" />
     </>
