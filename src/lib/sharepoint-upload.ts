@@ -31,6 +31,20 @@ const ORDER_OF_SERVICE_FOLDER_PATH = "Media Ministry/Order of Service";
 export const getSharePointServiceYear = (serviceDate: string): string =>
   serviceDate.slice(0, 4);
 
+/**
+ * Whether an order still needs its SharePoint upload: only published orders
+ * with a stored PDF, and only until the uploaded flag (`sharepoint_uploaded_at`)
+ * is set. Drives both the manual upload action and its button visibility.
+ */
+export const canUploadOrderToSharePoint = (order: {
+  pdfObjectKey?: string;
+  sharepointUploadedAt?: string;
+  status: string;
+}): boolean =>
+  order.status === "Published" &&
+  Boolean(order.pdfObjectKey) &&
+  !order.sharepointUploadedAt;
+
 /** SharePoint filename: the basename of the existing R2 PDF object key. */
 export const getSharePointPdfFilename = (pdfObjectKey: string): string =>
   pdfObjectKey.split("/").at(-1) ?? pdfObjectKey;

@@ -8,6 +8,7 @@ import {
   buildSharePointCreateYearFolderUrl,
   buildSharePointUploadUrl,
   buildSharePointYearFolderUrl,
+  canUploadOrderToSharePoint,
   getSharePointPdfFilename,
   getSharePointServiceYear,
   uploadOrderPdfToSharePoint,
@@ -122,6 +123,37 @@ describe("sharepoint upload builders", () => {
       folder: {},
       name: "2027",
     });
+  });
+});
+
+describe("canUploadOrderToSharePoint", () => {
+  it("allows published orders with a PDF that were not uploaded yet", () => {
+    expect(
+      canUploadOrderToSharePoint({
+        pdfObjectKey: "oos/id/2026-10-15 - Thursday Order of Service.pdf",
+        status: "Published",
+      })
+    ).toBe(true);
+  });
+
+  it("hides the action once the uploaded flag is set", () => {
+    expect(
+      canUploadOrderToSharePoint({
+        pdfObjectKey: "oos/id/2026-10-15 - Thursday Order of Service.pdf",
+        sharepointUploadedAt: "2026-10-16T00:00:00.000Z",
+        status: "Published",
+      })
+    ).toBe(false);
+  });
+
+  it("does not allow planning orders or orders without a PDF", () => {
+    expect(
+      canUploadOrderToSharePoint({
+        pdfObjectKey: "oos/id/file.pdf",
+        status: "Planning",
+      })
+    ).toBe(false);
+    expect(canUploadOrderToSharePoint({ status: "Published" })).toBe(false);
   });
 });
 

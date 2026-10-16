@@ -83,6 +83,8 @@ export interface OrderRecord extends OrderSummary {
   order: OrderServiceTemplateJson;
   pdfObjectKey?: string;
   publishedAt?: string;
+  /** Set once the published PDF has been uploaded to SharePoint. */
+  sharepointUploadedAt?: string;
   serviceTypeId: string;
   templateId?: string;
 }

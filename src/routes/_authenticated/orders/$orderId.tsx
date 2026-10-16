@@ -7,6 +7,7 @@ import {
   PaperPlaneTiltIcon,
   PencilSimpleIcon,
   PlusIcon,
+  UploadSimpleIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable complexity, no-use-before-define
 import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
@@ -72,6 +73,7 @@ import {
   publishOrder,
   saveOrder,
   sendOrderEmail,
+  uploadOrderToSharePoint,
 } from "~/lib/order-service-data";
 import type {
   OrderEmailDeliveryRecord,
@@ -125,20 +127,29 @@ const MISSING_HYMN_SELECTION_MESSAGE =
   "Select a hymn for every hymn activity before publishing or sending.";
 
 const getSharePointUploadSkippedMessage = (
-  reason: SharePointUploadSkipReason
+  reason: SharePointUploadSkipReason,
+  afterPublish: boolean
 ): string => {
+  const prefix = afterPublish ? "Published, but " : "";
+
   switch (reason) {
     case "auth-failed": {
-      return "Published, but SharePoint sign-in failed, so the PDF was not uploaded. Check the Entra app credentials in Settings and its Graph consent.";
+      return `${prefix}SharePoint sign-in failed, so the PDF was not uploaded. Check the Entra app credentials in Settings and its Graph consent.`;
     }
     case "folder-failed": {
-      return "Published, but the SharePoint year folder could not be found or created, so the PDF was not uploaded.";
+      return afterPublish
+        ? "Published, but the SharePoint year folder could not be found or created, so the PDF was not uploaded."
+        : "The SharePoint year folder could not be found or created, so the PDF was not uploaded.";
     }
     case "upload-failed": {
-      return "Published, but the SharePoint upload failed. Check Workers Logs.";
+      return afterPublish
+        ? "Published, but the SharePoint upload failed. Check Workers Logs."
+        : "The SharePoint upload failed. Check Workers Logs.";
     }
     default: {
-      return "Published, but the SharePoint upload was skipped.";
+      return afterPublish
+        ? "Published, but the SharePoint upload was skipped."
+        : "The SharePoint upload was skipped.";
     }
   }
 };
@@ -188,11 +199,17 @@ const OrderRoute = () => {
   const postOrderToCraftMyPdfFn = useServerFn(postOrderToCraftMyPdf);
   const getPublishedOrderPdfFn = useServerFn(getPublishedOrderPdf);
   const sendOrderEmailFn = useServerFn(sendOrderEmail);
+  const uploadOrderToSharePointFn = useServerFn(uploadOrderToSharePoint);
   const getOrderEmailDeliveryFn = useServerFn(getOrderEmailDelivery);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isPublishing, setIsPublishing] = React.useState(false);
   const [isDownloading, setIsDownloading] = React.useState(false);
   const [isSendingEmail, setIsSendingEmail] = React.useState(false);
+  const [isSendingToSharePoint, setIsSendingToSharePoint] =
+    React.useState(false);
+  const [sharepointUploaded, setSharepointUploaded] = React.useState(
+    Boolean(order?.sharepointUploadedAt)
+  );
   const [isLoadingCraftMyPdfJson, setIsLoadingCraftMyPdfJson] =
     React.useState(false);
   const [craftMyPdfDialogOpen, setCraftMyPdfDialogOpen] = React.useState(false);
@@ -362,6 +379,7 @@ const OrderRoute = () => {
       const { sharepointUpload } = result;
 
       if (sharepointUpload?.uploaded) {
+        setSharepointUploaded(true);
         toast.success(
           sharepointUpload.webUrl
             ? `Published and uploaded to SharePoint: ${sharepointUpload.webUrl}`
@@ -372,7 +390,7 @@ const OrderRoute = () => {
         sharepointUpload.reason !== "not-configured"
       ) {
         toast.warning(
-          getSharePointUploadSkippedMessage(sharepointUpload.reason)
+          getSharePointUploadSkippedMessage(sharepointUpload.reason, true)
         );
       }
 
@@ -505,10 +523,50 @@ const OrderRoute = () => {
     }
   };
 
+  const handleSendToSharePoint = async () => {
+    setIsSendingToSharePoint(true);
+    setFormError(null);
+
+    try {
+      const result = await uploadOrderToSharePointFn({
+        data: currentOrderId,
+      });
+
+      if (result.uploaded) {
+        setSharepointUploaded(true);
+        toast.success(
+          result.webUrl
+            ? `Uploaded to SharePoint: ${result.webUrl}`
+            : "Uploaded to SharePoint."
+        );
+      } else if (result.reason && result.reason !== "not-configured") {
+        toast.warning(getSharePointUploadSkippedMessage(result.reason, false));
+      } else {
+        toast.warning(
+          "SharePoint upload is not configured. Check the Entra app credentials in Settings."
+        );
+      }
+
+      await router.invalidate();
+    } catch (error) {
+      const errorMessage = getErrorMessage(
+        error,
+        "Unable to send to SharePoint. Please try again."
+      );
+      setFormError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSendingToSharePoint(false);
+    }
+  };
+
   const publishButtonLabel = isPublishing ? "Publishing…" : "Publish";
   const emailStatusLabel = emailDelivery?.status ?? "Not Sent";
   const isEmailSent = emailDelivery?.status === "Sent";
   const sendEmailButtonLabel = isSendingEmail ? "Queueing…" : "Send Email";
+  const sendToSharePointButtonLabel = isSendingToSharePoint
+    ? "Sending…"
+    : "Send to SharePoint";
   const downloadButtonLabel = isDownloading
     ? "Downloading…"
     : "Download Service";
@@ -516,6 +574,10 @@ const OrderRoute = () => {
   React.useEffect(() => {
     setEmailDelivery(initialEmailDelivery);
   }, [initialEmailDelivery]);
+
+  React.useEffect(() => {
+    setSharepointUploaded(Boolean(order?.sharepointUploadedAt));
+  }, [order?.sharepointUploadedAt]);
 
   React.useEffect(() => {
     if (
@@ -711,6 +773,17 @@ const OrderRoute = () => {
                 <PaperPlaneTiltIcon data-icon="inline-start" />
                 {sendEmailButtonLabel}
               </Button>
+              {sharepointUploaded ? null : (
+                <Button
+                  disabled={isSendingToSharePoint}
+                  onClick={handleSendToSharePoint}
+                  type="button"
+                  variant="outline"
+                >
+                  <UploadSimpleIcon data-icon="inline-start" />
+                  {sendToSharePointButtonLabel}
+                </Button>
+              )}
             </>
           ) : (
             <Button

@@ -99,6 +99,7 @@ import type {
   TemplateSummary,
 } from "~/lib/order-service-types";
 import {
+  canUploadOrderToSharePoint,
   getSharePointPdfFilename,
   uploadOrderPdfToSharePoint,
 } from "~/lib/sharepoint-upload";
@@ -335,6 +336,7 @@ const mapOrderRow = (row: Record<string, unknown>): OrderRecord => {
     serviceDate: asString(row.service_date),
     serviceTypeId: asString(row.service_type_id),
     serviceTypeName: asString(row.service_type_name),
+    sharepointUploadedAt: asString(row.sharepoint_uploaded_at) || undefined,
     status: asString(row.status) as ServiceStatus,
     templateId: asString(row.template_id) || undefined,
     title,
@@ -622,6 +624,17 @@ const uploadPublishedPdfToSharePoint = async (
     pdfBytes,
     serviceDate: order.serviceDate,
   });
+};
+
+/** Record that an order's published PDF is now in SharePoint. */
+const markOrderSharePointUploaded = async (
+  db: AppDatabase,
+  orderId: string
+): Promise<void> => {
+  await db
+    .update(ordersOfService)
+    .set({ sharepointUploadedAt: nowIso() })
+    .where(eq(ordersOfService.id, orderId));
 };
 
 const loadHymnsById = async (
@@ -1961,6 +1974,14 @@ export const publishOrder = createServerFn({ method: "POST" })
       pdfBytes
     );
 
+    if (sharepointUpload.uploaded) {
+      // The order is published either way; a flag-write failure only leaves
+      // the manual SharePoint action available for a retry.
+      await markOrderSharePointUploaded(db, orderId).catch((error: unknown) =>
+        console.error("Unable to record the SharePoint upload.", error)
+      );
+    }
+
     return { id: orderId, pdfObjectKey, sharepointUpload };
   });
 
@@ -1988,6 +2009,51 @@ export const getPublishedOrderPdf = createServerFn({
       base64: buffer.toString("base64"),
       filename: order.pdfObjectKey,
     };
+  });
+
+/**
+ * Manually upload an already-published order's stored PDF to SharePoint.
+ * This is how orders published before SharePoint uploads existed (or whose
+ * publish-time upload failed) get sent. No-ops once the flag is set.
+ */
+export const uploadOrderToSharePoint = createServerFn({ method: "POST" })
+  .middleware([requireSessionMiddleware, requirePublishPermissionMiddleware])
+  .validator((orderId: string) => orderId)
+  .handler(async ({ data }): Promise<SharePointUploadResult> => {
+    const db = getAppDb();
+    const order = await getOrder({ data });
+
+    if (!order) {
+      throw new Error("Order of service not found.");
+    }
+
+    if (order.sharepointUploadedAt) {
+      return { uploaded: true };
+    }
+
+    if (!canUploadOrderToSharePoint(order) || !order.pdfObjectKey) {
+      throw new Error(
+        "Publish and save the order PDF before sending it to SharePoint."
+      );
+    }
+
+    const object = await getPdfBucket().get(order.pdfObjectKey);
+
+    if (!object) {
+      throw new Error("Published PDF was not found in R2 storage.");
+    }
+
+    const sharepointUpload = await uploadPublishedPdfToSharePoint(
+      order,
+      order.pdfObjectKey,
+      await object.arrayBuffer()
+    );
+
+    if (sharepointUpload.uploaded) {
+      await markOrderSharePointUploaded(db, order.id);
+    }
+
+    return sharepointUpload;
   });
 
 export const getOrderEmailDelivery = createServerFn({
