@@ -13,6 +13,8 @@ import {
   user,
   verification,
 } from "../db/schema/auth";
+import type { ExchangeOAuthCredentials } from "./exchange-oauth";
+import { isValidEmail } from "./teams-logic";
 import { buildPasswordResetEmail } from "./user-onboarding";
 
 /**
@@ -48,9 +50,132 @@ interface ResetPasswordEmailParams {
 interface AuthSettings {
   baseURL?: string;
   database: DrizzleD1Database;
+  getMicrosoftCredentials?: () => Promise<ExchangeOAuthCredentials | null>;
   secret?: string;
   sendResetPassword?: (params: ResetPasswordEmailParams) => Promise<void>;
 }
+
+export interface MicrosoftProfileInput {
+  email?: string;
+  email_verified?: boolean;
+  family_name?: string;
+  given_name?: string;
+  name?: string;
+  picture?: string;
+  preferred_username?: string;
+  upn?: string;
+  verified_primary_email?: string[];
+  verified_secondary_email?: string[];
+}
+
+export interface MappedMicrosoftUser {
+  email?: string;
+  emailVerified: boolean;
+  firstName: string;
+  image: undefined;
+  lastName: string;
+  name: string;
+}
+
+const resolveMicrosoftEmail = (
+  profile: MicrosoftProfileInput
+): string | undefined => {
+  const candidates = [profile.email, profile.preferred_username, profile.upn];
+
+  for (const candidate of candidates) {
+    const trimmed = typeof candidate === "string" ? candidate.trim() : "";
+
+    if (trimmed && isValidEmail(trimmed)) {
+      return trimmed.toLowerCase();
+    }
+  }
+
+  return undefined;
+};
+
+const resolveMicrosoftNames = (
+  profile: MicrosoftProfileInput,
+  email: string | undefined
+): { firstName: string; lastName: string; name: string } => {
+  const givenName =
+    typeof profile.given_name === "string" ? profile.given_name.trim() : "";
+  const familyName =
+    typeof profile.family_name === "string" ? profile.family_name.trim() : "";
+  const displayName =
+    typeof profile.name === "string" ? profile.name.trim() : "";
+
+  if (givenName || familyName) {
+    const firstName = givenName || familyName;
+    const lastName = givenName ? familyName : "";
+    const name = `${firstName} ${lastName}`.trim() || displayName || firstName;
+
+    return { firstName, lastName, name };
+  }
+
+  if (displayName) {
+    const [firstPart = "", ...restParts] = displayName.split(/\s+/u);
+    const firstName = firstPart || "User";
+    const lastName = restParts.join(" ");
+
+    return { firstName, lastName, name: displayName };
+  }
+
+  const emailLocalPart = email?.split("@")[0]?.trim() || "User";
+
+  return {
+    firstName: emailLocalPart,
+    lastName: "",
+    name: emailLocalPart,
+  };
+};
+
+/**
+ * Map a Microsoft Entra ID token profile onto Better Auth's user fields.
+ *
+ * - Populates required `firstName` / `lastName` additional fields so tenant
+ *   auto sign-up succeeds even when Entra omits `given_name` / `family_name`.
+ * - Falls back to `preferred_username` / `upn` when Entra does not emit the
+ *   optional `email` claim for managed accounts.
+ * - Drops `image` because Microsoft returns base64-encoded profile photos that
+ *   can exceed HTTP header / cookie size limits.
+ */
+export const mapMicrosoftProfileToUser = (
+  profile: MicrosoftProfileInput
+): MappedMicrosoftUser => {
+  const email = resolveMicrosoftEmail(profile);
+  const { firstName, lastName, name } = resolveMicrosoftNames(profile, email);
+
+  return {
+    ...(email ? { email } : {}),
+    emailVerified: Boolean(email),
+    firstName,
+    image: undefined,
+    lastName,
+    name,
+  };
+};
+
+export const buildMicrosoftSocialProviderConfig = (
+  credentials: ExchangeOAuthCredentials | null
+) => {
+  if (!credentials) {
+    return {
+      clientId: "",
+      enabled: false as const,
+    };
+  }
+
+  return {
+    authority: "https://login.microsoftonline.com",
+    clientId: credentials.clientId,
+    clientSecret: credentials.clientSecret,
+    disableProfilePhoto: true,
+    enabled: true as const,
+    mapProfileToUser: mapMicrosoftProfileToUser,
+    prompt: "select_account" as const,
+    tenantId: credentials.tenantId,
+  };
+};
 
 const authSchema = {
   account,
@@ -63,10 +188,18 @@ const authSchema = {
 const createAuthWithDatabase = ({
   baseURL,
   database,
+  getMicrosoftCredentials,
   secret,
   sendResetPassword,
 }: AuthSettings) =>
   betterAuth({
+    account: {
+      accountLinking: {
+        enabled: true,
+        requireLocalEmailVerified: false,
+        trustedProviders: ["microsoft"],
+      },
+    },
     baseURL,
     database: drizzleAdapter(database, {
       provider: "sqlite",
@@ -80,6 +213,9 @@ const createAuthWithDatabase = ({
           }
         : undefined,
     },
+    onAPIError: {
+      errorURL: "/login",
+    },
     plugins: [admin(), passkey(), tanstackStartCookies()],
     rateLimit: {
       customRules: {
@@ -89,6 +225,13 @@ const createAuthWithDatabase = ({
       },
     },
     secret,
+    socialProviders: {
+      microsoft: async () => {
+        const credentials = await getMicrosoftCredentials?.();
+
+        return buildMicrosoftSocialProviderConfig(credentials ?? null);
+      },
+    },
     user: {
       additionalFields: {
         firstName: {
@@ -107,6 +250,14 @@ export const createAuth = (env: AuthEnv) =>
   createAuthWithDatabase({
     baseURL: env.BETTER_AUTH_URL,
     database: drizzle(env.DB),
+    getMicrosoftCredentials: async () => {
+      try {
+        const { getMicrosoftGraphCredentials } = await import("./email-sender");
+        return await getMicrosoftGraphCredentials(env);
+      } catch {
+        return null;
+      }
+    },
     secret: env.BETTER_AUTH_SECRET,
     sendResetPassword: async ({ user: resetUser, url }) => {
       const queue = env.OOS_EMAIL_SENDER;

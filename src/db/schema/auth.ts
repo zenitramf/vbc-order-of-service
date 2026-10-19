@@ -1,11 +1,12 @@
 import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
- * Better Auth schema (v1.6.x): email/password + admin plugin, no OAuth, no
- * secondary storage. Field/property names match Better Auth's default model
- * field names exactly — the Drizzle adapter resolves columns by the JS property
- * key, so these MUST stay in sync with Better Auth. Dates are stored as SQLite
- * integer timestamps and booleans as integers, per the Drizzle sqlite provider.
+ * Better Auth schema (v1.6.x): email/password + Microsoft OAuth + admin +
+ * passkey plugins, no secondary storage. Field/property names match Better
+ * Auth's default model field names exactly — the Drizzle adapter resolves
+ * columns by the JS property key, so these MUST stay in sync with Better Auth.
+ * Dates are stored as SQLite integer timestamps and booleans as integers, per
+ * the Drizzle sqlite provider.
  *
  * Regenerate/reconcile whenever auth plugins change:
  *   pnpm dlx auth@latest generate --config auth.ts --yes
