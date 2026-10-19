@@ -1,4 +1,8 @@
-import { ChurchIcon, FingerprintIcon } from "@phosphor-icons/react";
+import {
+  ChurchIcon,
+  FingerprintIcon,
+  WindowsLogoIcon,
+} from "@phosphor-icons/react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps, FormEvent, MouseEvent } from "react";
 import { useEffect, useState } from "react";
@@ -22,6 +26,7 @@ const LOGIN_HERO_IMAGE_URL = "/vbc_logo_portal_image.webp";
 type LoginFormProps = ComponentProps<"form"> & {
   isSubmitting: boolean;
   onForgotPassword: (email: string) => void;
+  onMicrosoftSignIn: () => void;
   onPasskeySignIn: () => void;
 };
 
@@ -29,6 +34,7 @@ const LoginForm = ({
   className,
   isSubmitting,
   onForgotPassword,
+  onMicrosoftSignIn,
   onPasskeySignIn,
   ...props
 }: LoginFormProps) => {
@@ -86,6 +92,15 @@ const LoginForm = ({
         </Field>
         <FieldSeparator>Or</FieldSeparator>
         <Field>
+          <Button
+            disabled={isSubmitting}
+            onClick={onMicrosoftSignIn}
+            type="button"
+            variant="outline"
+          >
+            <WindowsLogoIcon data-icon="inline-start" />
+            Sign in with Microsoft
+          </Button>
           <Button
             disabled={isSubmitting}
             onClick={onPasskeySignIn}
@@ -164,6 +179,32 @@ export const LoginPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const oauthError = params.get("error");
+
+    if (!oauthError) {
+      return;
+    }
+
+    const description = params.get("error_description")?.trim();
+    toast.error(description || "Microsoft sign-in failed. Please try again.");
+    params.delete("error");
+    params.delete("error_description");
+    const nextSearch = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      nextSearch
+        ? `${window.location.pathname}?${nextSearch}`
+        : window.location.pathname
+    );
+  }, []);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -181,6 +222,25 @@ export const LoginPage = () => {
     }
 
     window.location.assign(HOME_PATH);
+  };
+
+  const handleMicrosoftSignIn = async () => {
+    setIsSubmitting(true);
+    const { authClient } = await import("~/lib/auth-client");
+    const { error } = await authClient.signIn.social({
+      callbackURL: HOME_PATH,
+      errorCallbackURL: "/login",
+      provider: "microsoft",
+    });
+
+    if (error) {
+      setIsSubmitting(false);
+      toast.error(
+        error.code === "PROVIDER_NOT_FOUND"
+          ? "Microsoft sign-in is not configured."
+          : (error.message ?? "Microsoft sign-in failed. Please try again.")
+      );
+    }
   };
 
   const handlePasskeySignIn = async () => {
@@ -218,6 +278,7 @@ export const LoginPage = () => {
             <LoginForm
               isSubmitting={isSubmitting}
               onForgotPassword={handleForgotPassword}
+              onMicrosoftSignIn={handleMicrosoftSignIn}
               onPasskeySignIn={handlePasskeySignIn}
               onSubmit={handleSubmit}
             />
