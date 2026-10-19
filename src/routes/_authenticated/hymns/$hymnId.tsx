@@ -1,8 +1,9 @@
 import { PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
 
 import { HymnEditorPage } from "~/components/hymn-editor-page";
+import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { Button } from "~/components/ui/button";
 import {
   Empty,
@@ -18,33 +19,53 @@ import {
 } from "~/lib/order-service-data";
 import { requirePermission } from "~/lib/route-guards";
 
-const HymnRoute = () => {
-  const { files, hymn, referenceData } = Route.useLoaderData();
+const HymnPendingSkeleton = () => (
+  <EditorPageSkeleton cards={2} columns={2} fieldsPerCard={4} />
+);
 
-  if (!hymn) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>Hymn not found</EmptyTitle>
-          <EmptyDescription>
-            The requested hymn may have been deleted.
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button asChild>
-            <Link to="/hymns/new">
-              <PlusIcon data-icon="inline-start" />
-              Add hymn
-            </Link>
-          </Button>
-        </EmptyContent>
-      </Empty>
-    );
-  }
+const HymnRoute = () => {
+  const { hymnData } = Route.useLoaderData();
 
   return (
-    <HymnEditorPage files={files} hymn={hymn} referenceData={referenceData} />
+    <Await fallback={<HymnPendingSkeleton />} promise={hymnData}>
+      {({ files, hymn, referenceData }) =>
+        hymn ? (
+          <HymnEditorPage
+            files={files}
+            hymn={hymn}
+            referenceData={referenceData}
+          />
+        ) : (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>Hymn not found</EmptyTitle>
+              <EmptyDescription>
+                The requested hymn may have been deleted.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild>
+                <Link to="/hymns/new">
+                  <PlusIcon data-icon="inline-start" />
+                  Add hymn
+                </Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        )
+      }
+    </Await>
   );
+};
+
+const loadHymnData = async (hymnId: string) => {
+  const [hymn, referenceData, files] = await Promise.all([
+    getHymn({ data: hymnId }),
+    getReferenceData(),
+    getHymnFiles({ data: hymnId }),
+  ]);
+
+  return { files, hymn, referenceData };
 };
 
 export const Route = createFileRoute("/_authenticated/hymns/$hymnId")({
@@ -52,13 +73,8 @@ export const Route = createFileRoute("/_authenticated/hymns/$hymnId")({
     requirePermission(context.permissions, "hymns", "view");
   },
   component: HymnRoute,
-  loader: async ({ params }) => {
-    const [hymn, referenceData, files] = await Promise.all([
-      getHymn({ data: params.hymnId }),
-      getReferenceData(),
-      getHymnFiles({ data: params.hymnId }),
-    ]);
-
-    return { files, hymn, referenceData };
-  },
+  loader: ({ params }) => ({
+    hymnData: defer(loadHymnData(params.hymnId)),
+  }),
+  pendingComponent: HymnPendingSkeleton,
 });

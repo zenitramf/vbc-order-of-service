@@ -1,9 +1,19 @@
 import { ListChecksIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+  Await,
+  Link,
+  createFileRoute,
+  defer,
+  useRouter,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
+import {
+  TableCardSkeleton,
+  TablePageSkeleton,
+} from "~/components/loading-skeletons";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -30,12 +40,122 @@ import {
   TableRow,
 } from "~/components/ui/table";
 import { deleteTemplate, getTemplates } from "~/lib/order-service-data";
+import type { TemplateSummary } from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
 
-const TemplatesPage = () => {
-  const templates = Route.useLoaderData();
+const TemplatesTableCard = ({
+  templates,
+}: {
+  templates: TemplateSummary[];
+}) => {
   const router = useRouter();
   const deleteTemplateFn = useServerFn(deleteTemplate);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Templates</CardTitle>
+        <CardDescription>
+          Each template defines service cards and default activities that can
+          become a planned order of service.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {templates.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ListChecksIcon />
+              </EmptyMedia>
+              <EmptyTitle>No templates yet</EmptyTitle>
+              <EmptyDescription>
+                Create a template to start planning services faster.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild>
+                <Link to="/templates/new">
+                  <PlusIcon data-icon="inline-start" />
+                  Create template
+                </Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Service type</TableHead>
+                <TableHead>Cards</TableHead>
+                <TableHead>Activities</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {templates.map((template) => (
+                <TableRow key={template.id}>
+                  <TableCell>
+                    <Link
+                      className="font-medium hover:underline"
+                      params={{ templateId: template.id }}
+                      to="/templates/$templateId"
+                    >
+                      {template.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">
+                      {template.serviceTypeName}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{template.segmentCount}</TableCell>
+                  <TableCell>{template.activityCount}</TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <Link
+                          params={{ templateId: template.id }}
+                          to="/templates/$templateId"
+                        >
+                          Edit
+                        </Link>
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            await deleteTemplateFn({ data: template.id });
+                            await router.invalidate();
+                            toast.success(`Deleted "${template.name}".`);
+                          } catch (error) {
+                            toast.error(
+                              error instanceof Error
+                                ? error.message
+                                : "Template could not be deleted."
+                            );
+                          }
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="destructive"
+                      >
+                        <TrashIcon data-icon="inline-start" />
+                        Delete
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const TemplatesPage = () => {
+  const { templates } = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -57,105 +177,14 @@ const TemplatesPage = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Templates</CardTitle>
-          <CardDescription>
-            Each template defines service cards and default activities that can
-            become a planned order of service.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {templates.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <ListChecksIcon />
-                </EmptyMedia>
-                <EmptyTitle>No templates yet</EmptyTitle>
-                <EmptyDescription>
-                  Create a template to start planning services faster.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button asChild>
-                  <Link to="/templates/new">
-                    <PlusIcon data-icon="inline-start" />
-                    Create template
-                  </Link>
-                </Button>
-              </EmptyContent>
-            </Empty>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Service type</TableHead>
-                  <TableHead>Cards</TableHead>
-                  <TableHead>Activities</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {templates.map((template) => (
-                  <TableRow key={template.id}>
-                    <TableCell>
-                      <Link
-                        className="font-medium hover:underline"
-                        params={{ templateId: template.id }}
-                        to="/templates/$templateId"
-                      >
-                        {template.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {template.serviceTypeName}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{template.segmentCount}</TableCell>
-                    <TableCell>{template.activityCount}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button asChild size="sm" variant="outline">
-                          <Link
-                            params={{ templateId: template.id }}
-                            to="/templates/$templateId"
-                          >
-                            Edit
-                          </Link>
-                        </Button>
-                        <Button
-                          onClick={async () => {
-                            try {
-                              await deleteTemplateFn({ data: template.id });
-                              await router.invalidate();
-                              toast.success(`Deleted "${template.name}".`);
-                            } catch (error) {
-                              toast.error(
-                                error instanceof Error
-                                  ? error.message
-                                  : "Template could not be deleted."
-                              );
-                            }
-                          }}
-                          size="sm"
-                          type="button"
-                          variant="destructive"
-                        >
-                          <TrashIcon data-icon="inline-start" />
-                          Delete
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Await
+        fallback={<TableCardSkeleton columns={5} rows={5} />}
+        promise={templates}
+      >
+        {(resolvedTemplates) => (
+          <TemplatesTableCard templates={resolvedTemplates} />
+        )}
+      </Await>
     </div>
   );
 };
@@ -165,5 +194,8 @@ export const Route = createFileRoute("/_authenticated/templates/")({
     requirePermission(context.permissions, "templates", "view");
   },
   component: TemplatesPage,
-  loader: () => getTemplates(),
+  loader: () => ({
+    templates: defer(getTemplates()),
+  }),
+  pendingComponent: () => <TablePageSkeleton columns={5} rows={5} />,
 });

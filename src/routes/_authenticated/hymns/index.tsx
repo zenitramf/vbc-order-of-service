@@ -7,7 +7,13 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+  Await,
+  Link,
+  createFileRoute,
+  defer,
+  useRouter,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
@@ -19,6 +25,10 @@ import type { ColumnDef, Row, SortingState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  TableCardSkeleton,
+  TablePageSkeleton,
+} from "~/components/loading-skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -214,8 +224,7 @@ const createHymnColumns = ({
   },
 ];
 
-const HymnsPage = () => {
-  const hymns = Route.useLoaderData();
+const HymnsTableCard = ({ hymns }: { hymns: HymnRecord[] }) => {
   const [hymnRows, setHymnRows] = useState(hymns);
   const router = useRouter();
   const deleteHymnFn = useServerFn(deleteHymn);
@@ -339,6 +348,193 @@ const HymnsPage = () => {
   });
 
   return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Hymns</CardTitle>
+        <CardDescription>
+          Seed the library from db/song-library-seed.csv and select hymns while
+          editing an order.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-6">
+          <Input
+            className="lg:col-span-2"
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search hymn no. or name"
+            type="search"
+            value={searchTerm}
+          />
+          <NativeSelect
+            aria-label="Filter by source"
+            onChange={(event) => setSourceFilter(event.target.value)}
+            value={sourceFilter}
+          >
+            <NativeSelectOption value={ALL_FILTER_VALUE}>
+              All sources
+            </NativeSelectOption>
+            {sourceOptions.map((source) => (
+              <NativeSelectOption key={source} value={source}>
+                {source}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <NativeSelect
+            aria-label="Filter by key"
+            onChange={(event) => setKeyFilter(event.target.value)}
+            value={keyFilter}
+          >
+            <NativeSelectOption value={ALL_FILTER_VALUE}>
+              All keys
+            </NativeSelectOption>
+            {keyOptions.map((musicKey) => (
+              <NativeSelectOption key={musicKey} value={musicKey}>
+                {musicKey}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <NativeSelect
+            aria-label="Filter by six month plays"
+            onChange={(event) => setSixMonthFilter(event.target.value)}
+            value={sixMonthFilter}
+          >
+            <NativeSelectOption value={ALL_FILTER_VALUE}>
+              Any 6 mo. plays
+            </NativeSelectOption>
+            {sixMonthOptions.map((playCount) => (
+              <NativeSelectOption key={playCount} value={String(playCount)}>
+                {playCount} plays
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+          <div className="grid grid-cols-2 gap-2 lg:col-span-5">
+            <Input
+              aria-label="Last played on or after"
+              onChange={(event) => setLastPlayedFrom(event.target.value)}
+              placeholder="Last played from"
+              type="date"
+              value={lastPlayedFrom}
+            />
+            <Input
+              aria-label="Last played on or before"
+              onChange={(event) => setLastPlayedTo(event.target.value)}
+              placeholder="Last played to"
+              type="date"
+              value={lastPlayedTo}
+            />
+          </div>
+          <ToggleGroup
+            aria-label="Filter by language"
+            className="lg:col-span-3"
+            onValueChange={(value) => {
+              if (value) {
+                setLanguageFilter(value);
+              }
+            }}
+            spacing={2}
+            type="single"
+            value={languageFilter}
+          >
+            <ToggleGroupItem value={ALL_FILTER_VALUE}>All</ToggleGroupItem>
+            <ToggleGroupItem value="english">English</ToggleGroupItem>
+            <ToggleGroupItem value="spanish">Español</ToggleGroupItem>
+          </ToggleGroup>
+          <Button
+            disabled={!hasActiveFilters}
+            onClick={handleClearFilters}
+            type="button"
+            variant="outline"
+          >
+            Clear filters
+          </Button>
+        </div>
+        {hymnRows.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <MusicNotesIcon />
+              </EmptyMedia>
+              <EmptyTitle>No hymns yet</EmptyTitle>
+              <EmptyDescription>
+                Run the D1 seed migration or add a hymn manually.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild>
+                <Link to="/hymns/new">
+                  <PlusIcon data-icon="inline-start" />
+                  Add hymn
+                </Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const sortDirection = header.column.getIsSorted();
+
+                    return (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder ? null : (
+                          <Button
+                            className="h-auto px-0 font-semibold"
+                            disabled={!header.column.getCanSort()}
+                            onClick={header.column.getToggleSortingHandler()}
+                            type="button"
+                            variant="ghost"
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            {renderSortIcon(sortDirection)}
+                          </Button>
+                        )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    className="py-8 text-center text-muted-foreground"
+                    colSpan={columns.length}
+                  >
+                    No hymns match the current filters.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const HymnsPage = () => {
+  const { hymns } = Route.useLoaderData();
+
+  return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
@@ -357,186 +553,12 @@ const HymnsPage = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Hymns</CardTitle>
-          <CardDescription>
-            Seed the library from db/song-library-seed.csv and select hymns
-            while editing an order.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-6">
-            <Input
-              className="lg:col-span-2"
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search hymn no. or name"
-              type="search"
-              value={searchTerm}
-            />
-            <NativeSelect
-              aria-label="Filter by source"
-              onChange={(event) => setSourceFilter(event.target.value)}
-              value={sourceFilter}
-            >
-              <NativeSelectOption value={ALL_FILTER_VALUE}>
-                All sources
-              </NativeSelectOption>
-              {sourceOptions.map((source) => (
-                <NativeSelectOption key={source} value={source}>
-                  {source}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <NativeSelect
-              aria-label="Filter by key"
-              onChange={(event) => setKeyFilter(event.target.value)}
-              value={keyFilter}
-            >
-              <NativeSelectOption value={ALL_FILTER_VALUE}>
-                All keys
-              </NativeSelectOption>
-              {keyOptions.map((musicKey) => (
-                <NativeSelectOption key={musicKey} value={musicKey}>
-                  {musicKey}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <NativeSelect
-              aria-label="Filter by six month plays"
-              onChange={(event) => setSixMonthFilter(event.target.value)}
-              value={sixMonthFilter}
-            >
-              <NativeSelectOption value={ALL_FILTER_VALUE}>
-                Any 6 mo. plays
-              </NativeSelectOption>
-              {sixMonthOptions.map((playCount) => (
-                <NativeSelectOption key={playCount} value={String(playCount)}>
-                  {playCount} plays
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-            <div className="grid grid-cols-2 gap-2 lg:col-span-5">
-              <Input
-                aria-label="Last played on or after"
-                onChange={(event) => setLastPlayedFrom(event.target.value)}
-                placeholder="Last played from"
-                type="date"
-                value={lastPlayedFrom}
-              />
-              <Input
-                aria-label="Last played on or before"
-                onChange={(event) => setLastPlayedTo(event.target.value)}
-                placeholder="Last played to"
-                type="date"
-                value={lastPlayedTo}
-              />
-            </div>
-            <ToggleGroup
-              aria-label="Filter by language"
-              className="lg:col-span-3"
-              onValueChange={(value) => {
-                if (value) {
-                  setLanguageFilter(value);
-                }
-              }}
-              spacing={2}
-              type="single"
-              value={languageFilter}
-            >
-              <ToggleGroupItem value={ALL_FILTER_VALUE}>All</ToggleGroupItem>
-              <ToggleGroupItem value="english">English</ToggleGroupItem>
-              <ToggleGroupItem value="spanish">Español</ToggleGroupItem>
-            </ToggleGroup>
-            <Button
-              disabled={!hasActiveFilters}
-              onClick={handleClearFilters}
-              type="button"
-              variant="outline"
-            >
-              Clear filters
-            </Button>
-          </div>
-          {hymnRows.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <MusicNotesIcon />
-                </EmptyMedia>
-                <EmptyTitle>No hymns yet</EmptyTitle>
-                <EmptyDescription>
-                  Run the D1 seed migration or add a hymn manually.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button asChild>
-                  <Link to="/hymns/new">
-                    <PlusIcon data-icon="inline-start" />
-                    Add hymn
-                  </Link>
-                </Button>
-              </EmptyContent>
-            </Empty>
-          ) : (
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const sortDirection = header.column.getIsSorted();
-
-                      return (
-                        <TableHead key={header.id}>
-                          {header.isPlaceholder ? null : (
-                            <Button
-                              className="h-auto px-0 font-semibold"
-                              disabled={!header.column.getCanSort()}
-                              onClick={header.column.getToggleSortingHandler()}
-                              type="button"
-                              variant="ghost"
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                              {renderSortIcon(sortDirection)}
-                            </Button>
-                          )}
-                        </TableHead>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      className="py-8 text-center text-muted-foreground"
-                      colSpan={columns.length}
-                    >
-                      No hymns match the current filters.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow key={row.id}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Await
+        fallback={<TableCardSkeleton columns={8} hasFilters rows={6} />}
+        promise={hymns}
+      >
+        {(resolvedHymns) => <HymnsTableCard hymns={resolvedHymns} />}
+      </Await>
     </div>
   );
 };
@@ -546,5 +568,8 @@ export const Route = createFileRoute("/_authenticated/hymns/")({
     requirePermission(context.permissions, "hymns", "view");
   },
   component: HymnsPage,
-  loader: () => getHymns(),
+  loader: () => ({
+    hymns: defer(getHymns()),
+  }),
+  pendingComponent: () => <TablePageSkeleton columns={8} hasFilters rows={6} />,
 });

@@ -22,6 +22,7 @@ import {
 import { Fragment } from "react";
 import { toast } from "sonner";
 
+import { DefaultRoutePendingSkeleton } from "~/components/loading-skeletons";
 import { RickLauncher } from "~/components/rick-chat/rick-launcher";
 import {
   Breadcrumb,
@@ -378,4 +379,9 @@ export const Route = createFileRoute("/_authenticated")({
     return { permissions, session, user: session.user };
   },
   component: AuthenticatedAppShell,
+  pendingComponent: () => (
+    <div className="p-4 md:p-6">
+      <DefaultRoutePendingSkeleton />
+    </div>
+  ),
 });

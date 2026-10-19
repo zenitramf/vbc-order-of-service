@@ -4,7 +4,13 @@ import {
   UserPlusIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  Await,
+  Link,
+  createFileRoute,
+  defer,
+  useNavigate,
+} from "@tanstack/react-router";
 import {
   flexRender,
   getCoreRowModel,
@@ -13,6 +19,10 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 
+import {
+  TableCardSkeleton,
+  TablePageSkeleton,
+} from "~/components/loading-skeletons";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -108,8 +118,19 @@ const columns: ColumnDef<AdminUserSummary>[] = [
   },
 ];
 
-const UsersPage = () => {
-  const { page, pageCount, search, total, users } = Route.useLoaderData();
+const UsersTableCard = ({
+  page,
+  pageCount,
+  search,
+  total,
+  users,
+}: {
+  page: number;
+  pageCount: number;
+  search: string;
+  total: number;
+  users: AdminUserSummary[];
+}) => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState(search);
 
@@ -118,14 +139,14 @@ const UsersPage = () => {
   }, [search]);
 
   const goToPage = (nextPage: number) => {
-    navigate({
+    void navigate({
       search: { page: nextPage, search },
       to: "/admin/users",
     });
   };
 
   const submitSearch = () => {
-    navigate({
+    void navigate({
       search: { page: 1, search: searchTerm.trim() },
       to: "/admin/users",
     });
@@ -136,6 +157,107 @@ const UsersPage = () => {
     data: users,
     getCoreRowModel: getCoreRowModel(),
   });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>All users</CardTitle>
+        <CardDescription>
+          {total} {total === 1 ? "user" : "users"} total.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 flex gap-2">
+          <Input
+            onChange={(event) => setSearchTerm(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                submitSearch();
+              }
+            }}
+            placeholder="Search by name or email"
+            type="search"
+            value={searchTerm}
+          />
+          <Button onClick={submitSearch} type="button" variant="outline">
+            <MagnifyingGlassIcon data-icon="inline-start" />
+            Search
+          </Button>
+        </div>
+
+        {users.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
+            <UsersThreeIcon className="size-8" />
+            <p>No users match your search.</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-muted-foreground text-sm">
+            Page {page} of {pageCount}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              disabled={page <= 1}
+              onClick={() => goToPage(page - 1)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Previous
+            </Button>
+            <Button
+              disabled={page >= pageCount}
+              onClick={() => goToPage(page + 1)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const UsersPage = () => {
+  const { usersData } = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -156,108 +278,23 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>All users</CardTitle>
-          <CardDescription>
-            {total} {total === 1 ? "user" : "users"} total.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 flex gap-2">
-            <Input
-              onChange={(event) => setSearchTerm(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  submitSearch();
-                }
-              }}
-              placeholder="Search by name or email"
-              type="search"
-              value={searchTerm}
-            />
-            <Button onClick={submitSearch} type="button" variant="outline">
-              <MagnifyingGlassIcon data-icon="inline-start" />
-              Search
-            </Button>
-          </div>
-
-          {users.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
-              <UsersThreeIcon className="size-8" />
-              <p>No users match your search.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-muted-foreground text-sm">
-              Page {page} of {pageCount}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                disabled={page <= 1}
-                onClick={() => goToPage(page - 1)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Previous
-              </Button>
-              <Button
-                disabled={page >= pageCount}
-                onClick={() => goToPage(page + 1)}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Next
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Await
+        fallback={<TableCardSkeleton columns={6} hasFilters rows={6} />}
+        promise={usersData}
+      >
+        {(resolved) => <UsersTableCard {...resolved} />}
+      </Await>
     </div>
   );
 };
 
 export const Route = createFileRoute("/_authenticated/admin/users/")({
   component: UsersPage,
-  loader: ({ deps }) => listUsersAdmin({ data: deps }),
+  loader: ({ deps }) => ({
+    usersData: defer(listUsersAdmin({ data: deps })),
+  }),
   loaderDeps: ({ search }) => ({ page: search.page, search: search.search }),
+  pendingComponent: () => <TablePageSkeleton columns={6} hasFilters rows={6} />,
   validateSearch: (
     search: Record<string, unknown>
   ): { page?: number; search?: string } => ({

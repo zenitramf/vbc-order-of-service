@@ -11,12 +11,19 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable complexity, no-use-before-define
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+  Await,
+  Link,
+  createFileRoute,
+  defer,
+  useRouter,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
 import { HtmlCodeEditor } from "~/components/html-code-editor";
+import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { OrderRosterSummary, RosterAttention } from "~/components/order-roster";
 import { OrderTemplateEditor } from "~/components/order-template-editor";
 import { Alert, AlertDescription } from "~/components/ui/alert";
@@ -77,10 +84,16 @@ import {
   uploadOrderToSharePoint,
 } from "~/lib/order-service-data";
 import type {
+  HymnOption,
   OrderEmailDeliveryRecord,
+  OrderRecord,
   OrderServiceTemplateJson,
+  OrderSummary,
+  ReferenceData,
   ServiceStatus,
   SharePointUploadSkipReason,
+  TeamMemberSummary,
+  TeamSummary,
 } from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
 import {
@@ -197,16 +210,25 @@ const copyTextToClipboard = async (text: string): Promise<void> => {
   }
 };
 
-const OrderRoute = () => {
-  const {
-    emailDelivery: initialEmailDelivery,
-    hymnOptions,
-    order,
-    orders,
-    referenceData,
-    teamMembers,
-    teams,
-  } = Route.useLoaderData();
+interface OrderEditorData {
+  emailDelivery: OrderEmailDeliveryRecord | null;
+  hymnOptions: HymnOption[];
+  order: OrderRecord | null;
+  orders: OrderSummary[];
+  referenceData: ReferenceData;
+  teamMembers: TeamMemberSummary[];
+  teams: TeamSummary[];
+}
+
+const OrderEditorContent = ({
+  emailDelivery: initialEmailDelivery,
+  hymnOptions,
+  order,
+  orders,
+  referenceData,
+  teamMembers,
+  teams,
+}: OrderEditorData) => {
   const { permissions } = Route.useRouteContext();
   const canCreateHymns = hasPermission(permissions, "hymns", "create");
   const router = useRouter();
@@ -965,38 +987,57 @@ const OrderRoute = () => {
   );
 };
 
+const OrderPendingSkeleton = () => (
+  <EditorPageSkeleton cards={3} columns={1} fieldsPerCard={3} />
+);
+
+const OrderRoute = () => {
+  const { orderData } = Route.useLoaderData();
+
+  return (
+    <Await fallback={<OrderPendingSkeleton />} promise={orderData}>
+      {(data) => <OrderEditorContent {...data} />}
+    </Await>
+  );
+};
+
+const loadOrderData = async (orderId: string): Promise<OrderEditorData> => {
+  const [
+    order,
+    referenceData,
+    hymnOptions,
+    orders,
+    emailDelivery,
+    teams,
+    teamMembers,
+  ] = await Promise.all([
+    getOrder({ data: orderId }),
+    getReferenceData(),
+    getHymnOptions(),
+    getOrders(),
+    getOrderEmailDelivery({ data: orderId }),
+    getTeams(),
+    getTeamMembers(),
+  ]);
+
+  return {
+    emailDelivery,
+    hymnOptions,
+    order,
+    orders,
+    referenceData,
+    teamMembers,
+    teams,
+  };
+};
+
 export const Route = createFileRoute("/_authenticated/orders/$orderId")({
   beforeLoad: ({ context }) => {
     requirePermission(context.permissions, "orders", "view");
   },
   component: OrderRoute,
-  loader: async ({ params }) => {
-    const [
-      order,
-      referenceData,
-      hymnOptions,
-      orders,
-      emailDelivery,
-      teams,
-      teamMembers,
-    ] = await Promise.all([
-      getOrder({ data: params.orderId }),
-      getReferenceData(),
-      getHymnOptions(),
-      getOrders(),
-      getOrderEmailDelivery({ data: params.orderId }),
-      getTeams(),
-      getTeamMembers(),
-    ]);
-
-    return {
-      emailDelivery,
-      hymnOptions,
-      order,
-      orders,
-      referenceData,
-      teamMembers,
-      teams,
-    };
-  },
+  loader: ({ params }) => ({
+    orderData: defer(loadOrderData(params.orderId)),
+  }),
+  pendingComponent: OrderPendingSkeleton,
 });

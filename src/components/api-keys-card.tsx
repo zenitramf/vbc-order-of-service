@@ -12,6 +12,7 @@ import {
 } from "~/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
+import { Skeleton } from "~/components/ui/skeleton";
 import type { ApiKeySummary, CreatedApiKey } from "~/lib/api-key-data";
 import {
   createMyApiKey,
@@ -33,6 +34,7 @@ export const ApiKeysCard = ({
   onAdminDelete,
 }: ApiKeysCardProps) => {
   const [keys, setKeys] = useState(initialKeys ?? []);
+  const [isLoading, setIsLoading] = useState(!(admin || initialKeys));
   const [name, setName] = useState("");
   const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null);
   const [busy, setBusy] = useState(false);
@@ -40,6 +42,7 @@ export const ApiKeysCard = ({
   useEffect(() => {
     const loadKeys = async () => {
       if (admin || initialKeys) {
+        setIsLoading(false);
         return;
       }
 
@@ -47,6 +50,8 @@ export const ApiKeysCard = ({
         setKeys(await listMyApiKeys());
       } catch {
         setKeys([]);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -89,6 +94,50 @@ export const ApiKeysCard = ({
     } finally {
       setBusy(false);
     }
+  };
+
+  const renderKeysList = () => {
+    if (isLoading) {
+      return (
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-14 w-full rounded-md" />
+          <Skeleton className="h-14 w-full rounded-md" />
+        </div>
+      );
+    }
+
+    if (keys.length === 0) {
+      return <p className="text-muted-foreground text-sm">No API keys.</p>;
+    }
+
+    return (
+      <div className="flex flex-col gap-2">
+        {keys.map((key) => (
+          <div
+            className="flex items-center justify-between gap-3 rounded-md border p-3"
+            key={key.id}
+          >
+            <div className="min-w-0">
+              <p className="font-medium">{key.name}</p>
+              <p className="text-muted-foreground text-sm">
+                {key.keyPrefix}… · created{" "}
+                {new Date(key.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            <Button
+              disabled={busy}
+              onClick={() => void remove(key.id)}
+              size="sm"
+              type="button"
+              variant="destructive"
+            >
+              <TrashIcon data-icon="inline-start" />
+              Revoke
+            </Button>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -152,36 +201,7 @@ export const ApiKeysCard = ({
             </Button>
           </div>
         ) : null}
-        {keys.length === 0 ? (
-          <p className="text-muted-foreground text-sm">No API keys.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {keys.map((key) => (
-              <div
-                className="flex items-center justify-between gap-3 rounded-md border p-3"
-                key={key.id}
-              >
-                <div className="min-w-0">
-                  <p className="font-medium">{key.name}</p>
-                  <p className="text-muted-foreground text-sm">
-                    {key.keyPrefix}… · created{" "}
-                    {new Date(key.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                <Button
-                  disabled={busy}
-                  onClick={() => void remove(key.id)}
-                  size="sm"
-                  type="button"
-                  variant="destructive"
-                >
-                  <TrashIcon data-icon="inline-start" />
-                  Revoke
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
+        {renderKeysList()}
       </CardContent>
     </Card>
   );

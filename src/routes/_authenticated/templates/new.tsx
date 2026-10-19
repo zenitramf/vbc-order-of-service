@@ -1,14 +1,34 @@
 // oxlint-disable no-use-before-define
-import { createFileRoute } from "@tanstack/react-router";
+import { Await, createFileRoute, defer } from "@tanstack/react-router";
 
+import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { TemplateEditorPage } from "~/components/template-editor-page";
 import { getReferenceData, getTeams } from "~/lib/order-service-data";
 import { requirePermission } from "~/lib/route-guards";
 
-const NewTemplateRoute = () => {
-  const { referenceData, teams } = Route.useLoaderData();
+const TemplatePendingSkeleton = () => (
+  <EditorPageSkeleton cards={2} columns={2} fieldsPerCard={4} />
+);
 
-  return <TemplateEditorPage referenceData={referenceData} teams={teams} />;
+const NewTemplateRoute = () => {
+  const { templateData } = Route.useLoaderData();
+
+  return (
+    <Await fallback={<TemplatePendingSkeleton />} promise={templateData}>
+      {({ referenceData, teams }) => (
+        <TemplateEditorPage referenceData={referenceData} teams={teams} />
+      )}
+    </Await>
+  );
+};
+
+const loadNewTemplateData = async () => {
+  const [referenceData, teams] = await Promise.all([
+    getReferenceData(),
+    getTeams(),
+  ]);
+
+  return { referenceData, teams };
 };
 
 export const Route = createFileRoute("/_authenticated/templates/new")({
@@ -16,12 +36,8 @@ export const Route = createFileRoute("/_authenticated/templates/new")({
     requirePermission(context.permissions, "templates", "create");
   },
   component: NewTemplateRoute,
-  loader: async () => {
-    const [referenceData, teams] = await Promise.all([
-      getReferenceData(),
-      getTeams(),
-    ]);
-
-    return { referenceData, teams };
-  },
+  loader: () => ({
+    templateData: defer(loadNewTemplateData()),
+  }),
+  pendingComponent: TemplatePendingSkeleton,
 });

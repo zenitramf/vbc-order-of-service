@@ -7,7 +7,13 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+  Await,
+  Link,
+  createFileRoute,
+  defer,
+  useRouter,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
@@ -19,6 +25,10 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  TableCardSkeleton,
+  TablePageSkeleton,
+} from "~/components/loading-skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -163,8 +173,7 @@ const createTeamColumns = ({
   },
 ];
 
-const TeamsPage = () => {
-  const teams = Route.useLoaderData();
+const TeamsTableCard = ({ teams }: { teams: TeamSummary[] }) => {
   const [teamRows, setTeamRows] = useState(teams);
   const router = useRouter();
   const deleteTeamFn = useServerFn(deleteTeam);
@@ -216,6 +225,90 @@ const TeamsPage = () => {
   });
 
   return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Team Management</CardTitle>
+        <CardDescription>
+          Select a team to manage its members and the templates that rely on it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {teamRows.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <UsersThreeIcon />
+              </EmptyMedia>
+              <EmptyTitle>No teams yet</EmptyTitle>
+              <EmptyDescription>
+                Add a team to start assigning members to services.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button asChild>
+                <Link to="/teams/new">
+                  <PlusIcon data-icon="inline-start" />
+                  Add team
+                </Link>
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const sortDirection = header.column.getIsSorted();
+
+                    return (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder ? null : (
+                          <Button
+                            className="h-auto px-0 font-semibold"
+                            disabled={!header.column.getCanSort()}
+                            onClick={header.column.getToggleSortingHandler()}
+                            type="button"
+                            variant="ghost"
+                          >
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                            {renderSortIcon(sortDirection)}
+                          </Button>
+                        )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const TeamsPage = () => {
+  const { teams } = Route.useLoaderData();
+
+  return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
@@ -235,84 +328,12 @@ const TeamsPage = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Team Management</CardTitle>
-          <CardDescription>
-            Select a team to manage its members and the templates that rely on
-            it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {teamRows.length === 0 ? (
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <UsersThreeIcon />
-                </EmptyMedia>
-                <EmptyTitle>No teams yet</EmptyTitle>
-                <EmptyDescription>
-                  Add a team to start assigning members to services.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button asChild>
-                  <Link to="/teams/new">
-                    <PlusIcon data-icon="inline-start" />
-                    Add team
-                  </Link>
-                </Button>
-              </EmptyContent>
-            </Empty>
-          ) : (
-            <Table>
-              <TableHeader>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const sortDirection = header.column.getIsSorted();
-
-                      return (
-                        <TableHead key={header.id}>
-                          {header.isPlaceholder ? null : (
-                            <Button
-                              className="h-auto px-0 font-semibold"
-                              disabled={!header.column.getCanSort()}
-                              onClick={header.column.getToggleSortingHandler()}
-                              type="button"
-                              variant="ghost"
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext()
-                              )}
-                              {renderSortIcon(sortDirection)}
-                            </Button>
-                          )}
-                        </TableHead>
-                      );
-                    })}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <Await
+        fallback={<TableCardSkeleton columns={4} rows={5} />}
+        promise={teams}
+      >
+        {(resolvedTeams) => <TeamsTableCard teams={resolvedTeams} />}
+      </Await>
     </div>
   );
 };
@@ -322,5 +343,8 @@ export const Route = createFileRoute("/_authenticated/teams/")({
     requirePermission(context.permissions, "teams", "view");
   },
   component: TeamsPage,
-  loader: () => getTeams(),
+  loader: () => ({
+    teams: defer(getTeams()),
+  }),
+  pendingComponent: () => <TablePageSkeleton columns={4} rows={5} />,
 });

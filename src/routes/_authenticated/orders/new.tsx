@@ -1,10 +1,20 @@
 import { CalendarPlusIcon, PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  Await,
+  Link,
+  createFileRoute,
+  defer,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
+import {
+  EditorPageSkeleton,
+  FormCardSkeleton,
+} from "~/components/loading-skeletons";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -32,6 +42,7 @@ import {
   NativeSelectOption,
 } from "~/components/ui/native-select";
 import { createOrder, getOrders, getTemplates } from "~/lib/order-service-data";
+import type { OrderSummary, TemplateSummary } from "~/lib/order-service-types";
 import { requirePermission } from "~/lib/route-guards";
 
 const getNextSunday = () => {
@@ -48,8 +59,13 @@ const getErrorMessage = (error: unknown, fallbackMessage: string): string =>
 const getServiceDateConflictMessage = (serviceDate: string) =>
   `An order of service already exists for ${serviceDate}.`;
 
-const NewOrderPage = () => {
-  const { existingOrders, templates } = Route.useLoaderData();
+const NewOrderForm = ({
+  existingOrders,
+  templates,
+}: {
+  existingOrders: OrderSummary[];
+  templates: TemplateSummary[];
+}) => {
   const navigate = useNavigate();
   const createOrderFn = useServerFn(createOrder);
   const [templateId, setTemplateId] = React.useState(templates[0]?.id ?? "");
@@ -125,15 +141,6 @@ const NewOrderPage = () => {
 
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-      <div className="flex flex-col gap-2">
-        <h1 className="font-heading text-3xl font-semibold tracking-tight">
-          Create Order of Service
-        </h1>
-        <p className="text-muted-foreground">
-          Choose a template and service date to start planning.
-        </p>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Service details</CardTitle>
@@ -209,17 +216,50 @@ const NewOrderPage = () => {
   );
 };
 
+const NewOrderPage = () => {
+  const { formData } = Route.useLoaderData();
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="font-heading text-3xl font-semibold tracking-tight">
+          Create Order of Service
+        </h1>
+        <p className="text-muted-foreground">
+          Choose a template and service date to start planning.
+        </p>
+      </div>
+
+      <Await
+        fallback={<FormCardSkeleton columns={1} fields={3} />}
+        promise={formData}
+      >
+        {({ existingOrders, templates }) => (
+          <NewOrderForm existingOrders={existingOrders} templates={templates} />
+        )}
+      </Await>
+    </div>
+  );
+};
+
+const loadNewOrderFormData = async () => {
+  const [templates, existingOrders] = await Promise.all([
+    getTemplates(),
+    getOrders(),
+  ]);
+
+  return { existingOrders, templates };
+};
+
 export const Route = createFileRoute("/_authenticated/orders/new")({
   beforeLoad: ({ context }) => {
     requirePermission(context.permissions, "orders", "create");
   },
   component: NewOrderPage,
-  loader: async () => {
-    const [templates, existingOrders] = await Promise.all([
-      getTemplates(),
-      getOrders(),
-    ]);
-
-    return { existingOrders, templates };
-  },
+  loader: () => ({
+    formData: defer(loadNewOrderFormData()),
+  }),
+  pendingComponent: () => (
+    <EditorPageSkeleton cards={1} columns={1} fieldsPerCard={3} />
+  ),
 });

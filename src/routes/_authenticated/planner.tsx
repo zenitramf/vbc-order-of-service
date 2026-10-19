@@ -10,8 +10,10 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import {
+  Await,
   Link,
   createFileRoute,
+  defer,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
@@ -19,6 +21,10 @@ import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
+import {
+  CardSectionSkeleton,
+  PageHeaderSkeleton,
+} from "~/components/loading-skeletons";
 import { OrderOverviewRow } from "~/components/order-roster";
 import { Alert, AlertDescription, AlertTitle } from "~/components/ui/alert";
 import {
@@ -57,6 +63,7 @@ import {
   saveMonthSchedule,
 } from "~/lib/order-service-data";
 import type {
+  MonthPlanData,
   MonthScheduleCard,
   TeamMemberSummary,
 } from "~/lib/order-service-types";
@@ -590,16 +597,15 @@ const MonthSchedulePanel = ({
   );
 };
 
-const MonthPlannerPage = () => {
-  const {
-    missingCount,
-    month,
-    scheduleCards,
-    scheduleTargets,
-    serviceDates,
-    teamMembers,
-    unconfiguredWeekdays,
-  } = Route.useLoaderData();
+const MonthPlannerCard = ({
+  missingCount,
+  month,
+  scheduleCards,
+  scheduleTargets,
+  serviceDates,
+  teamMembers,
+  unconfiguredWeekdays,
+}: MonthPlanData) => {
   const navigate = useNavigate();
   const router = useRouter();
   const planMonthFn = useServerFn(planMonth);
@@ -710,6 +716,158 @@ const MonthPlannerPage = () => {
     );
 
   return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              aria-label="Previous month"
+              onClick={() => goToMonth(shiftMonth(month, -1))}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <CaretLeftIcon />
+            </Button>
+            <div className="flex min-w-44 items-center justify-center text-center">
+              <CardTitle className="text-xl">
+                {formatMonthLabel(month)}
+              </CardTitle>
+            </div>
+            <Button
+              aria-label="Next month"
+              onClick={() => goToMonth(shiftMonth(month, 1))}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <CaretRightIcon />
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  aria-label="Jump to month"
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                >
+                  <CalendarBlankIcon />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-3">
+                <Input
+                  aria-label="Jump to month"
+                  onChange={(event) => {
+                    if (isValidMonth(event.target.value)) {
+                      goToMonth(event.target.value);
+                    }
+                  }}
+                  type="month"
+                  value={month}
+                />
+              </PopoverContent>
+            </Popover>
+            {month === getCurrentMonth() ? null : (
+              <Button
+                onClick={() => goToMonth(getCurrentMonth())}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Today
+              </Button>
+            )}
+          </div>
+          {missingCount > 0 ? (
+            <Button
+              disabled={isPlanning}
+              onClick={handlePlanMonth}
+              type="button"
+            >
+              <CalendarPlusIcon data-icon="inline-start" />
+              {isPlanning
+                ? "Planning…"
+                : `Plan month (${missingCount} missing)`}
+            </Button>
+          ) : null}
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {unconfiguredWeekdays.length > 0 ? (
+          <Alert variant="destructive">
+            <WarningCircleIcon />
+            <AlertTitle>Month Planner settings need a template</AlertTitle>
+            <AlertDescription>
+              <span>
+                {unconfiguredWeekdays
+                  .map((weekday) => WEEKDAY_NAMES[weekday])
+                  .join(", ")}{" "}
+                {unconfiguredWeekdays.length === 1 ? "is" : "are"} enabled
+                without a valid template.{" "}
+                <Link className="underline" to="/settings">
+                  Update Month Planner settings
+                </Link>{" "}
+                before planning.
+              </span>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {scheduleTargets.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <p className="font-medium text-sm">Schedule a team</p>
+            <div className="flex flex-wrap gap-2">
+              {scheduleTargets.map((target) => {
+                const isActive = openTeamId === target.teamId;
+
+                return (
+                  <Button
+                    key={target.teamId}
+                    onClick={() =>
+                      setOpenTeamId(isActive ? null : target.teamId)
+                    }
+                    size="sm"
+                    type="button"
+                    variant={isActive ? "default" : "secondary"}
+                  >
+                    <UsersThreeIcon data-icon="inline-start" />
+                    {target.teamName}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
+        {openTeam ? (
+          <MonthSchedulePanel
+            cards={scheduleCards[openTeam.teamId] ?? []}
+            key={openTeam.teamId}
+            onClose={() => setOpenTeamId(null)}
+            onSaved={() => router.invalidate()}
+            teamId={openTeam.teamId}
+            teamMembers={teamMembers}
+            teamName={openTeam.teamName}
+          />
+        ) : (
+          plannedServices
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+const MonthPlannerPending = () => (
+  <div className="flex flex-col gap-6">
+    <PageHeaderSkeleton hasAction={false} />
+    <CardSectionSkeleton hasHeaderAction rows={4} />
+  </div>
+);
+
+const MonthPlannerPage = () => {
+  const { monthPlan } = Route.useLoaderData();
+
+  return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">
@@ -721,144 +879,12 @@ const MonthPlannerPage = () => {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                aria-label="Previous month"
-                onClick={() => goToMonth(shiftMonth(month, -1))}
-                size="icon"
-                type="button"
-                variant="outline"
-              >
-                <CaretLeftIcon />
-              </Button>
-              <div className="flex min-w-44 items-center justify-center text-center">
-                <CardTitle className="text-xl">
-                  {formatMonthLabel(month)}
-                </CardTitle>
-              </div>
-              <Button
-                aria-label="Next month"
-                onClick={() => goToMonth(shiftMonth(month, 1))}
-                size="icon"
-                type="button"
-                variant="outline"
-              >
-                <CaretRightIcon />
-              </Button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    aria-label="Jump to month"
-                    size="icon"
-                    type="button"
-                    variant="outline"
-                  >
-                    <CalendarBlankIcon />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-auto p-3">
-                  <Input
-                    aria-label="Jump to month"
-                    onChange={(event) => {
-                      if (isValidMonth(event.target.value)) {
-                        goToMonth(event.target.value);
-                      }
-                    }}
-                    type="month"
-                    value={month}
-                  />
-                </PopoverContent>
-              </Popover>
-              {month === getCurrentMonth() ? null : (
-                <Button
-                  onClick={() => goToMonth(getCurrentMonth())}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Today
-                </Button>
-              )}
-            </div>
-            {missingCount > 0 ? (
-              <Button
-                disabled={isPlanning}
-                onClick={handlePlanMonth}
-                type="button"
-              >
-                <CalendarPlusIcon data-icon="inline-start" />
-                {isPlanning
-                  ? "Planning…"
-                  : `Plan month (${missingCount} missing)`}
-              </Button>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {unconfiguredWeekdays.length > 0 ? (
-            <Alert variant="destructive">
-              <WarningCircleIcon />
-              <AlertTitle>Month Planner settings need a template</AlertTitle>
-              <AlertDescription>
-                <span>
-                  {unconfiguredWeekdays
-                    .map((weekday) => WEEKDAY_NAMES[weekday])
-                    .join(", ")}{" "}
-                  {unconfiguredWeekdays.length === 1 ? "is" : "are"} enabled
-                  without a valid template.{" "}
-                  <Link className="underline" to="/settings">
-                    Update Month Planner settings
-                  </Link>{" "}
-                  before planning.
-                </span>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-
-          {scheduleTargets.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <p className="font-medium text-sm">Schedule a team</p>
-              <div className="flex flex-wrap gap-2">
-                {scheduleTargets.map((target) => {
-                  const isActive = openTeamId === target.teamId;
-
-                  return (
-                    <Button
-                      key={target.teamId}
-                      onClick={() =>
-                        setOpenTeamId(isActive ? null : target.teamId)
-                      }
-                      size="sm"
-                      type="button"
-                      variant={isActive ? "default" : "secondary"}
-                    >
-                      <UsersThreeIcon data-icon="inline-start" />
-                      {target.teamName}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-
-          {openTeam ? (
-            <MonthSchedulePanel
-              cards={scheduleCards[openTeam.teamId] ?? []}
-              key={openTeam.teamId}
-              onClose={() => setOpenTeamId(null)}
-              onSaved={() => router.invalidate()}
-              teamId={openTeam.teamId}
-              teamMembers={teamMembers}
-              teamName={openTeam.teamName}
-            />
-          ) : (
-            plannedServices
-          )}
-        </CardContent>
-      </Card>
+      <Await
+        fallback={<CardSectionSkeleton hasHeaderAction rows={4} />}
+        promise={monthPlan}
+      >
+        {(plan) => <MonthPlannerCard {...plan} />}
+      </Await>
     </div>
   );
 };
@@ -868,10 +894,13 @@ export const Route = createFileRoute("/_authenticated/planner")({
     requirePermission(context.permissions, "orders", "view");
   },
   component: MonthPlannerPage,
-  loader: ({ deps }) => getMonthPlan({ data: deps.month ?? "" }),
+  loader: ({ deps }) => ({
+    monthPlan: defer(getMonthPlan({ data: deps.month ?? "" })),
+  }),
   loaderDeps: ({ search }: { search: { month?: string } }) => ({
     month: search.month,
   }),
+  pendingComponent: MonthPlannerPending,
   validateSearch: (search: Record<string, unknown>): { month?: string } => ({
     month:
       typeof search.month === "string" && isValidMonth(search.month)

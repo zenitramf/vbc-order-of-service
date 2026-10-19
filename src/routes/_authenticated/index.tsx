@@ -10,8 +10,13 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
 
+import {
+  CardSectionSkeleton,
+  DashboardPageSkeleton,
+  StatGridSkeleton,
+} from "~/components/loading-skeletons";
 import {
   OrderOverviewRow,
   OrderRosterSummary,
@@ -297,38 +302,78 @@ const TeamMembersSection = ({
   </Card>
 );
 
-const Dashboard = () => {
-  const data = Route.useLoaderData();
+const StatCardsSection = ({
+  hymnCount,
+  planningCount,
+  publishedCount,
+  templateCount,
+}: Pick<
+  DashboardData,
+  "hymnCount" | "planningCount" | "publishedCount" | "templateCount"
+>) => {
   const statCards = [
     {
       description: "Orders still being planned",
       icon: ClockIcon,
       label: "Planning",
       tone: "bg-warning/15 text-warning",
-      value: data.planningCount,
+      value: planningCount,
     },
     {
       description: "Orders sent with Publish and Send",
       icon: CheckCircleIcon,
       label: "Published",
       tone: "bg-success/15 text-success",
-      value: data.publishedCount,
+      value: publishedCount,
     },
     {
       description: "Reusable service plans",
       icon: ListChecksIcon,
       label: "Templates",
       tone: "bg-info/15 text-info",
-      value: data.templateCount,
+      value: templateCount,
     },
     {
       description: "Songs available for service planning",
       icon: MusicNotesIcon,
       label: "Hymns",
       tone: "bg-primary/12 text-primary",
-      value: data.hymnCount,
+      value: hymnCount,
     },
   ];
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {statCards.map((card) => {
+        const Icon = card.icon;
+
+        return (
+          <Card key={card.label}>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <CardDescription>{card.label}</CardDescription>
+                <CardTitle className="text-3xl">{card.value}</CardTitle>
+              </div>
+              <span
+                className={`flex size-10 items-center justify-center rounded-xl [&_svg]:size-5 ${card.tone}`}
+              >
+                <Icon />
+              </span>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {card.description}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+};
+
+const Dashboard = () => {
+  const { dashboardData } = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -350,55 +395,63 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      <NextServiceCard
-        month={data.month}
-        nextOrder={data.nextOrder}
-        nextSundayDate={data.nextSundayDate}
-      />
+      <Await
+        fallback={<CardSectionSkeleton rows={2} />}
+        promise={dashboardData}
+      >
+        {(data) => (
+          <NextServiceCard
+            month={data.month}
+            nextOrder={data.nextOrder}
+            nextSundayDate={data.nextSundayDate}
+          />
+        )}
+      </Await>
 
-      <MonthOrdersSection
-        month={data.month}
-        monthOrders={data.monthOrders}
-        nextOrderId={data.nextOrder?.id}
-      />
+      <Await
+        fallback={<CardSectionSkeleton hasHeaderAction rows={3} />}
+        promise={dashboardData}
+      >
+        {(data) => (
+          <MonthOrdersSection
+            month={data.month}
+            monthOrders={data.monthOrders}
+            nextOrderId={data.nextOrder?.id}
+          />
+        )}
+      </Await>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((card) => {
-          const Icon = card.icon;
+      <Await fallback={<StatGridSkeleton count={4} />} promise={dashboardData}>
+        {(data) => (
+          <StatCardsSection
+            hymnCount={data.hymnCount}
+            planningCount={data.planningCount}
+            publishedCount={data.publishedCount}
+            templateCount={data.templateCount}
+          />
+        )}
+      </Await>
 
-          return (
-            <Card key={card.label}>
-              <CardHeader className="flex flex-row items-center justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                  <CardDescription>{card.label}</CardDescription>
-                  <CardTitle className="text-3xl">{card.value}</CardTitle>
-                </div>
-                <span
-                  className={`flex size-10 items-center justify-center rounded-xl [&_svg]:size-5 ${card.tone}`}
-                >
-                  <Icon />
-                </span>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {card.description}
-                </p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <TeamMembersSection
-        teamCount={data.teamCount}
-        teamMemberCount={data.teamMemberCount}
-        teams={data.teams}
-      />
+      <Await
+        fallback={<CardSectionSkeleton hasHeaderAction rows={2} />}
+        promise={dashboardData}
+      >
+        {(data) => (
+          <TeamMembersSection
+            teamCount={data.teamCount}
+            teamMemberCount={data.teamMemberCount}
+            teams={data.teams}
+          />
+        )}
+      </Await>
     </div>
   );
 };
 
 export const Route = createFileRoute("/_authenticated/")({
   component: Dashboard,
-  loader: () => getDashboardData(),
+  loader: () => ({
+    dashboardData: defer(getDashboardData()),
+  }),
+  pendingComponent: DashboardPageSkeleton,
 });

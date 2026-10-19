@@ -1,14 +1,25 @@
 // oxlint-disable no-use-before-define
-import { createFileRoute } from "@tanstack/react-router";
+import { Await, createFileRoute, defer } from "@tanstack/react-router";
 
 import { HymnEditorPage } from "~/components/hymn-editor-page";
+import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { getReferenceData } from "~/lib/order-service-data";
 import { requirePermission } from "~/lib/route-guards";
 
-const NewHymnRoute = () => {
-  const referenceData = Route.useLoaderData();
+const HymnPendingSkeleton = () => (
+  <EditorPageSkeleton cards={2} columns={2} fieldsPerCard={4} />
+);
 
-  return <HymnEditorPage referenceData={referenceData} />;
+const NewHymnRoute = () => {
+  const { referenceData } = Route.useLoaderData();
+
+  return (
+    <Await fallback={<HymnPendingSkeleton />} promise={referenceData}>
+      {(resolvedReferenceData) => (
+        <HymnEditorPage referenceData={resolvedReferenceData} />
+      )}
+    </Await>
+  );
 };
 
 export const Route = createFileRoute("/_authenticated/hymns/new")({
@@ -16,5 +27,8 @@ export const Route = createFileRoute("/_authenticated/hymns/new")({
     requirePermission(context.permissions, "hymns", "create");
   },
   component: NewHymnRoute,
-  loader: () => getReferenceData(),
+  loader: () => ({
+    referenceData: defer(getReferenceData()),
+  }),
+  pendingComponent: HymnPendingSkeleton,
 });

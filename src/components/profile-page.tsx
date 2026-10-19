@@ -5,6 +5,10 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ApiKeysCard } from "~/components/api-keys-card";
+import {
+  CardSectionSkeleton,
+  TableCardSkeleton,
+} from "~/components/loading-skeletons";
 import { PasskeysCard } from "~/components/passkeys-card";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
@@ -78,23 +82,29 @@ export const ProfilePage = ({ user }: ProfilePageProps) => {
   const [newPassword, setNewPassword] = useState("");
   const [sessions, setSessions] = useState<SessionCardRow[]>([]);
   const [passkeys, setPasskeys] = useState<PasskeySummary[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+  const [isLoadingPasskeys, setIsLoadingPasskeys] = useState(true);
   const [busy, setBusy] = useState(false);
   const [addingPasskey, setAddingPasskey] = useState(false);
 
   const loadSessions = useCallback(async () => {
-    const { data } = await authClient.listSessions();
+    try {
+      const { data } = await authClient.listSessions();
 
-    setSessions(
-      (data ?? []).map((row) => ({
-        createdAt: toIso(row.createdAt),
-        expiresAt: toIso(row.expiresAt),
-        id: row.id,
-        impersonatedBy: null,
-        ipAddress: row.ipAddress ?? null,
-        revokeId: row.token,
-        userAgent: row.userAgent ?? null,
-      }))
-    );
+      setSessions(
+        (data ?? []).map((row) => ({
+          createdAt: toIso(row.createdAt),
+          expiresAt: toIso(row.expiresAt),
+          id: row.id,
+          impersonatedBy: null,
+          ipAddress: row.ipAddress ?? null,
+          revokeId: row.token,
+          userAgent: row.userAgent ?? null,
+        }))
+      );
+    } finally {
+      setIsLoadingSessions(false);
+    }
   }, []);
 
   const loadPasskeys = useCallback(async () => {
@@ -107,6 +117,8 @@ export const ProfilePage = ({ user }: ProfilePageProps) => {
           ? error.message
           : "Unable to load passkeys. Please try again."
       );
+    } finally {
+      setIsLoadingPasskeys(false);
     }
   }, []);
 
@@ -368,23 +380,31 @@ export const ProfilePage = ({ user }: ProfilePageProps) => {
         </Card>
       </div>
 
-      <PasskeysCard
-        adding={addingPasskey}
-        busy={busy || addingPasskey}
-        onAdd={handleAddPasskey}
-        onDelete={handleDeletePasskey}
-        onRename={handleRenamePasskey}
-        passkeys={passkeys}
-      />
+      {isLoadingPasskeys ? (
+        <CardSectionSkeleton hasHeaderAction rows={2} />
+      ) : (
+        <PasskeysCard
+          adding={addingPasskey}
+          busy={busy || addingPasskey}
+          onAdd={handleAddPasskey}
+          onDelete={handleDeletePasskey}
+          onRename={handleRenamePasskey}
+          passkeys={passkeys}
+        />
+      )}
 
       <ApiKeysCard />
 
-      <SessionsCard
-        busy={busy}
-        onRevoke={handleRevokeSession}
-        onRevokeAll={handleRevokeAll}
-        sessions={sessions}
-      />
+      {isLoadingSessions ? (
+        <TableCardSkeleton columns={5} rows={2} />
+      ) : (
+        <SessionsCard
+          busy={busy}
+          onRevoke={handleRevokeSession}
+          onRevokeAll={handleRevokeAll}
+          sessions={sessions}
+        />
+      )}
     </div>
   );
 };

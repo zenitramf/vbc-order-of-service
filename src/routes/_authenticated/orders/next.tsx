@@ -1,6 +1,7 @@
 // oxlint-disable no-use-before-define
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
+import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { getNextOrder } from "~/lib/order-service-data";
 import { requirePermission } from "~/lib/route-guards";
 
@@ -25,4 +26,7 @@ export const Route = createFileRoute("/_authenticated/orders/next")({
 
     throw redirect({ to: "/planner" });
   },
+  pendingComponent: () => (
+    <EditorPageSkeleton cards={3} columns={1} fieldsPerCard={3} />
+  ),
 });

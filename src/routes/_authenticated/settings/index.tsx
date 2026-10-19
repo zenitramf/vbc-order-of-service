@@ -5,11 +5,21 @@ import {
   PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+  Await,
+  createFileRoute,
+  defer,
+  useRouter,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
+import {
+  CardSectionSkeleton,
+  FormCardSkeleton,
+  PageHeaderSkeleton,
+} from "~/components/loading-skeletons";
 import { MonthPlannerSettings } from "~/components/month-planner-settings";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -297,8 +307,11 @@ const useEmailConfiguration = (
   };
 };
 
-const SettingsPage = () => {
-  const { monthPlanning, settings, templates } = Route.useLoaderData();
+const EmailSettingsSection = ({
+  settings,
+}: {
+  settings: EmailSettingsRecord;
+}) => {
   const router = useRouter();
   const addRecipient = useServerFn(addEmailRecipient);
   const deleteRecipient = useServerFn(deleteEmailRecipient);
@@ -377,6 +390,280 @@ const SettingsPage = () => {
   };
 
   return (
+    <div className="grid gap-6 xl:grid-cols-2">
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1.5">
+              <CardTitle>Email configuration</CardTitle>
+              <CardDescription>
+                SMTP values are stored server-side. The user and token are
+                encrypted and never returned to the UI.
+              </CardDescription>
+            </div>
+            <Badge variant={emailConfigured ? "secondary" : "outline"}>
+              {emailConfigured ? "Configured" : "Incomplete"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="smtp-address">SMTP address</FieldLabel>
+              <Input
+                id="smtp-address"
+                onChange={(event) => setSmtpAddress(event.target.value)}
+                placeholder="smtp.example.com"
+                value={smtpAddress}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="smtp-port">SMTP port</FieldLabel>
+              <Input
+                id="smtp-port"
+                max={65_535}
+                min={1}
+                onChange={(event) => setSmtpPort(event.target.value)}
+                placeholder="587"
+                type="number"
+                value={smtpPort}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="smtp-sender-name">Sender name</FieldLabel>
+              <Input
+                id="smtp-sender-name"
+                onChange={(event) => setSmtpSenderName(event.target.value)}
+                placeholder="Victory Baptist Church"
+                value={smtpSenderName}
+              />
+              <FieldDescription>
+                This name is shown as the sender display name.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="smtp-auth-type">Authentication</FieldLabel>
+              <NativeSelect
+                className="w-full"
+                id="smtp-auth-type"
+                onChange={(event) =>
+                  setSmtpAuthType(event.target.value as SmtpAuthType)
+                }
+                value={smtpAuthType}
+              >
+                <NativeSelectOption value="password">
+                  Password / app password
+                </NativeSelectOption>
+                <NativeSelectOption value="oauth2">
+                  OAuth 2.0 (Microsoft Entra)
+                </NativeSelectOption>
+              </NativeSelect>
+              <FieldDescription>
+                OAuth 2.0 is required for Exchange Online once Microsoft retires
+                Basic authentication for SMTP.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="smtp-user">SMTP user email</FieldLabel>
+              <Input
+                autoComplete="off"
+                id="smtp-user"
+                onChange={(event) => setSmtpUser(event.target.value)}
+                placeholder={configuredPlaceholder(
+                  settings.smtpUserConfigured,
+                  "mailer@example.com"
+                )}
+                type="email"
+                value={smtpUser}
+              />
+              <FieldDescription>
+                {isOAuth
+                  ? "The sending mailbox. It must be the mailbox your Entra app was granted access to."
+                  : "The saved user is not displayed after it is stored."}
+              </FieldDescription>
+            </Field>
+            {isOAuth ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="oauth-tenant-id">
+                    Entra tenant (directory) ID
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    id="oauth-tenant-id"
+                    onChange={(event) => setOauthTenantId(event.target.value)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    value={oauthTenantId}
+                  />
+                  <FieldDescription>
+                    From the app registration overview page in Entra.
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="oauth-client-id">
+                    Entra application (client) ID
+                  </FieldLabel>
+                  <Input
+                    autoComplete="off"
+                    id="oauth-client-id"
+                    onChange={(event) => setOauthClientId(event.target.value)}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    value={oauthClientId}
+                  />
+                  <FieldDescription>
+                    From the app registration overview page in Entra.
+                  </FieldDescription>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="oauth-client-secret">
+                    Entra client secret
+                  </FieldLabel>
+                  <Input
+                    autoComplete="new-password"
+                    id="oauth-client-secret"
+                    onChange={(event) =>
+                      setOauthClientSecret(event.target.value)
+                    }
+                    placeholder={configuredPlaceholder(
+                      settings.oauthClientSecretConfigured,
+                      "Client secret value"
+                    )}
+                    type="password"
+                    value={oauthClientSecret}
+                  />
+                  <FieldDescription>
+                    The secret is encrypted at rest and is never returned to the
+                    browser.
+                  </FieldDescription>
+                </Field>
+              </>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor="smtp-token">SMTP token</FieldLabel>
+                <Input
+                  autoComplete="new-password"
+                  id="smtp-token"
+                  onChange={(event) => setSmtpToken(event.target.value)}
+                  placeholder={configuredPlaceholder(
+                    settings.smtpTokenConfigured,
+                    "SMTP app token"
+                  )}
+                  type="password"
+                  value={smtpToken}
+                />
+                <FieldDescription>
+                  The token is encrypted at rest and is never returned to the
+                  browser.
+                </FieldDescription>
+              </Field>
+            )}
+            <Button
+              disabled={!canSave || isSaving}
+              onClick={onSave}
+              type="button"
+            >
+              <FloppyDiskIcon data-icon="inline-start" />
+              {isSaving ? "Saving…" : "Save email settings"}
+            </Button>
+            <SendTestEmailForm />
+          </FieldGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Email recipients</CardTitle>
+          <CardDescription>
+            Manage the default recipient list that will receive generated order
+            of service PDFs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FieldGroup>
+            <Field data-invalid={invalidRecipient || undefined}>
+              <FieldLabel htmlFor="recipient-email">Recipient email</FieldLabel>
+              <div className="flex gap-2">
+                <Input
+                  aria-invalid={invalidRecipient || undefined}
+                  id="recipient-email"
+                  onChange={(event) => setNewRecipient(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void onAddRecipient();
+                    }
+                  }}
+                  placeholder="recipient@example.com"
+                  type="email"
+                  value={newRecipient}
+                />
+                <Button
+                  onClick={() => void onAddRecipient()}
+                  type="button"
+                  variant="outline"
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Add
+                </Button>
+              </div>
+              {invalidRecipient ? (
+                <FieldDescription>
+                  Enter a valid email address.
+                </FieldDescription>
+              ) : null}
+            </Field>
+
+            <div className="flex flex-col gap-3">
+              {recipients.length === 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  No recipients have been added yet.
+                </p>
+              ) : (
+                recipients.map((email) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                    key={email}
+                  >
+                    <span className="truncate text-sm">{email}</span>
+                    <Button
+                      onClick={() => void onDeleteRecipient(email)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <TrashIcon data-icon="inline-start" />
+                      Remove
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </FieldGroup>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+const EmailSettingsSkeleton = () => (
+  <div className="grid gap-6 xl:grid-cols-2">
+    <FormCardSkeleton columns={1} fields={5} />
+    <FormCardSkeleton columns={1} fields={3} />
+  </div>
+);
+
+const SettingsPendingSkeleton = () => (
+  <div className="flex flex-col gap-6">
+    <PageHeaderSkeleton hasAction={false} />
+    <EmailSettingsSkeleton />
+    <CardSectionSkeleton rows={3} />
+  </div>
+);
+
+const SettingsPage = () => {
+  const { emailSettings, monthPlanningData } = Route.useLoaderData();
+
+  return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">
@@ -388,264 +675,32 @@ const SettingsPage = () => {
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-col gap-1.5">
-                <CardTitle>Email configuration</CardTitle>
-                <CardDescription>
-                  SMTP values are stored server-side. The user and token are
-                  encrypted and never returned to the UI.
-                </CardDescription>
-              </div>
-              <Badge variant={emailConfigured ? "secondary" : "outline"}>
-                {emailConfigured ? "Configured" : "Incomplete"}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="smtp-address">SMTP address</FieldLabel>
-                <Input
-                  id="smtp-address"
-                  onChange={(event) => setSmtpAddress(event.target.value)}
-                  placeholder="smtp.example.com"
-                  value={smtpAddress}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="smtp-port">SMTP port</FieldLabel>
-                <Input
-                  id="smtp-port"
-                  max={65_535}
-                  min={1}
-                  onChange={(event) => setSmtpPort(event.target.value)}
-                  placeholder="587"
-                  type="number"
-                  value={smtpPort}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="smtp-sender-name">Sender name</FieldLabel>
-                <Input
-                  id="smtp-sender-name"
-                  onChange={(event) => setSmtpSenderName(event.target.value)}
-                  placeholder="Victory Baptist Church"
-                  value={smtpSenderName}
-                />
-                <FieldDescription>
-                  This name is shown as the sender display name.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="smtp-auth-type">Authentication</FieldLabel>
-                <NativeSelect
-                  className="w-full"
-                  id="smtp-auth-type"
-                  onChange={(event) =>
-                    setSmtpAuthType(event.target.value as SmtpAuthType)
-                  }
-                  value={smtpAuthType}
-                >
-                  <NativeSelectOption value="password">
-                    Password / app password
-                  </NativeSelectOption>
-                  <NativeSelectOption value="oauth2">
-                    OAuth 2.0 (Microsoft Entra)
-                  </NativeSelectOption>
-                </NativeSelect>
-                <FieldDescription>
-                  OAuth 2.0 is required for Exchange Online once Microsoft
-                  retires Basic authentication for SMTP.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="smtp-user">SMTP user email</FieldLabel>
-                <Input
-                  autoComplete="off"
-                  id="smtp-user"
-                  onChange={(event) => setSmtpUser(event.target.value)}
-                  placeholder={configuredPlaceholder(
-                    settings.smtpUserConfigured,
-                    "mailer@example.com"
-                  )}
-                  type="email"
-                  value={smtpUser}
-                />
-                <FieldDescription>
-                  {isOAuth
-                    ? "The sending mailbox. It must be the mailbox your Entra app was granted access to."
-                    : "The saved user is not displayed after it is stored."}
-                </FieldDescription>
-              </Field>
-              {isOAuth ? (
-                <>
-                  <Field>
-                    <FieldLabel htmlFor="oauth-tenant-id">
-                      Entra tenant (directory) ID
-                    </FieldLabel>
-                    <Input
-                      autoComplete="off"
-                      id="oauth-tenant-id"
-                      onChange={(event) => setOauthTenantId(event.target.value)}
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      value={oauthTenantId}
-                    />
-                    <FieldDescription>
-                      From the app registration overview page in Entra.
-                    </FieldDescription>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="oauth-client-id">
-                      Entra application (client) ID
-                    </FieldLabel>
-                    <Input
-                      autoComplete="off"
-                      id="oauth-client-id"
-                      onChange={(event) => setOauthClientId(event.target.value)}
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      value={oauthClientId}
-                    />
-                    <FieldDescription>
-                      From the app registration overview page in Entra.
-                    </FieldDescription>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="oauth-client-secret">
-                      Entra client secret
-                    </FieldLabel>
-                    <Input
-                      autoComplete="new-password"
-                      id="oauth-client-secret"
-                      onChange={(event) =>
-                        setOauthClientSecret(event.target.value)
-                      }
-                      placeholder={configuredPlaceholder(
-                        settings.oauthClientSecretConfigured,
-                        "Client secret value"
-                      )}
-                      type="password"
-                      value={oauthClientSecret}
-                    />
-                    <FieldDescription>
-                      The secret is encrypted at rest and is never returned to
-                      the browser.
-                    </FieldDescription>
-                  </Field>
-                </>
-              ) : (
-                <Field>
-                  <FieldLabel htmlFor="smtp-token">SMTP token</FieldLabel>
-                  <Input
-                    autoComplete="new-password"
-                    id="smtp-token"
-                    onChange={(event) => setSmtpToken(event.target.value)}
-                    placeholder={configuredPlaceholder(
-                      settings.smtpTokenConfigured,
-                      "SMTP app token"
-                    )}
-                    type="password"
-                    value={smtpToken}
-                  />
-                  <FieldDescription>
-                    The token is encrypted at rest and is never returned to the
-                    browser.
-                  </FieldDescription>
-                </Field>
-              )}
-              <Button
-                disabled={!canSave || isSaving}
-                onClick={onSave}
-                type="button"
-              >
-                <FloppyDiskIcon data-icon="inline-start" />
-                {isSaving ? "Saving…" : "Save email settings"}
-              </Button>
-              <SendTestEmailForm />
-            </FieldGroup>
-          </CardContent>
-        </Card>
+      <Await fallback={<EmailSettingsSkeleton />} promise={emailSettings}>
+        {(settings) => <EmailSettingsSection settings={settings} />}
+      </Await>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Email recipients</CardTitle>
-            <CardDescription>
-              Manage the default recipient list that will receive generated
-              order of service PDFs.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FieldGroup>
-              <Field data-invalid={invalidRecipient || undefined}>
-                <FieldLabel htmlFor="recipient-email">
-                  Recipient email
-                </FieldLabel>
-                <div className="flex gap-2">
-                  <Input
-                    aria-invalid={invalidRecipient || undefined}
-                    id="recipient-email"
-                    onChange={(event) => setNewRecipient(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void onAddRecipient();
-                      }
-                    }}
-                    placeholder="recipient@example.com"
-                    type="email"
-                    value={newRecipient}
-                  />
-                  <Button
-                    onClick={() => void onAddRecipient()}
-                    type="button"
-                    variant="outline"
-                  >
-                    <PlusIcon data-icon="inline-start" />
-                    Add
-                  </Button>
-                </div>
-                {invalidRecipient ? (
-                  <FieldDescription>
-                    Enter a valid email address.
-                  </FieldDescription>
-                ) : null}
-              </Field>
-
-              <div className="flex flex-col gap-3">
-                {recipients.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    No recipients have been added yet.
-                  </p>
-                ) : (
-                  recipients.map((email) => (
-                    <div
-                      className="flex items-center justify-between gap-3 rounded-lg border p-3"
-                      key={email}
-                    >
-                      <span className="truncate text-sm">{email}</span>
-                      <Button
-                        onClick={() => void onDeleteRecipient(email)}
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <TrashIcon data-icon="inline-start" />
-                        Remove
-                      </Button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </FieldGroup>
-          </CardContent>
-        </Card>
-      </div>
-
-      <MonthPlannerSettings settings={monthPlanning} templates={templates} />
+      <Await
+        fallback={<CardSectionSkeleton rows={3} />}
+        promise={monthPlanningData}
+      >
+        {({ monthPlanning, templates }) => (
+          <MonthPlannerSettings
+            settings={monthPlanning}
+            templates={templates}
+          />
+        )}
+      </Await>
     </div>
   );
+};
+
+const loadMonthPlanningData = async () => {
+  const [monthPlanning, templates] = await Promise.all([
+    getMonthPlanningSettings(),
+    getTemplates(),
+  ]);
+
+  return { monthPlanning, templates };
 };
 
 export const Route = createFileRoute("/_authenticated/settings/")({
@@ -653,13 +708,9 @@ export const Route = createFileRoute("/_authenticated/settings/")({
     requirePermission(context.permissions, "settings", "view");
   },
   component: SettingsPage,
-  loader: async () => {
-    const [settings, templates, monthPlanning] = await Promise.all([
-      getEmailSettings(),
-      getTemplates(),
-      getMonthPlanningSettings(),
-    ]);
-
-    return { monthPlanning, settings, templates };
-  },
+  loader: () => ({
+    emailSettings: defer(getEmailSettings()),
+    monthPlanningData: defer(loadMonthPlanningData()),
+  }),
+  pendingComponent: SettingsPendingSkeleton,
 });
