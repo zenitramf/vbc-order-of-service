@@ -660,9 +660,19 @@ const OrderRoute = () => {
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
-              {title || "Untitled Order of Service"}
-            </h1>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <h1 className="cursor-help font-heading text-2xl font-semibold tracking-tight sm:text-3xl">
+                    {title || "Untitled Order of Service"}
+                  </h1>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Plan the service as one timeline: pick hymns and assign teams
+                  timeblock by timeblock.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Badge variant={status === "Published" ? "success" : "warning"}>
               {status}
             </Badge>
@@ -735,10 +745,6 @@ const OrderRoute = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <p className="text-muted-foreground">
-            Plan the service as one timeline: pick hymns and assign teams
-            timeblock by timeblock.
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -859,14 +865,21 @@ const OrderRoute = () => {
 
       {roster?.hasTeams ? (
         <Card>
-          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-            <div className="flex flex-col gap-1">
-              <CardTitle>Who&rsquo;s serving</CardTitle>
-              <CardDescription>
-                Ushers, counters, and every other team for this service, by
-                timeblock. Add or remove people here, or in the timeline below.
-              </CardDescription>
-            </div>
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="cursor-help">
+                    Who&rsquo;s serving
+                  </CardTitle>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Ushers, counters, and every other team for this service, by
+                  timeblock. Add or remove people here, or in the timeline
+                  below.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <RosterAttention roster={roster} />
           </CardHeader>
           <CardContent>

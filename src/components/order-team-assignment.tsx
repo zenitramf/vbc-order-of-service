@@ -9,7 +9,6 @@ import {
 } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { CardDescription, CardTitle } from "~/components/ui/card";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
   Dialog,
@@ -37,6 +36,12 @@ import {
   TableHeader,
   TableRow,
 } from "~/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
 import type {
   ServiceTypeCard,
   TeamMemberSummary,
@@ -374,7 +379,7 @@ export const TeamMemberDialog = ({
 };
 
 interface OrderTeamAssignmentProps {
-  headingHidden?: boolean;
+  heading?: string;
   onUpdateSegment: (segment: ServiceTypeCard) => void;
   segment: ServiceTypeCard;
   teamMembers: TeamMemberSummary[];
@@ -382,7 +387,7 @@ interface OrderTeamAssignmentProps {
 }
 
 export const OrderTeamAssignment = ({
-  headingHidden = false,
+  heading,
   onUpdateSegment,
   segment,
   teamMembers,
@@ -425,17 +430,21 @@ export const OrderTeamAssignment = ({
     );
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <div>
-          {headingHidden ? null : (
-            <CardTitle className="text-base">Team assignments</CardTitle>
-          )}
-          <CardDescription>
-            Choose who serves on each team for this service card. Required teams
-            must be staffed before publishing.
-          </CardDescription>
-        </div>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-4">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <h4 className="cursor-help text-sm font-semibold">
+                {heading ?? `Who’s serving in ${segment.typeName}`}
+              </h4>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              Choose who serves on each team for this service card. Required
+              teams must be staffed before publishing.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

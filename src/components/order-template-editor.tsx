@@ -45,13 +45,7 @@ import { AddHymnDialog, AddHymnFlow } from "~/components/add-hymn-flow";
 import { OrderTeamAssignment } from "~/components/order-team-assignment";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
   Combobox,
   ComboboxCollection,
@@ -1460,15 +1454,20 @@ const SegmentTeamDefinition = ({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <CardTitle className="text-base">Teams</CardTitle>
-          <CardDescription>
-            Add the teams that should appear on this service card in new orders,
-            and mark each optional or required. Required teams must be staffed
-            before an order can be published. Click a row to edit a team.
-          </CardDescription>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <CardTitle className="cursor-help text-base">Teams</CardTitle>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              Add the teams that should appear on this service card in new
+              orders, and mark each optional or required. Required teams must be
+              staffed before an order can be published. Click a row to edit a
+              team.
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -1693,9 +1692,18 @@ const SegmentEditor = ({
           </TabsList>
           <TabsContent className="flex flex-col gap-4 pt-2" value="activities">
             <div className="flex items-center justify-between gap-4">
-              <CardDescription>
-                Drag rows to reorder activities, or click a row to edit it.
-              </CardDescription>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <h4 className="cursor-help text-sm font-semibold">
+                      Activities
+                    </h4>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    Drag rows to reorder activities, or click a row to edit it.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Button onClick={onAddActivity} type="button" variant="secondary">
                 <PlusIcon data-icon="inline-start" />
                 Add activity
@@ -1723,7 +1731,7 @@ const SegmentEditor = ({
           {showTeamAssignment ? (
             <TabsContent className="pt-2" value="team-assignments">
               <OrderTeamAssignment
-                headingHidden
+                heading="Team assignments"
                 onUpdateSegment={onUpdateSegment}
                 segment={segment}
                 teamMembers={teamMembers}
@@ -1930,7 +1938,19 @@ const TimelineSegmentEditor = ({
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-4">
-            <h4 className="text-sm font-semibold">Activities</h4>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <h4 className="cursor-help text-sm font-semibold">
+                    Activities
+                  </h4>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Drag rows to reorder. Choose hymns right in the row; click a
+                  row for notes and details.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button
               onClick={onAddActivity}
               size="sm"
@@ -1941,10 +1961,6 @@ const TimelineSegmentEditor = ({
               Add activity
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Drag rows to reorder. Choose hymns right in the row; click a row for
-            notes and details.
-          </p>
           <SegmentActivitiesTable
             activities={segment.activities}
             activityTypes={activityTypes}
@@ -1969,18 +1985,12 @@ const TimelineSegmentEditor = ({
         {showTeamAssignment ? (
           <>
             <Separator />
-            <div className="flex flex-col gap-2">
-              <h4 className="text-sm font-semibold">
-                Who&rsquo;s serving in {segment.typeName}
-              </h4>
-              <OrderTeamAssignment
-                headingHidden
-                onUpdateSegment={onUpdateSegment}
-                segment={segment}
-                teamMembers={teamMembers}
-                teams={teams}
-              />
-            </div>
+            <OrderTeamAssignment
+              onUpdateSegment={onUpdateSegment}
+              segment={segment}
+              teamMembers={teamMembers}
+              teams={teams}
+            />
           </>
         ) : null}
       </div>
@@ -2081,17 +2091,21 @@ export const OrderTemplateEditor = ({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="font-heading text-xl font-semibold">
-            {isTimeline ? "Service timeline" : "Service cards"}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {isTimeline
-              ? "Timeblocks run in order from first to last. Each block shows its activities and who is serving in it."
-              : "Add cards for the main service segments, then add activities to each card."}
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-4">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <h2 className="cursor-help font-heading text-xl font-semibold">
+                {isTimeline ? "Service timeline" : "Service cards"}
+              </h2>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {isTimeline
+                ? "Timeblocks run in order from first to last. Each block shows its activities and who is serving in it."
+                : "Add cards for the main service segments, then add activities to each card."}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <Button
           onClick={() =>
             onChange({
