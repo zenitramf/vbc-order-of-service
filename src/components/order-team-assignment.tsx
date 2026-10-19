@@ -118,29 +118,88 @@ const TeamAssignmentRow = ({
 }: TeamAssignmentRowProps) => {
   const assignedCount = assignedMembers.length;
   const isMissing = required && assignedCount < requiredCount;
+  const memberNames = assignedMembers
+    .map((member) => `${member.firstName} ${member.lastName}`)
+    .join(", ");
 
   return (
     <TableRow>
-      <TableCell>
-        <div className="flex items-center gap-2">
-          <button
-            className="font-medium hover:underline"
-            onClick={onManage}
-            type="button"
-          >
-            {teamName}
-          </button>
-          {required ? <Badge variant="secondary">Required</Badge> : null}
-          {optional ? <Badge variant="outline">Optional</Badge> : null}
-          {isMissing ? (
-            <WarningCircleIcon
-              aria-label="Needs a member"
-              className="size-4 text-destructive"
-            />
-          ) : null}
+      <TableCell className="whitespace-normal py-2.5 md:whitespace-nowrap md:py-2">
+        <div className="flex items-start justify-between gap-2 md:justify-start">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <button
+              className="break-all text-left font-medium hover:underline sm:break-normal"
+              onClick={onManage}
+              type="button"
+            >
+              {teamName}
+            </button>
+            {required ? <Badge variant="secondary">Required</Badge> : null}
+            {optional ? <Badge variant="outline">Optional</Badge> : null}
+            <Badge
+              className="md:hidden"
+              variant={requirementBadgeVariant(
+                required,
+                assignedCount,
+                requiredCount
+              )}
+            >
+              {requirementBadgeLabel(required, assignedCount, requiredCount)}
+            </Badge>
+            {isMissing ? (
+              <WarningCircleIcon
+                aria-label="Needs a member"
+                className="size-4 shrink-0 text-destructive"
+              />
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-1 md:hidden">
+            <Button
+              onClick={onManage}
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Manage
+            </Button>
+            {removable ? (
+              <Button
+                aria-label={`Remove ${teamName}`}
+                onClick={onRemove}
+                size="icon-xs"
+                type="button"
+                variant="ghost"
+              >
+                <TrashIcon />
+              </Button>
+            ) : null}
+          </div>
+        </div>
+        <div className="mt-1.5 md:hidden">
+          {assignedCount === 0 ? (
+            <span className="text-muted-foreground text-xs">
+              No one assigned
+            </span>
+          ) : (
+            <span className="flex min-w-0 items-center gap-2">
+              <AvatarGroup>
+                {assignedMembers.slice(0, MAX_VISIBLE_AVATARS).map((member) => (
+                  <MemberAvatar key={member.id} member={member} />
+                ))}
+                {assignedCount > MAX_VISIBLE_AVATARS ? (
+                  <AvatarGroupCount>
+                    +{assignedCount - MAX_VISIBLE_AVATARS}
+                  </AvatarGroupCount>
+                ) : null}
+              </AvatarGroup>
+              <span className="text-muted-foreground text-xs leading-snug">
+                {memberNames}
+              </span>
+            </span>
+          )}
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
         {assignedCount === 0 ? (
           <span className="text-muted-foreground text-sm">No one assigned</span>
         ) : (
@@ -155,15 +214,11 @@ const TeamAssignmentRow = ({
                 </AvatarGroupCount>
               ) : null}
             </AvatarGroup>
-            <span className="truncate text-sm">
-              {assignedMembers
-                .map((member) => `${member.firstName} ${member.lastName}`)
-                .join(", ")}
-            </span>
+            <span className="truncate text-sm">{memberNames}</span>
           </span>
         )}
       </TableCell>
-      <TableCell>
+      <TableCell className="hidden md:table-cell">
         <Badge
           variant={requirementBadgeVariant(
             required,
@@ -174,7 +229,7 @@ const TeamAssignmentRow = ({
           {requirementBadgeLabel(required, assignedCount, requiredCount)}
         </Badge>
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="hidden text-right md:table-cell">
         <div className="flex justify-end gap-2">
           <Button onClick={onManage} size="sm" type="button" variant="outline">
             Manage
@@ -371,7 +426,7 @@ export const OrderTeamAssignment = ({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-end justify-between gap-4">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <div>
           {headingHidden ? null : (
             <CardTitle className="text-base">Team assignments</CardTitle>
@@ -418,7 +473,7 @@ export const OrderTeamAssignment = ({
       </div>
 
       <Table>
-        <TableHeader>
+        <TableHeader className="hidden md:table-header-group">
           <TableRow>
             <TableHead>Team</TableHead>
             <TableHead>Members</TableHead>

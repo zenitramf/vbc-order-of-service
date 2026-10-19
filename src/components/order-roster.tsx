@@ -183,7 +183,9 @@ const FullTeamRow = ({
 }) => (
   <div className="flex flex-col gap-2 rounded-lg bg-muted/30 px-3 py-2.5">
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm font-medium">{teamDisplayName(team)}</span>
+      <span className="break-all text-sm font-medium sm:break-normal">
+        {teamDisplayName(team)}
+      </span>
       {team.required ? <Badge variant="secondary">Required</Badge> : null}
       <TeamMissingBadge team={team} />
     </div>

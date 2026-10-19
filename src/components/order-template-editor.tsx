@@ -190,21 +190,6 @@ const activityNeedsHymn = (
   allowHymnSelection: boolean
 ) => allowHymnSelection && activity.activityType === "hymn" && !activity.hymnId;
 
-/** Selected hymn activity whose linked hymn has no lyrics yet. */
-const activityNeedsLyrics = (
-  activity: OrderActivity,
-  allowHymnSelection: boolean,
-  hymnHasLyrics: Map<string, boolean>
-) => {
-  if (
-    !(allowHymnSelection && activity.activityType === "hymn" && activity.hymnId)
-  ) {
-    return false;
-  }
-
-  return hymnHasLyrics.get(activity.hymnId) === false;
-};
-
 /** Whether any activity on the card still needs attention (e.g. a hymn). */
 const segmentActivitiesNeedAttention = (
   segment: ServiceTypeCard,
@@ -417,7 +402,7 @@ const HymnCombobox = ({
                   >
                     <span className="flex min-w-0 flex-1 items-start justify-between gap-2">
                       <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="truncate">{hymn.label}</span>
+                        <span className="leading-snug">{hymn.label}</span>
                         <span className="text-muted-foreground text-xs font-normal">
                           Last played: {hymn.lastPlayed || "Never"}
                         </span>
@@ -704,9 +689,8 @@ const DragHandleCell = () => {
 interface ActivityColumnsOptions {
   activityTypeNames: Map<string, string>;
   allowHymnSelection: boolean;
-  hymnHasLyrics: Map<string, boolean>;
-  hymnLabels: Map<string, string>;
   hymnOptions: HymnOption[];
+  hymnsById: Map<string, HymnOption>;
   /** Timeline rows pick hymns in place instead of via the Manage dialog. */
   inlineHymnEditing: boolean;
   /** Opens quick-add for this activity; omit when hymn creation is off. */
@@ -716,12 +700,20 @@ interface ActivityColumnsOptions {
   onUpdate: (activity: OrderActivity) => void;
 }
 
+const ACTIVITY_COLUMN_CLASS_NAMES: Record<string, string> = {
+  actions: "w-10 px-1 text-right sm:px-2",
+  activityName: "whitespace-normal py-2.5 md:whitespace-nowrap md:py-2",
+  activityType: "hidden md:table-cell",
+  drag: "w-8 px-1.5 sm:px-2",
+  hymn: "hidden md:table-cell",
+  notes: "hidden md:table-cell",
+};
+
 const createActivityColumns = ({
   activityTypeNames,
   allowHymnSelection,
-  hymnHasLyrics,
-  hymnLabels,
   hymnOptions,
+  hymnsById,
   inlineHymnEditing,
   onAddHymn,
   onManage,
@@ -738,50 +730,89 @@ const createActivityColumns = ({
       accessorKey: "activityName",
       cell: ({ row }) => {
         const activity = row.original;
-        const needsHymn = activityNeedsHymn(activity, allowHymnSelection);
-        const needsLyrics = activityNeedsLyrics(
-          activity,
-          allowHymnSelection,
-          hymnHasLyrics
-        );
-        const selectedHymnLabel =
-          allowHymnSelection &&
-          !inlineHymnEditing &&
-          activity.activityType === "hymn" &&
-          activity.hymnId
-            ? (hymnLabels.get(activity.hymnId) ?? null)
-            : null;
+        const isHymnActivity =
+          allowHymnSelection && activity.activityType === "hymn";
+        const selectedHymn =
+          isHymnActivity && activity.hymnId
+            ? hymnsById.get(activity.hymnId)
+            : undefined;
+        const typeLabel =
+          activityTypeNames.get(activity.activityType) ?? activity.activityType;
+        const notes = activity.notes?.trim();
+        const needsHymn = isHymnActivity && !activity.hymnId;
+        const needsLyrics = selectedHymn?.hasLyrics === false;
+        const showMobileHymnPicker = isHymnActivity && inlineHymnEditing;
 
         return (
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               <span className="font-medium">{activity.activityName}</span>
-              {selectedHymnLabel ? (
-                <p className="truncate text-muted-foreground text-xs">
-                  {selectedHymnLabel}
-                </p>
+              <Badge className="md:hidden" variant="secondary">
+                {typeLabel}
+              </Badge>
+              {selectedHymn?.musicKey.trim() ? (
+                <Badge className="md:hidden" variant="outline">
+                  {getMusicKeyLabel(selectedHymn.musicKey)}
+                </Badge>
+              ) : null}
+              {needsHymn ? (
+                <WarningCircleIcon
+                  aria-label="Needs a hymn"
+                  className="size-4 shrink-0 text-destructive"
+                />
+              ) : null}
+              {needsLyrics ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex shrink-0">
+                        <WarningCircleIcon
+                          aria-label="Lyrics need to be added"
+                          className="size-4 text-warning"
+                        />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Lyrics need to be added.</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ) : null}
             </div>
-            {needsHymn ? (
-              <WarningCircleIcon
-                aria-label="Needs a hymn"
-                className="mt-0.5 size-4 shrink-0 text-destructive"
-              />
+            {selectedHymn ? (
+              <p
+                className={cn(
+                  "text-xs leading-snug",
+                  inlineHymnEditing
+                    ? "text-foreground/90 font-medium md:hidden"
+                    : "truncate text-muted-foreground"
+                )}
+              >
+                {selectedHymn.label}
+              </p>
             ) : null}
-            {needsLyrics ? (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="mt-0.5 inline-flex shrink-0">
-                      <WarningCircleIcon
-                        aria-label="Lyrics need to be added"
-                        className="size-4 text-warning"
-                      />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>Lyrics need to be added.</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+            {notes ? (
+              <p className="text-muted-foreground text-xs leading-relaxed md:hidden">
+                {notes}
+              </p>
+            ) : null}
+            {showMobileHymnPicker ? (
+              <div
+                className="w-full md:hidden"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+                role="presentation"
+              >
+                <HymnCombobox
+                  hymnId={activity.hymnId}
+                  hymnOptions={hymnOptions}
+                  invalid={!activity.hymnId}
+                  onAddHymn={
+                    onAddHymn
+                      ? (initialName) => onAddHymn(activity, initialName)
+                      : undefined
+                  }
+                  onChange={(hymnId) => onUpdate({ ...activity, hymnId })}
+                />
+              </div>
             ) : null}
           </div>
         );
@@ -933,7 +964,10 @@ const SortableActivityRow = ({ onManage, row }: SortableActivityRowProps) => {
         style={style}
       >
         {row.getVisibleCells().map((cell) => (
-          <TableCell key={cell.id}>
+          <TableCell
+            className={ACTIVITY_COLUMN_CLASS_NAMES[cell.column.id]}
+            key={cell.id}
+          >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </TableCell>
         ))}
@@ -989,13 +1023,8 @@ const SegmentActivitiesTable = ({
     [activityTypes]
   );
 
-  const hymnHasLyrics = React.useMemo(
-    () => new Map(hymnOptions.map((hymn) => [hymn.id, hymn.hasLyrics])),
-    [hymnOptions]
-  );
-
-  const hymnLabels = React.useMemo(
-    () => new Map(hymnOptions.map((hymn) => [hymn.id, hymn.label])),
+  const hymnsById = React.useMemo(
+    () => new Map(hymnOptions.map((hymn) => [hymn.id, hymn])),
     [hymnOptions]
   );
 
@@ -1004,9 +1033,8 @@ const SegmentActivitiesTable = ({
       createActivityColumns({
         activityTypeNames,
         allowHymnSelection,
-        hymnHasLyrics,
-        hymnLabels,
         hymnOptions,
+        hymnsById,
         inlineHymnEditing,
         onAddHymn: allowHymnCreation
           ? (activity, initialName) =>
@@ -1020,9 +1048,8 @@ const SegmentActivitiesTable = ({
       activityTypeNames,
       allowHymnCreation,
       allowHymnSelection,
-      hymnHasLyrics,
-      hymnLabels,
       hymnOptions,
+      hymnsById,
       inlineHymnEditing,
       onRemove,
       onUpdate,
@@ -1062,11 +1089,14 @@ const SegmentActivitiesTable = ({
         sensors={sensors}
       >
         <Table>
-          <TableHeader>
+          <TableHeader className="hidden md:table-header-group">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    className={ACTIVITY_COLUMN_CLASS_NAMES[header.column.id]}
+                    key={header.id}
+                  >
                     {flexRender(
                       header.column.columnDef.header,
                       header.getContext()
@@ -1761,7 +1791,10 @@ const TimelineSegmentEditor = ({
 
   return (
     <section aria-label={segment.typeName} className="flex gap-3 sm:gap-4">
-      <div aria-hidden="true" className="flex flex-col items-center">
+      <div
+        aria-hidden="true"
+        className="hidden sm:flex sm:flex-col sm:items-center"
+      >
         <span
           className={cn(
             "flex size-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold tabular-nums",
@@ -1772,7 +1805,12 @@ const TimelineSegmentEditor = ({
         </span>
         {isLast ? null : <span className="w-px flex-1 bg-border" />}
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-4 pb-10">
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-col gap-4 pb-8 sm:pb-10",
+          !isLast && "border-b border-border/60 sm:border-b-0"
+        )}
+      >
         {isEditingName ? (
           <Field>
             <FieldLabel htmlFor={`${segment.id}-timeline-name`}>
@@ -1813,65 +1851,80 @@ const TimelineSegmentEditor = ({
             </FieldDescription>
           </Field>
         ) : (
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                Timeblock {index + 1}
-              </span>
-              <h3 className="flex flex-wrap items-center gap-2 font-heading text-xl font-semibold">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "inline-flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums sm:hidden",
+                    needsAttention
+                      ? "border-destructive text-destructive"
+                      : "bg-muted"
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                  Timeblock {index + 1}
+                </span>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  aria-label="Move timeblock earlier"
+                  disabled={isFirst}
+                  onClick={() => onMove(-1)}
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                >
+                  <ArrowUpIcon />
+                  <span className="sr-only">Move timeblock earlier</span>
+                </Button>
+                <Button
+                  aria-label="Move timeblock later"
+                  disabled={isLast}
+                  onClick={() => onMove(1)}
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                >
+                  <ArrowDownIcon />
+                  <span className="sr-only">Move timeblock later</span>
+                </Button>
+                <Button
+                  aria-label="Remove timeblock"
+                  onClick={onRemove}
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                >
+                  <TrashIcon />
+                  <span className="sr-only">Remove timeblock</span>
+                </Button>
+              </div>
+            </div>
+            <h3 className="flex flex-wrap items-center gap-2 font-heading text-xl font-semibold">
+              <span className="inline-flex items-center gap-1">
                 {segment.typeName}
                 <Button
                   aria-label="Edit timeblock name"
                   onClick={() => setIsEditingName(true)}
-                  size="icon"
+                  size="icon-sm"
                   type="button"
                   variant="ghost"
                 >
                   <PencilSimpleIcon />
                   <span className="sr-only">Edit timeblock name</span>
                 </Button>
-                {needsAttention ? (
-                  <Badge variant="destructive">
-                    <WarningCircleIcon />
-                    Needs attention
-                  </Badge>
-                ) : null}
-              </h3>
-            </div>
-            <div className="flex gap-1">
-              <Button
-                aria-label="Move timeblock earlier"
-                disabled={isFirst}
-                onClick={() => onMove(-1)}
-                size="icon"
-                type="button"
-                variant="outline"
-              >
-                <ArrowUpIcon />
-                <span className="sr-only">Move timeblock earlier</span>
-              </Button>
-              <Button
-                aria-label="Move timeblock later"
-                disabled={isLast}
-                onClick={() => onMove(1)}
-                size="icon"
-                type="button"
-                variant="outline"
-              >
-                <ArrowDownIcon />
-                <span className="sr-only">Move timeblock later</span>
-              </Button>
-              <Button
-                aria-label="Remove timeblock"
-                onClick={onRemove}
-                size="icon"
-                type="button"
-                variant="outline"
-              >
-                <TrashIcon />
-                <span className="sr-only">Remove timeblock</span>
-              </Button>
-            </div>
+              </span>
+              {needsAttention ? (
+                <Badge variant="destructive">
+                  <WarningCircleIcon />
+                  Needs attention
+                </Badge>
+              ) : null}
+            </h3>
           </div>
         )}
 
@@ -2028,7 +2081,7 @@ export const OrderTemplateEditor = ({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="flex flex-col gap-1">
           <h2 className="font-heading text-xl font-semibold">
             {isTimeline ? "Service timeline" : "Service cards"}
@@ -2054,7 +2107,9 @@ export const OrderTemplateEditor = ({
         </Button>
       </div>
 
-      <div className={cn("flex flex-col", !isTimeline && "gap-4")}>
+      <div
+        className={cn("flex flex-col", isTimeline ? "gap-6 sm:gap-0" : "gap-4")}
+      >
         {value.service_type.map((segment, index) =>
           renderSegment(segment, index)
         )}
