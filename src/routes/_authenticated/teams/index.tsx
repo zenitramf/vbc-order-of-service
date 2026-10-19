@@ -7,13 +7,7 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useRouter,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
@@ -25,10 +19,7 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  TableCardSkeleton,
-  TablePageSkeleton,
-} from "~/components/loading-skeletons";
+import { TablePageSkeleton } from "~/components/loading-skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -306,7 +297,7 @@ const TeamsTableCard = ({ teams }: { teams: TeamSummary[] }) => {
 };
 
 const TeamsPage = () => {
-  const { teams } = Route.useLoaderData();
+  const teams = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -328,12 +319,7 @@ const TeamsPage = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<TableCardSkeleton columns={4} rows={5} />}
-        promise={teams}
-      >
-        {(resolvedTeams) => <TeamsTableCard teams={resolvedTeams} />}
-      </Await>
+      <TeamsTableCard teams={teams} />
     </div>
   );
 };
@@ -343,8 +329,6 @@ export const Route = createFileRoute("/_authenticated/teams/")({
     requirePermission(context.permissions, "teams", "view");
   },
   component: TeamsPage,
-  loader: () => ({
-    teams: defer(getTeams()),
-  }),
+  loader: () => getTeams(),
   pendingComponent: () => <TablePageSkeleton columns={4} rows={5} />,
 });

@@ -1,19 +1,10 @@
 import { ListChecksIcon, PlusIcon, TrashIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useRouter,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
-import {
-  TableCardSkeleton,
-  TablePageSkeleton,
-} from "~/components/loading-skeletons";
+import { TablePageSkeleton } from "~/components/loading-skeletons";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -155,7 +146,7 @@ const TemplatesTableCard = ({
 };
 
 const TemplatesPage = () => {
-  const { templates } = Route.useLoaderData();
+  const templates = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -177,14 +168,7 @@ const TemplatesPage = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<TableCardSkeleton columns={5} rows={5} />}
-        promise={templates}
-      >
-        {(resolvedTemplates) => (
-          <TemplatesTableCard templates={resolvedTemplates} />
-        )}
-      </Await>
+      <TemplatesTableCard templates={templates} />
     </div>
   );
 };
@@ -194,8 +178,6 @@ export const Route = createFileRoute("/_authenticated/templates/")({
     requirePermission(context.permissions, "templates", "view");
   },
   component: TemplatesPage,
-  loader: () => ({
-    templates: defer(getTemplates()),
-  }),
+  loader: () => getTemplates(),
   pendingComponent: () => <TablePageSkeleton columns={5} rows={5} />,
 });

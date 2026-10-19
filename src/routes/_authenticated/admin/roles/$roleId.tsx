@@ -1,5 +1,5 @@
 // oxlint-disable no-use-before-define
-import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { RoleEditorPage } from "~/components/role-editor-page";
@@ -18,37 +18,29 @@ const RolePendingSkeleton = () => (
 );
 
 const RoleRoute = () => {
-  const { role } = Route.useLoaderData();
+  const role = Route.useLoaderData();
 
-  return (
-    <Await fallback={<RolePendingSkeleton />} promise={role}>
-      {(resolvedRole) =>
-        resolvedRole ? (
-          <RoleEditorPage role={resolvedRole} />
-        ) : (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>Role not found</EmptyTitle>
-              <EmptyDescription>
-                This role may have been removed.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button asChild>
-                <Link to="/admin/roles">Back to roles</Link>
-              </Button>
-            </EmptyContent>
-          </Empty>
-        )
-      }
-    </Await>
-  );
+  if (!role) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Role not found</EmptyTitle>
+          <EmptyDescription>This role may have been removed.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link to="/admin/roles">Back to roles</Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  return <RoleEditorPage role={role} />;
 };
 
 export const Route = createFileRoute("/_authenticated/admin/roles/$roleId")({
   component: RoleRoute,
-  loader: ({ params }) => ({
-    role: defer(getRole({ data: params.roleId })),
-  }),
+  loader: ({ params }) => getRole({ data: params.roleId }),
   pendingComponent: RolePendingSkeleton,
 });

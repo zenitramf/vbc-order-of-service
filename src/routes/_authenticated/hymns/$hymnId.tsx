@@ -1,6 +1,6 @@
 import { PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { HymnEditorPage } from "~/components/hymn-editor-page";
 import { EditorPageSkeleton } from "~/components/loading-skeletons";
@@ -24,37 +24,31 @@ const HymnPendingSkeleton = () => (
 );
 
 const HymnRoute = () => {
-  const { hymnData } = Route.useLoaderData();
+  const { files, hymn, referenceData } = Route.useLoaderData();
+
+  if (!hymn) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Hymn not found</EmptyTitle>
+          <EmptyDescription>
+            The requested hymn may have been deleted.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link to="/hymns/new">
+              <PlusIcon data-icon="inline-start" />
+              Add hymn
+            </Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
 
   return (
-    <Await fallback={<HymnPendingSkeleton />} promise={hymnData}>
-      {({ files, hymn, referenceData }) =>
-        hymn ? (
-          <HymnEditorPage
-            files={files}
-            hymn={hymn}
-            referenceData={referenceData}
-          />
-        ) : (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>Hymn not found</EmptyTitle>
-              <EmptyDescription>
-                The requested hymn may have been deleted.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button asChild>
-                <Link to="/hymns/new">
-                  <PlusIcon data-icon="inline-start" />
-                  Add hymn
-                </Link>
-              </Button>
-            </EmptyContent>
-          </Empty>
-        )
-      }
-    </Await>
+    <HymnEditorPage files={files} hymn={hymn} referenceData={referenceData} />
   );
 };
 
@@ -73,8 +67,6 @@ export const Route = createFileRoute("/_authenticated/hymns/$hymnId")({
     requirePermission(context.permissions, "hymns", "view");
   },
   component: HymnRoute,
-  loader: ({ params }) => ({
-    hymnData: defer(loadHymnData(params.hymnId)),
-  }),
+  loader: ({ params }) => loadHymnData(params.hymnId),
   pendingComponent: HymnPendingSkeleton,
 });

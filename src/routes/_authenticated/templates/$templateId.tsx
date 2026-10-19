@@ -1,6 +1,6 @@
 import { PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { TemplateEditorPage } from "~/components/template-editor-page";
@@ -24,37 +24,35 @@ const TemplatePendingSkeleton = () => (
 );
 
 const TemplateRoute = () => {
-  const { templateData } = Route.useLoaderData();
+  const { referenceData, teams, template } = Route.useLoaderData();
+
+  if (!template) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Template not found</EmptyTitle>
+          <EmptyDescription>
+            The requested template may have been deleted.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link to="/templates/new">
+              <PlusIcon data-icon="inline-start" />
+              Create template
+            </Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
 
   return (
-    <Await fallback={<TemplatePendingSkeleton />} promise={templateData}>
-      {({ referenceData, teams, template }) =>
-        template ? (
-          <TemplateEditorPage
-            referenceData={referenceData}
-            teams={teams}
-            template={template}
-          />
-        ) : (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>Template not found</EmptyTitle>
-              <EmptyDescription>
-                The requested template may have been deleted.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button asChild>
-                <Link to="/templates/new">
-                  <PlusIcon data-icon="inline-start" />
-                  Create template
-                </Link>
-              </Button>
-            </EmptyContent>
-          </Empty>
-        )
-      }
-    </Await>
+    <TemplateEditorPage
+      referenceData={referenceData}
+      teams={teams}
+      template={template}
+    />
   );
 };
 
@@ -73,8 +71,6 @@ export const Route = createFileRoute("/_authenticated/templates/$templateId")({
     requirePermission(context.permissions, "templates", "view");
   },
   component: TemplateRoute,
-  loader: ({ params }) => ({
-    templateData: defer(loadTemplateData(params.templateId)),
-  }),
+  loader: ({ params }) => loadTemplateData(params.templateId),
   pendingComponent: TemplatePendingSkeleton,
 });

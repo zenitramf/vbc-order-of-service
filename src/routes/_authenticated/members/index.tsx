@@ -7,13 +7,7 @@ import {
   UserCircleIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useRouter,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
@@ -25,10 +19,7 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  TableCardSkeleton,
-  TablePageSkeleton,
-} from "~/components/loading-skeletons";
+import { TablePageSkeleton } from "~/components/loading-skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -394,7 +385,7 @@ const MembersTableCard = ({
 };
 
 const MembersPage = () => {
-  const { membersData } = Route.useLoaderData();
+  const { members, teams } = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -416,14 +407,7 @@ const MembersPage = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<TableCardSkeleton columns={5} hasFilters rows={6} />}
-        promise={membersData}
-      >
-        {({ members, teams }) => (
-          <MembersTableCard members={members} teams={teams} />
-        )}
-      </Await>
+      <MembersTableCard members={members} teams={teams} />
     </div>
   );
 };
@@ -439,8 +423,6 @@ export const Route = createFileRoute("/_authenticated/members/")({
     requirePermission(context.permissions, "members", "view");
   },
   component: MembersPage,
-  loader: () => ({
-    membersData: defer(loadMembersData()),
-  }),
+  loader: () => loadMembersData(),
   pendingComponent: () => <TablePageSkeleton columns={5} hasFilters rows={6} />,
 });

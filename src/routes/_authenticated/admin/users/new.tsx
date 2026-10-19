@@ -1,21 +1,12 @@
 // oxlint-disable no-use-before-define
 import { ArrowLeftIcon, UserPlusIcon } from "@phosphor-icons/react";
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useNavigate,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  EditorPageSkeleton,
-  FormCardSkeleton,
-} from "~/components/loading-skeletons";
+import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -112,7 +103,7 @@ const NewUserFormCard = ({
 );
 
 const NewUserPage = () => {
-  const { roles } = Route.useLoaderData();
+  const roles = Route.useLoaderData();
   const navigate = useNavigate();
   const createUser = useServerFn(createUserWithOnboarding);
 
@@ -182,33 +173,24 @@ const NewUserPage = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<FormCardSkeleton columns={2} fields={4} />}
-        promise={roles}
-      >
-        {(resolvedRoles) => (
-          <NewUserFormCard
-            email={email}
-            firstName={firstName}
-            lastName={lastName}
-            onEmailChange={setEmail}
-            onFirstNameChange={setFirstName}
-            onLastNameChange={setLastName}
-            onRoleChange={setRole}
-            role={role}
-            roles={resolvedRoles}
-          />
-        )}
-      </Await>
+      <NewUserFormCard
+        email={email}
+        firstName={firstName}
+        lastName={lastName}
+        onEmailChange={setEmail}
+        onFirstNameChange={setFirstName}
+        onLastNameChange={setLastName}
+        onRoleChange={setRole}
+        role={role}
+        roles={roles}
+      />
     </form>
   );
 };
 
 export const Route = createFileRoute("/_authenticated/admin/users/new")({
   component: NewUserPage,
-  loader: () => ({
-    roles: defer(getRoles()),
-  }),
+  loader: () => getRoles(),
   pendingComponent: () => (
     <EditorPageSkeleton cards={1} columns={2} fieldsPerCard={4} />
   ),

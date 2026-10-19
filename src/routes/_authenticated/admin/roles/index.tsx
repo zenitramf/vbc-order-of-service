@@ -5,21 +5,12 @@ import {
   ShieldCheckIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useRouter,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  TableCardSkeleton,
-  TablePageSkeleton,
-} from "~/components/loading-skeletons";
+import { TablePageSkeleton } from "~/components/loading-skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -170,7 +161,7 @@ const RolesTableCard = ({ roles }: { roles: RoleRecord[] }) => {
 };
 
 const RolesPage = () => {
-  const { roles } = Route.useLoaderData();
+  const roles = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -191,20 +182,13 @@ const RolesPage = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<TableCardSkeleton columns={5} rows={4} />}
-        promise={roles}
-      >
-        {(resolvedRoles) => <RolesTableCard roles={resolvedRoles} />}
-      </Await>
+      <RolesTableCard roles={roles} />
     </div>
   );
 };
 
 export const Route = createFileRoute("/_authenticated/admin/roles/")({
   component: RolesPage,
-  loader: () => ({
-    roles: defer(getRoles()),
-  }),
+  loader: () => getRoles(),
   pendingComponent: () => <TablePageSkeleton columns={5} rows={4} />,
 });

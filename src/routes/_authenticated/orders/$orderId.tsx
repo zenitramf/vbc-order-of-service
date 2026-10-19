@@ -11,13 +11,7 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable complexity, no-use-before-define
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useRouter,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
@@ -992,13 +986,9 @@ const OrderPendingSkeleton = () => (
 );
 
 const OrderRoute = () => {
-  const { orderData } = Route.useLoaderData();
+  const data = Route.useLoaderData();
 
-  return (
-    <Await fallback={<OrderPendingSkeleton />} promise={orderData}>
-      {(data) => <OrderEditorContent {...data} />}
-    </Await>
-  );
+  return <OrderEditorContent {...data} />;
 };
 
 const loadOrderData = async (orderId: string): Promise<OrderEditorData> => {
@@ -1036,8 +1026,6 @@ export const Route = createFileRoute("/_authenticated/orders/$orderId")({
     requirePermission(context.permissions, "orders", "view");
   },
   component: OrderRoute,
-  loader: ({ params }) => ({
-    orderData: defer(loadOrderData(params.orderId)),
-  }),
+  loader: ({ params }) => loadOrderData(params.orderId),
   pendingComponent: OrderPendingSkeleton,
 });

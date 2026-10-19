@@ -5,12 +5,7 @@ import {
   PlusIcon,
   TrashIcon,
 } from "@phosphor-icons/react";
-import {
-  Await,
-  createFileRoute,
-  defer,
-  useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
@@ -661,7 +656,7 @@ const SettingsPendingSkeleton = () => (
 );
 
 const SettingsPage = () => {
-  const { emailSettings, monthPlanningData } = Route.useLoaderData();
+  const { monthPlanning, settings, templates } = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -675,32 +670,11 @@ const SettingsPage = () => {
         </p>
       </div>
 
-      <Await fallback={<EmailSettingsSkeleton />} promise={emailSettings}>
-        {(settings) => <EmailSettingsSection settings={settings} />}
-      </Await>
+      <EmailSettingsSection settings={settings} />
 
-      <Await
-        fallback={<CardSectionSkeleton rows={3} />}
-        promise={monthPlanningData}
-      >
-        {({ monthPlanning, templates }) => (
-          <MonthPlannerSettings
-            settings={monthPlanning}
-            templates={templates}
-          />
-        )}
-      </Await>
+      <MonthPlannerSettings settings={monthPlanning} templates={templates} />
     </div>
   );
-};
-
-const loadMonthPlanningData = async () => {
-  const [monthPlanning, templates] = await Promise.all([
-    getMonthPlanningSettings(),
-    getTemplates(),
-  ]);
-
-  return { monthPlanning, templates };
 };
 
 export const Route = createFileRoute("/_authenticated/settings/")({
@@ -708,9 +682,14 @@ export const Route = createFileRoute("/_authenticated/settings/")({
     requirePermission(context.permissions, "settings", "view");
   },
   component: SettingsPage,
-  loader: () => ({
-    emailSettings: defer(getEmailSettings()),
-    monthPlanningData: defer(loadMonthPlanningData()),
-  }),
+  loader: async () => {
+    const [settings, templates, monthPlanning] = await Promise.all([
+      getEmailSettings(),
+      getTemplates(),
+      getMonthPlanningSettings(),
+    ]);
+
+    return { monthPlanning, settings, templates };
+  },
   pendingComponent: SettingsPendingSkeleton,
 });

@@ -7,13 +7,7 @@ import {
   TrashIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useRouter,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   flexRender,
@@ -25,10 +19,7 @@ import type { ColumnDef, Row, SortingState } from "@tanstack/react-table";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  TableCardSkeleton,
-  TablePageSkeleton,
-} from "~/components/loading-skeletons";
+import { TablePageSkeleton } from "~/components/loading-skeletons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -532,7 +523,7 @@ const HymnsTableCard = ({ hymns }: { hymns: HymnRecord[] }) => {
 };
 
 const HymnsPage = () => {
-  const { hymns } = Route.useLoaderData();
+  const hymns = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -553,12 +544,7 @@ const HymnsPage = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<TableCardSkeleton columns={8} hasFilters rows={6} />}
-        promise={hymns}
-      >
-        {(resolvedHymns) => <HymnsTableCard hymns={resolvedHymns} />}
-      </Await>
+      <HymnsTableCard hymns={hymns} />
     </div>
   );
 };
@@ -568,8 +554,6 @@ export const Route = createFileRoute("/_authenticated/hymns/")({
     requirePermission(context.permissions, "hymns", "view");
   },
   component: HymnsPage,
-  loader: () => ({
-    hymns: defer(getHymns()),
-  }),
+  loader: () => getHymns(),
   pendingComponent: () => <TablePageSkeleton columns={8} hasFilters rows={6} />,
 });

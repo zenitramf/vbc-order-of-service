@@ -1,6 +1,6 @@
 import { PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { TeamEditorPage } from "~/components/team-editor-page";
@@ -25,38 +25,36 @@ const TeamPendingSkeleton = () => (
 );
 
 const TeamRoute = () => {
-  const { teamData } = Route.useLoaderData();
+  const { allMembers, allTeams, team, templates } = Route.useLoaderData();
+
+  if (!team) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Team not found</EmptyTitle>
+          <EmptyDescription>
+            The requested team may have been deleted.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link to="/teams/new">
+              <PlusIcon data-icon="inline-start" />
+              Create team
+            </Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
 
   return (
-    <Await fallback={<TeamPendingSkeleton />} promise={teamData}>
-      {({ allMembers, allTeams, team, templates }) =>
-        team ? (
-          <TeamEditorPage
-            allMembers={allMembers}
-            allTeams={allTeams}
-            team={team}
-            templates={templates}
-          />
-        ) : (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>Team not found</EmptyTitle>
-              <EmptyDescription>
-                The requested team may have been deleted.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button asChild>
-                <Link to="/teams/new">
-                  <PlusIcon data-icon="inline-start" />
-                  Create team
-                </Link>
-              </Button>
-            </EmptyContent>
-          </Empty>
-        )
-      }
-    </Await>
+    <TeamEditorPage
+      allMembers={allMembers}
+      allTeams={allTeams}
+      team={team}
+      templates={templates}
+    />
   );
 };
 
@@ -76,8 +74,6 @@ export const Route = createFileRoute("/_authenticated/teams/$teamId")({
     requirePermission(context.permissions, "teams", "view");
   },
   component: TeamRoute,
-  loader: ({ params }) => ({
-    teamData: defer(loadTeamData(params.teamId)),
-  }),
+  loader: ({ params }) => loadTeamData(params.teamId),
   pendingComponent: TeamPendingSkeleton,
 });

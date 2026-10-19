@@ -1,5 +1,5 @@
 // oxlint-disable no-use-before-define
-import { Await, createFileRoute, defer } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
 import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { MemberEditorPage } from "~/components/member-editor-page";
@@ -11,18 +11,14 @@ const MemberPendingSkeleton = () => (
 );
 
 const NewMemberRoute = () => {
-  const { allTeams } = Route.useLoaderData();
+  const allTeams = Route.useLoaderData();
   const { teamId } = Route.useSearch();
 
   return (
-    <Await fallback={<MemberPendingSkeleton />} promise={allTeams}>
-      {(resolvedTeams) => (
-        <MemberEditorPage
-          allTeams={resolvedTeams}
-          initialTeamIds={teamId ? [teamId] : undefined}
-        />
-      )}
-    </Await>
+    <MemberEditorPage
+      allTeams={allTeams}
+      initialTeamIds={teamId ? [teamId] : undefined}
+    />
   );
 };
 
@@ -31,9 +27,7 @@ export const Route = createFileRoute("/_authenticated/members/new")({
     requirePermission(context.permissions, "members", "create");
   },
   component: NewMemberRoute,
-  loader: () => ({
-    allTeams: defer(getTeams()),
-  }),
+  loader: () => getTeams(),
   pendingComponent: MemberPendingSkeleton,
   validateSearch: (search: Record<string, unknown>): { teamId?: string } => ({
     teamId: typeof search.teamId === "string" ? search.teamId : undefined,

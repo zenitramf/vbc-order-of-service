@@ -1,5 +1,5 @@
 // oxlint-disable no-use-before-define
-import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { Button } from "~/components/ui/button";
@@ -20,63 +20,58 @@ const UserPendingSkeleton = () => (
 );
 
 const UserRoute = () => {
-  const { currentUserId, userData } = Route.useLoaderData();
+  const { apiKeys, currentUserId, passkeys, roles, sessions, user } =
+    Route.useLoaderData();
+
+  if (!user) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>User not found</EmptyTitle>
+          <EmptyDescription>
+            This account may have been removed.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link to="/admin/users">Back to users</Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
 
   return (
-    <Await fallback={<UserPendingSkeleton />} promise={userData}>
-      {({ apiKeys, passkeys, roles, sessions, user }) =>
-        user ? (
-          <UserEditorPage
-            apiKeys={apiKeys}
-            currentUserId={currentUserId}
-            passkeys={passkeys}
-            roles={roles}
-            sessions={sessions}
-            user={user}
-          />
-        ) : (
-          <Empty>
-            <EmptyHeader>
-              <EmptyTitle>User not found</EmptyTitle>
-              <EmptyDescription>
-                This account may have been removed.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button asChild>
-                <Link to="/admin/users">Back to users</Link>
-              </Button>
-            </EmptyContent>
-          </Empty>
-        )
-      }
-    </Await>
+    <UserEditorPage
+      apiKeys={apiKeys}
+      currentUserId={currentUserId}
+      passkeys={passkeys}
+      roles={roles}
+      sessions={sessions}
+      user={user}
+    />
   );
-};
-
-const loadUserAdminData = async (userId: string) => {
-  const [user, sessions, roles, passkeys, apiKeys] = await Promise.all([
-    getUserAdmin({ data: userId }),
-    getUserSessionsAdmin({ data: userId }),
-    getRoles(),
-    listUserPasskeysAdmin({ data: { userId } }),
-    listUserApiKeysAdmin({ data: userId }),
-  ]);
-
-  return {
-    apiKeys,
-    passkeys,
-    roles,
-    sessions,
-    user,
-  };
 };
 
 export const Route = createFileRoute("/_authenticated/admin/users/$userId")({
   component: UserRoute,
-  loader: ({ context, params }) => ({
-    currentUserId: context.user.id,
-    userData: defer(loadUserAdminData(params.userId)),
-  }),
+  loader: async ({ context, params }) => {
+    const [user, sessions, roles, passkeys, apiKeys] = await Promise.all([
+      getUserAdmin({ data: params.userId }),
+      getUserSessionsAdmin({ data: params.userId }),
+      getRoles(),
+      listUserPasskeysAdmin({ data: { userId: params.userId } }),
+      listUserApiKeysAdmin({ data: params.userId }),
+    ]);
+
+    return {
+      apiKeys,
+      currentUserId: context.user.id,
+      passkeys,
+      roles,
+      sessions,
+      user,
+    };
+  },
   pendingComponent: UserPendingSkeleton,
 });

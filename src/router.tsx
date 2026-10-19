@@ -14,6 +14,7 @@ export function getRouter() {
     defaultPendingMinMs: 0,
     defaultPendingMs: 0,
     defaultPreload: "intent",
+    defaultStaleTime: 10_000,
     routeTree,
     scrollRestoration: true,
   });

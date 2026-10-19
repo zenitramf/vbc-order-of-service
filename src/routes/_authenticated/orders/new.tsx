@@ -1,20 +1,11 @@
 import { CalendarPlusIcon, PlusIcon } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useNavigate,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import * as React from "react";
 import { toast } from "sonner";
 
-import {
-  EditorPageSkeleton,
-  FormCardSkeleton,
-} from "~/components/loading-skeletons";
+import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { Button } from "~/components/ui/button";
 import {
   Card,
@@ -217,7 +208,7 @@ const NewOrderForm = ({
 };
 
 const NewOrderPage = () => {
-  const { formData } = Route.useLoaderData();
+  const { existingOrders, templates } = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -230,25 +221,9 @@ const NewOrderPage = () => {
         </p>
       </div>
 
-      <Await
-        fallback={<FormCardSkeleton columns={1} fields={3} />}
-        promise={formData}
-      >
-        {({ existingOrders, templates }) => (
-          <NewOrderForm existingOrders={existingOrders} templates={templates} />
-        )}
-      </Await>
+      <NewOrderForm existingOrders={existingOrders} templates={templates} />
     </div>
   );
-};
-
-const loadNewOrderFormData = async () => {
-  const [templates, existingOrders] = await Promise.all([
-    getTemplates(),
-    getOrders(),
-  ]);
-
-  return { existingOrders, templates };
 };
 
 export const Route = createFileRoute("/_authenticated/orders/new")({
@@ -256,9 +231,14 @@ export const Route = createFileRoute("/_authenticated/orders/new")({
     requirePermission(context.permissions, "orders", "create");
   },
   component: NewOrderPage,
-  loader: () => ({
-    formData: defer(loadNewOrderFormData()),
-  }),
+  loader: async () => {
+    const [templates, existingOrders] = await Promise.all([
+      getTemplates(),
+      getOrders(),
+    ]);
+
+    return { existingOrders, templates };
+  },
   pendingComponent: () => (
     <EditorPageSkeleton cards={1} columns={1} fieldsPerCard={3} />
   ),

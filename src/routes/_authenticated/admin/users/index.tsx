@@ -4,13 +4,7 @@ import {
   UserPlusIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
-import {
-  Await,
-  Link,
-  createFileRoute,
-  defer,
-  useNavigate,
-} from "@tanstack/react-router";
+import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   flexRender,
   getCoreRowModel,
@@ -19,10 +13,7 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 
-import {
-  TableCardSkeleton,
-  TablePageSkeleton,
-} from "~/components/loading-skeletons";
+import { TablePageSkeleton } from "~/components/loading-skeletons";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -257,7 +248,7 @@ const UsersTableCard = ({
 };
 
 const UsersPage = () => {
-  const { usersData } = Route.useLoaderData();
+  const usersData = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -278,21 +269,14 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<TableCardSkeleton columns={6} hasFilters rows={6} />}
-        promise={usersData}
-      >
-        {(resolved) => <UsersTableCard {...resolved} />}
-      </Await>
+      <UsersTableCard {...usersData} />
     </div>
   );
 };
 
 export const Route = createFileRoute("/_authenticated/admin/users/")({
   component: UsersPage,
-  loader: ({ deps }) => ({
-    usersData: defer(listUsersAdmin({ data: deps })),
-  }),
+  loader: ({ deps }) => listUsersAdmin({ data: deps }),
   loaderDeps: ({ search }) => ({ page: search.page, search: search.search }),
   pendingComponent: () => <TablePageSkeleton columns={6} hasFilters rows={6} />,
   validateSearch: (

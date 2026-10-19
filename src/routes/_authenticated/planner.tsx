@@ -10,10 +10,8 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import {
-  Await,
   Link,
   createFileRoute,
-  defer,
   useNavigate,
   useRouter,
 } from "@tanstack/react-router";
@@ -865,7 +863,7 @@ const MonthPlannerPending = () => (
 );
 
 const MonthPlannerPage = () => {
-  const { monthPlan } = Route.useLoaderData();
+  const plan = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -879,12 +877,7 @@ const MonthPlannerPage = () => {
         </p>
       </div>
 
-      <Await
-        fallback={<CardSectionSkeleton hasHeaderAction rows={4} />}
-        promise={monthPlan}
-      >
-        {(plan) => <MonthPlannerCard {...plan} />}
-      </Await>
+      <MonthPlannerCard {...plan} />
     </div>
   );
 };
@@ -894,9 +887,7 @@ export const Route = createFileRoute("/_authenticated/planner")({
     requirePermission(context.permissions, "orders", "view");
   },
   component: MonthPlannerPage,
-  loader: ({ deps }) => ({
-    monthPlan: defer(getMonthPlan({ data: deps.month ?? "" })),
-  }),
+  loader: ({ deps }) => getMonthPlan({ data: deps.month ?? "" }),
   loaderDeps: ({ search }: { search: { month?: string } }) => ({
     month: search.month,
   }),

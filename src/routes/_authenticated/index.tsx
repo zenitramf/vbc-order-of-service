@@ -10,13 +10,9 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 // oxlint-disable no-use-before-define
-import { Await, Link, createFileRoute, defer } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
-import {
-  CardSectionSkeleton,
-  DashboardPageSkeleton,
-  StatGridSkeleton,
-} from "~/components/loading-skeletons";
+import { DashboardPageSkeleton } from "~/components/loading-skeletons";
 import {
   OrderOverviewRow,
   OrderRosterSummary,
@@ -373,7 +369,7 @@ const StatCardsSection = ({
 };
 
 const Dashboard = () => {
-  const { dashboardData } = Route.useLoaderData();
+  const data = Route.useLoaderData();
 
   return (
     <div className="flex flex-col gap-6">
@@ -395,63 +391,36 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      <Await
-        fallback={<CardSectionSkeleton rows={2} />}
-        promise={dashboardData}
-      >
-        {(data) => (
-          <NextServiceCard
-            month={data.month}
-            nextOrder={data.nextOrder}
-            nextSundayDate={data.nextSundayDate}
-          />
-        )}
-      </Await>
+      <NextServiceCard
+        month={data.month}
+        nextOrder={data.nextOrder}
+        nextSundayDate={data.nextSundayDate}
+      />
 
-      <Await
-        fallback={<CardSectionSkeleton hasHeaderAction rows={3} />}
-        promise={dashboardData}
-      >
-        {(data) => (
-          <MonthOrdersSection
-            month={data.month}
-            monthOrders={data.monthOrders}
-            nextOrderId={data.nextOrder?.id}
-          />
-        )}
-      </Await>
+      <MonthOrdersSection
+        month={data.month}
+        monthOrders={data.monthOrders}
+        nextOrderId={data.nextOrder?.id}
+      />
 
-      <Await fallback={<StatGridSkeleton count={4} />} promise={dashboardData}>
-        {(data) => (
-          <StatCardsSection
-            hymnCount={data.hymnCount}
-            planningCount={data.planningCount}
-            publishedCount={data.publishedCount}
-            templateCount={data.templateCount}
-          />
-        )}
-      </Await>
+      <StatCardsSection
+        hymnCount={data.hymnCount}
+        planningCount={data.planningCount}
+        publishedCount={data.publishedCount}
+        templateCount={data.templateCount}
+      />
 
-      <Await
-        fallback={<CardSectionSkeleton hasHeaderAction rows={2} />}
-        promise={dashboardData}
-      >
-        {(data) => (
-          <TeamMembersSection
-            teamCount={data.teamCount}
-            teamMemberCount={data.teamMemberCount}
-            teams={data.teams}
-          />
-        )}
-      </Await>
+      <TeamMembersSection
+        teamCount={data.teamCount}
+        teamMemberCount={data.teamMemberCount}
+        teams={data.teams}
+      />
     </div>
   );
 };
 
 export const Route = createFileRoute("/_authenticated/")({
   component: Dashboard,
-  loader: () => ({
-    dashboardData: defer(getDashboardData()),
-  }),
+  loader: () => getDashboardData(),
   pendingComponent: DashboardPageSkeleton,
 });

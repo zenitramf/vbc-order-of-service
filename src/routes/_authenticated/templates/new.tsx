@@ -1,5 +1,5 @@
 // oxlint-disable no-use-before-define
-import { Await, createFileRoute, defer } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
 import { EditorPageSkeleton } from "~/components/loading-skeletons";
 import { TemplateEditorPage } from "~/components/template-editor-page";
@@ -11,15 +11,9 @@ const TemplatePendingSkeleton = () => (
 );
 
 const NewTemplateRoute = () => {
-  const { templateData } = Route.useLoaderData();
+  const { referenceData, teams } = Route.useLoaderData();
 
-  return (
-    <Await fallback={<TemplatePendingSkeleton />} promise={templateData}>
-      {({ referenceData, teams }) => (
-        <TemplateEditorPage referenceData={referenceData} teams={teams} />
-      )}
-    </Await>
-  );
+  return <TemplateEditorPage referenceData={referenceData} teams={teams} />;
 };
 
 const loadNewTemplateData = async () => {
@@ -36,8 +30,6 @@ export const Route = createFileRoute("/_authenticated/templates/new")({
     requirePermission(context.permissions, "templates", "create");
   },
   component: NewTemplateRoute,
-  loader: () => ({
-    templateData: defer(loadNewTemplateData()),
-  }),
+  loader: () => loadNewTemplateData(),
   pendingComponent: TemplatePendingSkeleton,
 });
